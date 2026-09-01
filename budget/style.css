@@ -340,6 +340,16 @@ input[type="file"].form-control { padding: 7px 10px; }
 .num-input { width: 100px; text-align: right; }
 .expense-table .num-input { width: 90px; }
 
+/* ── Uniform row height in Income/Spend/Performances — a plain calculated-amount cell and a
+   cell holding an <input> would otherwise differ (the input's own padding/font-size adds
+   height on top of the table cell's), giving formula rows and editable rows a visibly
+   different height in the same table. Match the input down to the text row's own size instead
+   of the other way round, so every row is exactly as tall as the shortest one needs to be. ── */
+#incomeTable td, #spendTable td, #perfTable td { padding: 5px 12px; }
+#incomeTable input.form-control, #spendTable input.form-control, #perfTable input.form-control {
+  padding: 3px 8px; font-size: 14px; height: 30px;
+}
+
 /* ── Income | Spend side by side ── */
 .budget-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; align-items: start; }
 @media (max-width: 800px) {
