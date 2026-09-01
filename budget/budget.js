@@ -37,14 +37,19 @@ function barReceipts(income) {
   return income.find(i => i.id === 'barReceipts')?.amount || 0;
 }
 
+// Bar costs/VH levy's percentage lives on the item itself (item.pct) rather than hardcoded, so
+// it's editable inline — DEFAULT_PCT only fills in for items saved before that field existed.
+const DEFAULT_PCT = { barCosts: 40, vhBarLevy: 10 };
+function itemPct(item) { return item.pct ?? DEFAULT_PCT[item.id] ?? 0; }
+
 const SPEND_FORMULAS = {
-  barCosts: (fp, income) => 0.40 * barReceipts(income),
-  vhBarLevy: (fp, income) => 0.10 * barReceipts(income),
+  barCosts: (fp, income, item) => (itemPct(item) / 100) * barReceipts(income),
+  vhBarLevy: (fp, income, item) => (itemPct(item) / 100) * barReceipts(income),
 };
 
 function resolveAmount(item, fp, income, formulas) {
   const fn = item.formula && formulas[item.formula];
-  return fn ? fn(fp, income) : Number(item.amount || 0);
+  return fn ? fn(fp, income, item) : Number(item.amount || 0);
 }
 
 function fmtPerfDate(p) {
@@ -109,8 +114,8 @@ function defaultTemplateData() {
       { id: 'scripts',             label: 'Scripts',                 formula: null,        amount: 0 },
       { id: 'props',               label: 'Props',                   formula: null,        amount: 0 },
       { id: 'marketing',           label: 'Marketing',               formula: null,        amount: 0 },
-      { id: 'barCosts',            label: 'Bar costs',               formula: 'barCosts',  amount: 0 },
-      { id: 'vhBarLevy',           label: 'VH bar levy',             formula: 'vhBarLevy', amount: 0 },
+      { id: 'barCosts',            label: 'Bar costs',               formula: 'barCosts',  amount: 0, pct: 40 },
+      { id: 'vhBarLevy',           label: 'VH bar levy',             formula: 'vhBarLevy', amount: 0, pct: 10 },
       { id: 'gifts',               label: 'Gifts',                   formula: null,        amount: 0 },
       { id: 'iceCream',            label: 'Ice cream',               formula: null,        amount: 0 },
       { id: 'hallHire',            label: 'Hall hire',               formula: null,        amount: 0 },
@@ -392,9 +397,14 @@ function renderLinesTable(kind, formulas) {
     const isFormula = !!item.formula;
     const amount = resolveAmount(item, currentShow.fixedParams, currentShow.income, formulas);
     total += amount;
+    // Bar costs/VH levy carry their own editable percentage inline in the label, instead of a
+    // fixed 40%/10% baked into the formula.
+    const pctInput = item.formula in DEFAULT_PCT
+      ? ` (<input type="number" class="form-control pct-input" min="0" max="100" step="1" value="${itemPct(item)}" data-line-pct="${kind}:${i}">%)`
+      : '';
     return `
       <tr>
-        <td>${escapeHtml(item.label)}</td>
+        <td>${escapeHtml(item.label)}${pctInput}</td>
         <td class="amount-cell">${isFormula
           ? `<input type="text" class="form-control num-input" value="${money(amount)}" disabled>`
           : `<input type="number" class="form-control num-input" min="0" step="1" value="${amount}" data-line-amount="${kind}:${i}">`}</td>
@@ -417,6 +427,22 @@ function handleLineAmountInput(e) {
   // re-render the table currently being typed in, though — that would rebuild the very input
   // under the cursor and drop focus on every keystroke; just recompute its total instead.
   if (kind === 'income') renderLinesTable('spend', SPEND_FORMULAS);
+  document.getElementById(kind + 'TotalText').textContent = money(kind === 'income' ? incomeTotal(currentShow) : spendTotal(currentShow));
+  renderForecast();
+}
+
+document.getElementById('incomeTableBody').addEventListener('input', handleLinePctInput);
+document.getElementById('spendTableBody').addEventListener('input', handleLinePctInput);
+function handleLinePctInput(e) {
+  const key = e.target.getAttribute('data-line-pct');
+  if (!key) return;
+  const [kind, idx] = key.split(':');
+  const item = currentShow[kind][Number(idx)];
+  item.pct = Math.max(0, Math.min(100, Math.round(Number(e.target.value) || 0)));
+  // Update just this row's own calculated-amount box in place rather than re-rendering the
+  // whole table — that would rebuild the % input under the cursor and drop focus mid-edit.
+  const amountBox = e.target.closest('tr')?.querySelector('td.amount-cell input');
+  if (amountBox) amountBox.value = money(resolveAmount(item, currentShow.fixedParams, currentShow.income, kind === 'income' ? INCOME_FORMULAS : SPEND_FORMULAS));
   document.getElementById(kind + 'TotalText').textContent = money(kind === 'income' ? incomeTotal(currentShow) : spendTotal(currentShow));
   renderForecast();
 }

@@ -390,6 +390,13 @@ input[type="file"].form-control { padding: 7px 10px; }
   opacity: 1; background: var(--surface); color: var(--text); -webkit-text-fill-color: var(--text); cursor: default;
 }
 
+/* Inline percentage, sitting inside a label cell like "Bar costs (40%)" but with the number
+   editable — small enough to read as part of the sentence, not a full field. */
+.pct-input {
+  display: inline-block; width: 40px; padding: 1px 4px; text-align: right;
+  font-size: 13px; border-color: var(--border);
+}
+
 /* ── Uniform row height in Income/Spend/Performances — a plain calculated-amount cell and a
    cell holding an <input> would otherwise differ (the input's own padding/font-size adds
    height on top of the table cell's), giving formula rows and editable rows a visibly
