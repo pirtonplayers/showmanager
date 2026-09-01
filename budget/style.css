@@ -335,6 +335,17 @@ input[type="file"].form-control { padding: 7px 10px; }
 .detail-row .dr-value { font-weight: 600; text-align: right; }
 .receipt-thumb { width: 100%; border-radius: var(--radius); margin-top: 10px; display: block; border: 1px solid var(--border); cursor: pointer; }
 
+/* ── Small numeric entry fields (fixed params, income/spend amounts, performance rows) —
+   these sit one-per-cell/row and never need a full-width text box. ── */
+.num-input { width: 100px; text-align: right; }
+.expense-table .num-input { width: 90px; }
+
+/* ── Income | Spend side by side ── */
+.budget-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; align-items: start; }
+@media (max-width: 800px) {
+  .budget-columns { grid-template-columns: 1fr; }
+}
+
 /* ── Responsive ── */
 @media (max-width: 600px) {
   .admin-content { padding: 16px; }

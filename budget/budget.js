@@ -30,7 +30,6 @@ function showToast(message, type = 'info') {
 // you change them.
 
 const INCOME_FORMULAS = {
-  ticketSales: (fp) => (fp.ticketPrice || 0) * (fp.seatsPerPerformance || 0) * (fp.performances || []).length,
   rehearsalSubs: (fp) => (fp.rehearsalSubsPerCast || 0) * ((fp.castSize || 0) + 1), // +1 = director
 };
 
@@ -50,7 +49,30 @@ function resolveAmount(item, fp, income, formulas) {
   return fn ? fn(fp, income) : Number(item.amount || 0);
 }
 
-function resolvedIncome(show) { return show.income.map(i => ({ ...i, amount: resolveAmount(i, show.fixedParams, show.income, INCOME_FORMULAS) })); }
+function fmtPerfDateTime(p) {
+  if (!p.date) return '(no date)';
+  const [y, m, d] = p.date.split('-');
+  return `${d}/${m}/${y}${p.time ? ' ' + p.time : ''}`;
+}
+
+// Ticket sales isn't a single formula line any more — it's one computed, read-only income line
+// per performance (price × seats), so changing a performance's own price only moves that one
+// line. Derived entirely from fixedParams.performances; nothing here is persisted separately.
+function performanceIncomeLines(show) {
+  const fp = show.fixedParams;
+  return (fp.performances || []).map((p, i) => ({
+    id: `perf-${i}`,
+    label: `Ticket sales — ${fmtPerfDateTime(p)}`,
+    formula: 'perf',
+    amount: (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0),
+    isPerformance: true,
+  }));
+}
+
+function resolvedIncome(show) {
+  const manual = show.income.map(i => ({ ...i, amount: resolveAmount(i, show.fixedParams, show.income, INCOME_FORMULAS) }));
+  return [...performanceIncomeLines(show), ...manual];
+}
 function resolvedSpend(show) { return show.spend.map(i => ({ ...i, amount: resolveAmount(i, show.fixedParams, show.income, SPEND_FORMULAS) })); }
 function incomeTotal(show) { return resolvedIncome(show).reduce((s, i) => s + i.amount, 0); }
 function spendTotal(show) { return resolvedSpend(show).reduce((s, i) => s + i.amount, 0); }
@@ -73,7 +95,6 @@ function defaultTemplateData() {
     copiedFrom: null,
     fixedParams: emptyFixedParams(),
     income: [
-      { id: 'ticketSales',    label: 'Ticket sales',            formula: 'ticketSales',    amount: 0 },
       { id: 'rehearsalSubs',  label: 'Rehearsal subs expected',  formula: 'rehearsalSubs',  amount: 0 },
       { id: 'barReceipts',    label: 'Expected bar receipts',    formula: null,             amount: 0 },
       { id: 'programSales',   label: 'Programme sales',          formula: null,             amount: 0 },
@@ -125,14 +146,29 @@ function renderShowsList() {
       <div class="item-actions">
         <button class="btn btn-secondary btn-sm" data-open-show="${s.id}">Open</button>
         <button class="btn btn-secondary btn-sm" data-copy-show="${s.id}">Copy</button>
+        <button class="btn btn-danger btn-sm" data-delete-show="${s.id}" ${s.isTemplate ? 'disabled title="Make another show the template first"' : ''}>Delete</button>
       </div>
     </div>
   `).join('');
 }
 
-document.getElementById('showsList').addEventListener('click', (e) => {
+document.getElementById('showsList').addEventListener('click', async (e) => {
   if (e.target.matches('[data-open-show]')) { openShow(e.target.getAttribute('data-open-show')); return; }
   if (e.target.matches('[data-copy-show]')) { openNewShowModal(e.target.getAttribute('data-copy-show')); return; }
+  if (e.target.matches('[data-delete-show]')) {
+    const id = e.target.getAttribute('data-delete-show');
+    const show = allShows.find(s => s.id === id);
+    if (!show || show.isTemplate) return;
+    if (!confirm(`Delete "${show.name}"? This cannot be undone.`)) return;
+    try {
+      await db.collection('budget_shows').doc(id).delete();
+      showToast('Show deleted', 'success');
+      if (currentShowId === id) { currentShowId = null; currentShow = null; switchTab('shows'); }
+      await loadShows();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
 });
 
 // Defensive: fills in any field a show doc might be missing (e.g. added to the spec after that
@@ -228,37 +264,76 @@ function renderEditor() {
 
   document.getElementById('setTemplateBtn').style.display = currentShow.isTemplate ? 'none' : '';
 
-  renderPerfList();
+  renderPerfTable();
   renderLinesTable('income', INCOME_FORMULAS);
   renderLinesTable('spend', SPEND_FORMULAS);
   renderForecast();
 }
 
-function renderPerfList() {
-  const el = document.getElementById('perfList');
-  const perfs = currentShow.fixedParams.performances;
-  el.innerHTML = perfs.length ? perfs.map((p, i) => `
-    <span class="date-chip">${p.date}${p.time ? ' ' + p.time : ''} <button data-remove-perf="${i}" class="no-print">×</button></span>
-  `).join('') : '<p class="empty-state">No performances added yet.</p>';
-}
-document.getElementById('addPerfBtn').addEventListener('click', () => {
-  const date = document.getElementById('newPerfDate').value;
-  const time = document.getElementById('newPerfTime').value;
-  if (!date) { showToast('Pick a date first', 'error'); return; }
-  currentShow.fixedParams.performances.push({ date, time });
-  document.getElementById('newPerfDate').value = '';
-  document.getElementById('newPerfTime').value = '';
-  renderPerfList();
-  renderLinesTable('income', INCOME_FORMULAS); // ticketSales depends on the performance count
-  renderForecast();
-});
-document.getElementById('perfList').addEventListener('click', (e) => {
-  const i = e.target.getAttribute('data-remove-perf');
-  if (i === null) return;
-  currentShow.fixedParams.performances.splice(Number(i), 1);
-  renderPerfList();
+// ── Performances ─────────────────────────────────────────────────────────
+// Each performance is its own editable row: date, time, and a ticket price that defaults to the
+// show's default ticket price but can be overridden per row. Ticket sales income (one line per
+// performance — see performanceIncomeLines) recomputes from whatever's here, live.
+
+function refreshAfterPerfChange() {
   renderLinesTable('income', INCOME_FORMULAS);
   renderForecast();
+}
+
+function renderPerfTable() {
+  const perfs = currentShow.fixedParams.performances;
+  const tbody = document.getElementById('perfTableBody');
+  tbody.innerHTML = perfs.length ? perfs.map((p, i) => `
+    <tr>
+      <td><input type="date" class="form-control" value="${p.date || ''}" data-perf-field="${i}:date"></td>
+      <td><input type="time" class="form-control" value="${p.time || ''}" data-perf-field="${i}:time"></td>
+      <td><input type="number" class="form-control num-input" min="0" step="0.01" value="${p.price ?? currentShow.fixedParams.ticketPrice ?? 0}" data-perf-field="${i}:price"></td>
+      <td class="no-print"><button class="grid-del-btn" data-perf-remove="${i}" title="Remove">×</button></td>
+    </tr>
+  `).join('') : '<tr><td colspan="4" class="empty-state">No performances yet — generate some above.</td></tr>';
+}
+
+document.getElementById('generatePerfsBtn').addEventListener('click', () => {
+  const date = document.getElementById('genPerfDate').value;
+  const time = document.getElementById('genPerfTime').value;
+  const count = Math.max(1, Number(document.getElementById('genPerfCount').value) || 1);
+  if (!date) { showToast('Pick the first performance date', 'error'); return; }
+  const existing = currentShow.fixedParams.performances;
+  if (existing.length && !confirm(`Replace the ${existing.length} existing performance(s) with ${count} consecutive one(s) starting ${date}?`)) return;
+
+  const [y, m, d] = date.split('-').map(Number);
+  const perfs = [];
+  for (let i = 0; i < count; i++) {
+    const dt = new Date(y, m - 1, d + i);
+    const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    perfs.push({ date: iso, time, price: currentShow.fixedParams.ticketPrice || 0 });
+  }
+  currentShow.fixedParams.performances = perfs;
+  renderPerfTable();
+  refreshAfterPerfChange();
+});
+
+document.getElementById('addPerfBtn').addEventListener('click', () => {
+  currentShow.fixedParams.performances.push({ date: '', time: '', price: currentShow.fixedParams.ticketPrice || 0 });
+  renderPerfTable();
+  refreshAfterPerfChange();
+});
+
+document.getElementById('perfTableBody').addEventListener('input', (e) => {
+  const key = e.target.getAttribute('data-perf-field');
+  if (!key) return;
+  const [idx, field] = key.split(':');
+  const p = currentShow.fixedParams.performances[Number(idx)];
+  p[field] = field === 'price' ? (Number(e.target.value) || 0) : e.target.value;
+  refreshAfterPerfChange();
+});
+
+document.getElementById('perfTableBody').addEventListener('click', (e) => {
+  const i = e.target.getAttribute('data-perf-remove');
+  if (i === null) return;
+  currentShow.fixedParams.performances.splice(Number(i), 1);
+  renderPerfTable();
+  refreshAfterPerfChange();
 });
 
 ['fpTicketPrice', 'fpSeats', 'fpCastSize', 'fpRehearsalSubs', 'fpCostumeCost', 'fpScriptCost'].forEach(id => {
@@ -275,23 +350,44 @@ document.getElementById('perfList').addEventListener('click', (e) => {
 });
 document.getElementById('showNameInput').addEventListener('input', (e) => { currentShow.name = e.target.value; });
 
+// Income's rows are two different things stacked in one table: the per-performance ticket-sales
+// lines (computed, read-only — see performanceIncomeLines) always come first, then the manually-
+// editable/removable array (currentShow.income) that the +Add/-Remove buttons manage. Spend has
+// only the second kind. Line indices in data-line-* attributes always refer to position within
+// currentShow[kind] (the editable array), never the combined display list.
 function renderLinesTable(kind, formulas) {
-  const items = currentShow[kind];
-  const resolved = kind === 'income' ? resolvedIncome(currentShow) : resolvedSpend(currentShow);
   const tbody = document.getElementById(kind + 'TableBody');
-  tbody.innerHTML = items.map((item, i) => {
+  let rowsHtml = '';
+  let total = 0;
+
+  if (kind === 'income') {
+    const perfLines = performanceIncomeLines(currentShow);
+    total += perfLines.reduce((s, l) => s + l.amount, 0);
+    rowsHtml += perfLines.map(line => `
+      <tr>
+        <td>${escapeHtml(line.label)} <span class="muted" style="font-size:11px">(calculated)</span></td>
+        <td class="amount-cell">${money(line.amount)}</td>
+        <td class="no-print"></td>
+      </tr>`).join('');
+  }
+
+  const items = currentShow[kind];
+  rowsHtml += items.map((item, i) => {
     const isFormula = !!item.formula;
-    const amount = resolved[i].amount;
+    const amount = resolveAmount(item, currentShow.fixedParams, currentShow.income, formulas);
+    total += amount;
     return `
       <tr>
         <td>${escapeHtml(item.label)}${isFormula ? ' <span class="muted" style="font-size:11px">(calculated)</span>' : ''}</td>
         <td class="amount-cell">${isFormula
           ? money(amount)
-          : `<input type="number" class="form-control price-input" min="0" step="0.01" value="${amount}" data-line-amount="${kind}:${i}">`}</td>
+          : `<input type="number" class="form-control num-input" min="0" step="0.01" value="${amount}" data-line-amount="${kind}:${i}">`}</td>
         <td class="no-print">${isFormula ? '' : `<button class="grid-del-btn" data-line-remove="${kind}:${i}" title="Remove">×</button>`}</td>
       </tr>`;
   }).join('');
-  document.getElementById(kind + 'TotalText').textContent = money(resolved.reduce((s, i) => s + i.amount, 0));
+
+  tbody.innerHTML = rowsHtml;
+  document.getElementById(kind + 'TotalText').textContent = money(total);
 }
 
 document.getElementById('incomeTableBody').addEventListener('input', handleLineAmountInput);
@@ -301,9 +397,11 @@ function handleLineAmountInput(e) {
   if (!key) return;
   const [kind, idx] = key.split(':');
   currentShow[kind][Number(idx)].amount = Number(e.target.value) || 0;
-  // barReceipts feeds barCosts/vhBarLevy — keep the spend table's calculated cells live.
+  // barReceipts feeds barCosts/vhBarLevy — keep the spend table's calculated cells live. Never
+  // re-render the table currently being typed in, though — that would rebuild the very input
+  // under the cursor and drop focus on every keystroke; just recompute its total instead.
   if (kind === 'income') renderLinesTable('spend', SPEND_FORMULAS);
-  document.getElementById(kind + 'TotalText').textContent = money((kind === 'income' ? resolvedIncome(currentShow) : resolvedSpend(currentShow)).reduce((s, i) => s + i.amount, 0));
+  document.getElementById(kind + 'TotalText').textContent = money(kind === 'income' ? incomeTotal(currentShow) : spendTotal(currentShow));
   renderForecast();
 }
 
@@ -418,7 +516,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
   const fp = currentShow.fixedParams;
   const paramsRows = [
     { Parameter: 'Show name', Value: currentShow.name },
-    { Parameter: 'Ticket price per performance', Value: fp.ticketPrice },
+    { Parameter: 'Default ticket price', Value: fp.ticketPrice },
     { Parameter: 'Seats per performance', Value: fp.seatsPerPerformance },
     { Parameter: 'Number of performances', Value: fp.performances.length },
     { Parameter: 'Number in cast', Value: fp.castSize },
@@ -427,6 +525,12 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
     { Parameter: 'Script cost per cast member', Value: fp.scriptCost },
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(paramsRows), 'Fixed Parameters');
+
+  const perfRows = fp.performances.map(p => ({
+    Date: p.date, Time: p.time || '', 'Ticket price': p.price ?? fp.ticketPrice ?? 0,
+    Seats: fp.seatsPerPerformance, Total: (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0),
+  }));
+  if (perfRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(perfRows), 'Performances');
 
   const income = resolvedIncome(currentShow).map(i => ({ Item: i.label, Amount: i.amount }));
   income.push({ Item: 'TOTAL INCOME', Amount: incomeTotal(currentShow) });

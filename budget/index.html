@@ -10,7 +10,7 @@
   <title>ShowBudget</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=1.0.2">
+  <link rel="stylesheet" href="style.css?v=1.0.3">
 </head>
 <body class="theme-budget">
 
@@ -137,80 +137,103 @@
         <div class="card-body">
           <div class="form-row">
             <div class="form-group">
-              <label for="fpTicketPrice">Ticket price per performance (£)</label>
-              <input type="number" id="fpTicketPrice" class="form-control" min="0" step="0.01">
+              <label for="fpTicketPrice">Default ticket price (£)</label>
+              <input type="number" id="fpTicketPrice" class="form-control num-input" min="0" step="0.01">
             </div>
             <div class="form-group">
               <label for="fpSeats">Seats per performance</label>
-              <input type="number" id="fpSeats" class="form-control" min="0" step="1">
+              <input type="number" id="fpSeats" class="form-control num-input" min="0" step="1">
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label for="fpCastSize">Number in cast</label>
-              <input type="number" id="fpCastSize" class="form-control" min="0" step="1">
+              <input type="number" id="fpCastSize" class="form-control num-input" min="0" step="1">
             </div>
             <div class="form-group">
               <label for="fpRehearsalSubs">Rehearsal subs per cast member (£)</label>
-              <input type="number" id="fpRehearsalSubs" class="form-control" min="0" step="0.01">
+              <input type="number" id="fpRehearsalSubs" class="form-control num-input" min="0" step="0.01">
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label for="fpCostumeCost">Costume cost per cast member (£)</label>
-              <input type="number" id="fpCostumeCost" class="form-control" min="0" step="0.01">
+              <input type="number" id="fpCostumeCost" class="form-control num-input" min="0" step="0.01">
             </div>
             <div class="form-group">
               <label for="fpScriptCost">Script cost per cast member (£)</label>
-              <input type="number" id="fpScriptCost" class="form-control" min="0" step="0.01">
+              <input type="number" id="fpScriptCost" class="form-control num-input" min="0" step="0.01">
             </div>
           </div>
 
           <div class="form-group">
-            <label>Performance dates &amp; times</label>
-            <div style="display:flex;gap:8px;margin-bottom:8px" class="no-print">
-              <input type="date" id="newPerfDate" class="form-control">
-              <input type="time" id="newPerfTime" class="form-control">
-              <button class="btn btn-primary" id="addPerfBtn">Add</button>
+            <label>Performances</label>
+            <p class="muted no-print" style="margin:-4px 0 8px">
+              Set the first date/time and how many performances, then Generate fills in
+              consecutive days — each one editable afterwards, including its own ticket price
+              (defaults to the price above; change a row to override just that performance).
+            </p>
+            <div class="form-row no-print" style="grid-template-columns:1fr 1fr 120px auto;align-items:end;margin-bottom:12px">
+              <div class="form-group" style="margin-bottom:0">
+                <label for="genPerfDate">First performance date</label>
+                <input type="date" id="genPerfDate" class="form-control">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label for="genPerfTime">Time</label>
+                <input type="time" id="genPerfTime" class="form-control">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label for="genPerfCount">No. of performances</label>
+                <input type="number" id="genPerfCount" class="form-control num-input" min="1" step="1" value="1">
+              </div>
+              <button class="btn btn-primary" id="generatePerfsBtn" style="height:38px">Generate</button>
             </div>
-            <div class="dates-list" id="perfList"></div>
+            <div class="expense-table-wrap">
+              <table class="expense-table" id="perfTable">
+                <thead><tr><th>Date</th><th style="width:120px">Time</th><th style="width:140px">Ticket price (£)</th><th class="no-print" style="width:44px"></th></tr></thead>
+                <tbody id="perfTableBody"></tbody>
+              </table>
+            </div>
+            <button class="btn btn-secondary btn-sm no-print" id="addPerfBtn" style="margin-top:8px">+ Add one more performance</button>
           </div>
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-          <h2>Income</h2>
-          <span id="incomeTotalText" class="amount-cell"></span>
-        </div>
-        <div class="card-body" style="padding:0">
-          <div class="expense-table-wrap">
-            <table class="expense-table" id="incomeTable">
-              <thead><tr><th>Item</th><th style="width:160px">Amount</th><th class="no-print" style="width:44px"></th></tr></thead>
-              <tbody id="incomeTableBody"></tbody>
-            </table>
+      <div class="budget-columns">
+        <div class="card">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <h2>Income</h2>
+            <span id="incomeTotalText" class="amount-cell"></span>
+          </div>
+          <div class="card-body" style="padding:0">
+            <div class="expense-table-wrap">
+              <table class="expense-table" id="incomeTable">
+                <thead><tr><th>Item</th><th style="width:120px">Amount</th><th class="no-print" style="width:36px"></th></tr></thead>
+                <tbody id="incomeTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card-body no-print" style="padding-top:0">
+            <button class="btn btn-secondary btn-sm" id="addIncomeItemBtn">+ Add income item</button>
           </div>
         </div>
-        <div class="card-body no-print" style="padding-top:0">
-          <button class="btn btn-secondary btn-sm" id="addIncomeItemBtn">+ Add income item</button>
-        </div>
-      </div>
 
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-          <h2>Spend</h2>
-          <span id="spendTotalText" class="amount-cell"></span>
-        </div>
-        <div class="card-body" style="padding:0">
-          <div class="expense-table-wrap">
-            <table class="expense-table" id="spendTable">
-              <thead><tr><th>Item</th><th style="width:160px">Amount</th><th class="no-print" style="width:44px"></th></tr></thead>
-              <tbody id="spendTableBody"></tbody>
-            </table>
+        <div class="card">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <h2>Spend</h2>
+            <span id="spendTotalText" class="amount-cell"></span>
           </div>
-        </div>
-        <div class="card-body no-print" style="padding-top:0">
-          <button class="btn btn-secondary btn-sm" id="addSpendItemBtn">+ Add spend item</button>
+          <div class="card-body" style="padding:0">
+            <div class="expense-table-wrap">
+              <table class="expense-table" id="spendTable">
+                <thead><tr><th>Item</th><th style="width:120px">Amount</th><th class="no-print" style="width:36px"></th></tr></thead>
+                <tbody id="spendTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card-body no-print" style="padding-top:0">
+            <button class="btn btn-secondary btn-sm" id="addSpendItemBtn">+ Add spend item</button>
+          </div>
         </div>
       </div>
 
@@ -261,7 +284,7 @@
       </div>
       <div class="form-group">
         <label for="addItemAmount">Starting amount (£)</label>
-        <input type="number" id="addItemAmount" class="form-control" min="0" step="0.01" value="0">
+        <input type="number" id="addItemAmount" class="form-control num-input" min="0" step="0.01" value="0">
       </div>
       <button class="btn btn-primary btn-full" id="addItemSubmitBtn">Add</button>
     </div>
@@ -274,9 +297,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="version.js?v=1.0.2"></script>
-<script src="../shared/firebase-config.js?v=1.0.2"></script>
-<script src="../shared/auth.js?v=1.0.2"></script>
-<script src="budget.js?v=1.0.2"></script>
+<script src="version.js?v=1.0.3"></script>
+<script src="../shared/firebase-config.js?v=1.0.3"></script>
+<script src="../shared/auth.js?v=1.0.3"></script>
+<script src="budget.js?v=1.0.3"></script>
 </body>
 </html>
