@@ -8,14 +8,15 @@
 // counts and the generated users list before the real thing.
 //
 // Usage:
-//   node migrate.js --dry-run          (default — read-only, prints what it WOULD do)
-//   node migrate.js --write            (does it for real)
+//   node migrate.js --dry-run                     (default — read-only, prints what it WOULD do)
+//   node migrate.js --write                        (does both apps for real)
+//   node migrate.js --showdrinks-only [--write]    (showdrinks only — doesn't touch/need expenses)
 //
-// Requires three service account key files (see MIGRATION.md for how to download each):
-//   EXPENSES_SA_KEY=./keys/expenses-sa.json
+// Requires service account key files (see MIGRATION.md for how to download each) as environment
+// variables before running:
 //   SHOWDRINKS_SA_KEY=./keys/showdrinks-sa.json
 //   SHOWMANAGER_SA_KEY=./keys/showmanager-sa.json
-// set as environment variables before running.
+//   EXPENSES_SA_KEY=./keys/expenses-sa.json        (not needed with --showdrinks-only)
 
 const fs = require('fs');
 const path = require('path');
@@ -24,6 +25,7 @@ const admin = require('firebase-admin');
 
 const WRITE = process.argv.includes('--write');
 const DRY_RUN = !WRITE;
+const SHOWDRINKS_ONLY = process.argv.includes('--showdrinks-only');
 
 function requireEnv(name) {
   const v = process.env[name];
@@ -40,11 +42,11 @@ function initApp(name, keyPathEnv) {
   return admin.initializeApp({ credential: admin.credential.cert(cred) }, name);
 }
 
-const expensesApp    = initApp('expenses', 'EXPENSES_SA_KEY');
+const expensesApp    = SHOWDRINKS_ONLY ? null : initApp('expenses', 'EXPENSES_SA_KEY');
 const showdrinksApp   = initApp('showdrinks', 'SHOWDRINKS_SA_KEY');
 const showmanagerApp = initApp('showmanager', 'SHOWMANAGER_SA_KEY');
 
-const expensesDb    = expensesApp.firestore();
+const expensesDb    = expensesApp && expensesApp.firestore();
 const showdrinksDb   = showdrinksApp.firestore();
 const targetDb       = showmanagerApp.firestore();
 const targetAuth     = showmanagerApp.auth();
@@ -54,10 +56,12 @@ function log(...args) { console.log(...args); }
 // ── 1. Firestore collection copy (structure/renaming only — see firestore.rules comment block
 //    at the top of the repo for why these get prefixed) ────────────────────────────────────────
 
-const FIRESTORE_COPIES = [
+const EXPENSES_COPIES = [
   { from: expensesDb,  fromCollection: 'shows',       toCollection: 'expenses_shows' },
   { from: expensesDb,  fromCollection: 'config',      toCollection: 'expenses_config' },
   { from: expensesDb,  fromCollection: 'expenses',    toCollection: 'expenses' },
+];
+const SHOWDRINKS_COPIES = [
   { from: showdrinksDb, fromCollection: 'shows',       toCollection: 'showdrinks_shows' },
   { from: showdrinksDb, fromCollection: 'config',      toCollection: 'showdrinks_config' },
   { from: showdrinksDb, fromCollection: 'menuItems',   toCollection: 'showdrinks_menuItems' },
@@ -68,6 +72,7 @@ const FIRESTORE_COPIES = [
   { from: showdrinksDb, fromCollection: 'tabMembers',  toCollection: 'showdrinks_tabMembers' },
   { from: showdrinksDb, fromCollection: 'tabOrders',   toCollection: 'showdrinks_tabOrders' },
 ];
+const FIRESTORE_COPIES = SHOWDRINKS_ONLY ? SHOWDRINKS_COPIES : [...EXPENSES_COPIES, ...SHOWDRINKS_COPIES];
 
 async function copyCollections() {
   for (const { from, fromCollection, toCollection } of FIRESTORE_COPIES) {
@@ -107,16 +112,18 @@ function randomTempPassword() {
 async function buildMergedUsers() {
   const merged = new Map(); // email -> { name, isManager, access, sourceUids }
 
-  const expUsersSnap = await expensesDb.collection('users').get();
-  for (const doc of expUsersSnap.docs) {
-    const d = doc.data();
-    if (!d.email) continue;
-    const email = d.email.toLowerCase();
-    merged.set(email, {
-      name: d.name || d.email,
-      isManager: false, // see comment above — promote by hand if they should manage the whole portal
-      access: { expenses: d.approved === true, expensesAdmin: d.isManager === true, showdrinksAdmin: false, budget: false },
-    });
+  if (!SHOWDRINKS_ONLY) {
+    const expUsersSnap = await expensesDb.collection('users').get();
+    for (const doc of expUsersSnap.docs) {
+      const d = doc.data();
+      if (!d.email) continue;
+      const email = d.email.toLowerCase();
+      merged.set(email, {
+        name: d.name || d.email,
+        isManager: false, // see comment above — promote by hand if they should manage the whole portal
+        access: { expenses: d.approved === true, expensesAdmin: d.isManager === true, showdrinksAdmin: false, budget: false },
+      });
+    }
   }
 
   const sdUsersResult = await showdrinksApp.auth().listUsers(1000);
@@ -168,7 +175,7 @@ async function createMergedUsers(merged) {
 // ── Run ──────────────────────────────────────────────────────────────────
 
 (async () => {
-  log(DRY_RUN ? '=== DRY RUN — reading only, nothing will be written ===' : '=== WRITE MODE — this will create real accounts and data ===');
+  log((DRY_RUN ? '=== DRY RUN — reading only, nothing will be written' : '=== WRITE MODE — this will create real accounts and data') + (SHOWDRINKS_ONLY ? ' (showdrinks only) ===' : ' ==='));
   await copyCollections();
   const merged = await buildMergedUsers();
   log(`\n${merged.size} user(s) to create in the target project:`);

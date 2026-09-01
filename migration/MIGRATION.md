@@ -34,29 +34,35 @@ starter would.
 
 ## Running it
 
-1. Download three service account keys (Console → Project Settings → Service Accounts →
-   Generate new private key) — one per project — and save them somewhere outside the repo (they
-   are not, and must never be, committed).
+Migrating just showdrinks (not expenses) is entirely independent — pass `--showdrinks-only`
+throughout and skip the `EXPENSES_SA_KEY` key/variable everywhere below; the script won't touch
+or need the expenses project at all in that mode.
+
+1. Download service account keys (Console → Project Settings → Service Accounts → Generate new
+   private key) — one per project involved — and save them somewhere outside the repo (they are
+   not, and must never be, committed).
 2. `cd migration && npm install`
-3. Set the three environment variables to those file paths, e.g.:
+3. Set the environment variables to those file paths, e.g.:
    ```
-   export EXPENSES_SA_KEY=~/keys/expenses-sa.json
    export SHOWDRINKS_SA_KEY=~/keys/showdrinks-sa.json
    export SHOWMANAGER_SA_KEY=~/keys/showmanager-sa.json
+   export EXPENSES_SA_KEY=~/keys/expenses-sa.json   # skip if using --showdrinks-only
    ```
-4. **Dry run first** — reads both source projects, writes nothing, and prints exactly what it
+4. **Dry run first** — reads the source project(s), writes nothing, and prints exactly what it
    would copy and which user accounts it would create:
    ```
-   node migrate.js
+   node migrate.js                     # both apps
+   node migrate.js --showdrinks-only   # showdrinks only
    ```
-   Check the collection counts match what you'd expect (Firebase Console → Firestore on each
+   Check the collection counts match what you'd expect (Firebase Console → Firestore on the
    source project), and that the printed user list — who becomes an expensesAdmin, who becomes a
    showdrinksAdmin, who gets both — looks right. If someone should also be a portal Manager, note
    their email now; the script deliberately never sets that flag itself (see the comment in
    `migrate.js`) — grant it afterwards from the portal's Users screen.
 5. **Real run**, once the dry run looks right:
    ```
-   node migrate.js --write
+   node migrate.js --write                     # both apps
+   node migrate.js --showdrinks-only --write   # showdrinks only
    ```
    This copies every collection's data into the new project and creates every merged user
    account. It writes `migration/migration-output/credentials.csv` (name, email, temporary
