@@ -10,7 +10,7 @@
   <title>ShowBudget</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=1.0.3">
+  <link rel="stylesheet" href="style.css?v=1.0.4">
 </head>
 <body class="theme-budget">
 
@@ -135,7 +135,7 @@
       <div class="card" style="margin-bottom:20px">
         <div class="card-header"><h2>Fixed parameters</h2></div>
         <div class="card-body">
-          <div class="form-row">
+          <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
             <div class="form-group">
               <label for="fpTicketPrice">Default ticket price (£)</label>
               <input type="number" id="fpTicketPrice" class="form-control num-input" min="0" step="0.01">
@@ -144,7 +144,15 @@
               <label for="fpSeats">Seats per performance</label>
               <input type="number" id="fpSeats" class="form-control num-input" min="0" step="1">
             </div>
+            <div class="form-group">
+              <label for="fpExpectedSalesPct">Expected sales (%)</label>
+              <input type="number" id="fpExpectedSalesPct" class="form-control num-input" min="0" max="100" step="1">
+            </div>
           </div>
+          <p class="muted no-print" style="margin:-10px 0 14px">
+            Ticket income per performance = price × seats × expected sales — drop this below 100%
+            for a more cautious forecast than assuming every seat sells.
+          </p>
           <div class="form-row">
             <div class="form-group">
               <label for="fpCastSize">Number in cast</label>
@@ -297,9 +305,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="version.js?v=1.0.3"></script>
-<script src="../shared/firebase-config.js?v=1.0.3"></script>
-<script src="../shared/auth.js?v=1.0.3"></script>
-<script src="budget.js?v=1.0.3"></script>
+<script src="version.js?v=1.0.4"></script>
+<script src="../shared/firebase-config.js?v=1.0.4"></script>
+<script src="../shared/auth.js?v=1.0.4"></script>
+<script src="budget.js?v=1.0.4"></script>
 </body>
 </html>

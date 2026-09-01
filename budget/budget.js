@@ -56,15 +56,17 @@ function fmtPerfDateTime(p) {
 }
 
 // Ticket sales isn't a single formula line any more — it's one computed, read-only income line
-// per performance (price × seats), so changing a performance's own price only moves that one
-// line. Derived entirely from fixedParams.performances; nothing here is persisted separately.
+// per performance (price × seats × expected sales %), so changing a performance's own price
+// only moves that one line. Derived entirely from fixedParams; nothing here is persisted
+// separately.
 function performanceIncomeLines(show) {
   const fp = show.fixedParams;
+  const pct = (fp.expectedSalesPct ?? 100) / 100;
   return (fp.performances || []).map((p, i) => ({
     id: `perf-${i}`,
     label: `Ticket sales — ${fmtPerfDateTime(p)}`,
     formula: 'perf',
-    amount: (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0),
+    amount: (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0) * pct,
     isPerformance: true,
   }));
 }
@@ -83,7 +85,7 @@ function forecast(show) { return incomeTotal(show) - spendTotal(show); }
 function emptyFixedParams() {
   return {
     performances: [],
-    ticketPrice: 0, seatsPerPerformance: 0, castSize: 0,
+    ticketPrice: 0, seatsPerPerformance: 0, expectedSalesPct: 100, castSize: 0,
     rehearsalSubsPerCast: 0, costumeCostPerCast: 0, scriptCost: 0,
   };
 }
@@ -177,7 +179,11 @@ function withDefaults(show) {
   return {
     ...show,
     fixedParams: { ...emptyFixedParams(), ...(show.fixedParams || {}) },
-    income: show.income || [],
+    // Drop the old single "Ticket sales" formula line some shows still have saved from before
+    // ticket sales became one line per performance — it now just sits there permanently reading
+    // £0 with no way to remove it from the UI, showing up as a stray extra income/performance
+    // row. Self-heals here on load; persists once the show is next saved.
+    income: (show.income || []).filter(i => i.id !== 'ticketSales'),
     spend: show.spend || [],
   };
 }
@@ -257,6 +263,7 @@ function renderEditor() {
   const fp = currentShow.fixedParams;
   document.getElementById('fpTicketPrice').value = fp.ticketPrice || 0;
   document.getElementById('fpSeats').value = fp.seatsPerPerformance || 0;
+  document.getElementById('fpExpectedSalesPct').value = fp.expectedSalesPct ?? 100;
   document.getElementById('fpCastSize').value = fp.castSize || 0;
   document.getElementById('fpRehearsalSubs').value = fp.rehearsalSubsPerCast || 0;
   document.getElementById('fpCostumeCost').value = fp.costumeCostPerCast || 0;
@@ -336,11 +343,12 @@ document.getElementById('perfTableBody').addEventListener('click', (e) => {
   refreshAfterPerfChange();
 });
 
-['fpTicketPrice', 'fpSeats', 'fpCastSize', 'fpRehearsalSubs', 'fpCostumeCost', 'fpScriptCost'].forEach(id => {
+['fpTicketPrice', 'fpSeats', 'fpExpectedSalesPct', 'fpCastSize', 'fpRehearsalSubs', 'fpCostumeCost', 'fpScriptCost'].forEach(id => {
   document.getElementById(id).addEventListener('input', (e) => {
     const map = {
-      fpTicketPrice: 'ticketPrice', fpSeats: 'seatsPerPerformance', fpCastSize: 'castSize',
-      fpRehearsalSubs: 'rehearsalSubsPerCast', fpCostumeCost: 'costumeCostPerCast', fpScriptCost: 'scriptCost',
+      fpTicketPrice: 'ticketPrice', fpSeats: 'seatsPerPerformance', fpExpectedSalesPct: 'expectedSalesPct',
+      fpCastSize: 'castSize', fpRehearsalSubs: 'rehearsalSubsPerCast', fpCostumeCost: 'costumeCostPerCast',
+      fpScriptCost: 'scriptCost',
     };
     currentShow.fixedParams[map[id]] = Number(e.target.value) || 0;
     renderLinesTable('income', INCOME_FORMULAS);
@@ -518,6 +526,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
     { Parameter: 'Show name', Value: currentShow.name },
     { Parameter: 'Default ticket price', Value: fp.ticketPrice },
     { Parameter: 'Seats per performance', Value: fp.seatsPerPerformance },
+    { Parameter: 'Expected sales %', Value: fp.expectedSalesPct ?? 100 },
     { Parameter: 'Number of performances', Value: fp.performances.length },
     { Parameter: 'Number in cast', Value: fp.castSize },
     { Parameter: 'Rehearsal subs per cast member', Value: fp.rehearsalSubsPerCast },
@@ -526,9 +535,11 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(paramsRows), 'Fixed Parameters');
 
+  const salesPct = (fp.expectedSalesPct ?? 100) / 100;
   const perfRows = fp.performances.map(p => ({
     Date: p.date, Time: p.time || '', 'Ticket price': p.price ?? fp.ticketPrice ?? 0,
-    Seats: fp.seatsPerPerformance, Total: (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0),
+    Seats: fp.seatsPerPerformance, 'Expected sales %': fp.expectedSalesPct ?? 100,
+    'Expected income': (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0) * salesPct,
   }));
   if (perfRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(perfRows), 'Performances');
 
