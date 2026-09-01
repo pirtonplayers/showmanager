@@ -273,7 +273,7 @@ async function openShow(id) {
 
 function renderEditor() {
   document.getElementById('editorTitle').textContent = currentShow.name || 'Show budget';
-  document.getElementById('headerTitle').textContent = currentShow.name || 'Budget';
+  document.getElementById('headerTitle').textContent = 'Show Budget';
   document.getElementById('showNameInput').value = currentShow.name || '';
   document.getElementById('printShowName').textContent = currentShow.name || '';
   document.getElementById('printShowMeta').textContent = currentShow.isTemplate ? 'Template' : '';
