@@ -41,17 +41,59 @@ body.theme-budget {
 
 .print-header { display: none; }
 
+/* ── Fixed parameters: compact left column of the params themselves, Performances on the
+   right — "smaller grid" than one field per full-width row. ── */
+.fixed-params-grid { display: grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start; }
+.fp-col-params { display: flex; flex-direction: column; gap: 10px; }
+.fp-col-params .form-group { margin-bottom: 0; }
+@media (max-width: 700px) {
+  .fixed-params-grid { grid-template-columns: 1fr; }
+}
+
 /* ── Print / PDF ──────────────────────────────────────────────────────────
-   window.print() on the editor view: hide chrome (nav, buttons, inputs' surrounding controls)
-   and print a clean report instead — the browser's own "Save as PDF" destination is the PDF
-   export the spec asks for, no extra library needed. */
+   window.print() on the editor view: hide chrome (nav, buttons, inputs' surrounding controls,
+   the Performances editor and helper text) and print a compact, single-page report instead —
+   the browser's own "Save as PDF" destination is the PDF export the spec asks for, no extra
+   library needed. Every size below is deliberately tight: the goal is fitting show name, fixed
+   params, income, spend and forecast on one A4 page without looking cramped. */
 @media print {
-  .admin-header, .admin-sidebar, .sidebar-toggle, #updateBanner, .no-print { display: none !important; }
-  .admin-content { margin-left: 0 !important; padding: 0 !important; max-width: none; }
-  .print-header { display: block !important; margin-bottom: 16px; }
-  .print-header h1 { font-size: 22px; margin-bottom: 4px; }
-  .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
-  input.form-control, textarea.form-control, select.form-control { border-color: transparent; }
+  @page { size: A4 portrait; margin: 12mm; }
+  body { font-size: 11px; }
+
+  .admin-header, .admin-sidebar, .sidebar-toggle, #updateBanner, .no-print,
+  .fp-col-perf, .show-name-card /* printShowName in the print header already covers this */ {
+    display: none !important;
+  }
+  .admin-content { margin: 0 !important; padding: 0 !important; max-width: none; }
+
+  .print-header { display: block !important; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid #000; text-align: center; }
+  .print-header h1 { font-size: 20px; margin-bottom: 2px; }
+  .print-header p { font-size: 11px; }
+
+  .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; margin-bottom: 8px !important; }
+  .card-header { padding: 5px 10px; }
+  .card-header h2 { font-size: 12px; }
+  .card-body { padding: 6px 10px; }
+  .section-header { margin-bottom: 8px; }
+
+  .fixed-params-grid { grid-template-columns: 1fr; gap: 4px; }
+  .fp-col-params { flex-direction: row; flex-wrap: wrap; gap: 4px 18px; }
+  .fp-col-params .form-group { display: flex; align-items: baseline; gap: 4px; }
+  .fp-col-params label { font-size: 10px; white-space: nowrap; }
+  .fp-col-params .muted { display: none; }
+
+  .budget-columns { grid-template-columns: 1fr 1fr !important; gap: 10px; margin-bottom: 8px; }
+  .expense-table th { font-size: 9px; padding: 3px 8px; }
+  .expense-table td { padding: 2px 8px !important; font-size: 10px; height: auto !important; }
+
+  .summary-grid { gap: 6px; margin-bottom: 0; }
+  .summary-card { padding: 8px; }
+  .summary-card .snum { font-size: 16px; }
+  .summary-card .slabel { font-size: 9px; }
+
+  input.form-control, textarea.form-control, select.form-control {
+    border-color: transparent; padding: 0 !important; height: auto !important; font-size: 10px;
+  }
 }
 
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }

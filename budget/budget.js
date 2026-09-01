@@ -5,7 +5,7 @@
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-function money(n) { return `£${Number(n || 0).toFixed(2)}`; }
+function money(n) { return `£${Math.round(Number(n) || 0).toLocaleString('en-GB')}`; }
 function uid() { return crypto.randomUUID(); }
 
 function showToast(message, type = 'info') {
@@ -141,7 +141,7 @@ function renderShowsList() {
   el.innerHTML = allShows.map(s => `
     <div class="item-row">
       <div class="item-name">${escapeHtml(s.name || '(untitled)')}${s.isTemplate ? ' <span class="badge badge-primary">Template</span>' : ''}</div>
-      <div class="item-sub amount-cell">Forecast: ${money(forecast(withDefaults(s)))}</div>
+      <div class="item-sub amount-cell">${s.isTemplate ? 'Used to start new shows' : `Forecast: ${money(forecast(withDefaults(s)))}`}</div>
       <div class="item-actions">
         <button class="btn btn-secondary btn-sm" data-open-show="${s.id}">Open</button>
         <button class="btn btn-secondary btn-sm" data-copy-show="${s.id}">Copy</button>
@@ -304,7 +304,7 @@ function renderPerfTable() {
   tbody.innerHTML = perfs.length ? perfs.map((p, i) => `
     <tr>
       <td><input type="date" class="form-control" value="${p.date || ''}" data-perf-field="${i}:date"></td>
-      <td><input type="number" class="form-control num-input" min="0" step="0.01" value="${p.price ?? currentShow.fixedParams.ticketPrice ?? 0}" data-perf-field="${i}:price"></td>
+      <td><input type="number" class="form-control num-input" min="0" step="1" value="${p.price ?? currentShow.fixedParams.ticketPrice ?? 0}" data-perf-field="${i}:price"></td>
       <td class="no-print"><button class="grid-del-btn" data-perf-remove="${i}" title="Remove">×</button></td>
     </tr>
   `).join('') : '<tr><td colspan="3" class="empty-state">No performances yet — generate some above.</td></tr>';
@@ -340,7 +340,7 @@ document.getElementById('perfTableBody').addEventListener('input', (e) => {
   if (!key) return;
   const [idx, field] = key.split(':');
   const p = currentShow.fixedParams.performances[Number(idx)];
-  p[field] = field === 'price' ? (Number(e.target.value) || 0) : e.target.value;
+  p[field] = field === 'price' ? (Math.round(Number(e.target.value) || 0)) : e.target.value;
   refreshAfterPerfChange();
 });
 
@@ -358,7 +358,7 @@ document.getElementById('perfTableBody').addEventListener('click', (e) => {
       fpTicketPrice: 'ticketPrice', fpSeats: 'seatsPerPerformance', fpExpectedSalesPct: 'expectedSalesPct',
       fpCastSize: 'castSize', fpRehearsalSubs: 'rehearsalSubsPerCast',
     };
-    currentShow.fixedParams[map[id]] = Number(e.target.value) || 0;
+    currentShow.fixedParams[map[id]] = Math.round(Number(e.target.value) || 0);
     renderLinesTable('income', INCOME_FORMULAS);
     renderLinesTable('spend', SPEND_FORMULAS);
     renderForecast();
@@ -397,7 +397,7 @@ function renderLinesTable(kind, formulas) {
         <td>${escapeHtml(item.label)}${isFormula ? ' <span class="muted" style="font-size:11px">(calculated)</span>' : ''}</td>
         <td class="amount-cell">${isFormula
           ? money(amount)
-          : `<input type="number" class="form-control num-input" min="0" step="0.01" value="${amount}" data-line-amount="${kind}:${i}">`}</td>
+          : `<input type="number" class="form-control num-input" min="0" step="1" value="${amount}" data-line-amount="${kind}:${i}">`}</td>
         <td class="no-print">${isFormula ? '' : `<button class="grid-del-btn" data-line-remove="${kind}:${i}" title="Remove">×</button>`}</td>
       </tr>`;
   }).join('');
@@ -412,7 +412,7 @@ function handleLineAmountInput(e) {
   const key = e.target.getAttribute('data-line-amount');
   if (!key) return;
   const [kind, idx] = key.split(':');
-  currentShow[kind][Number(idx)].amount = Number(e.target.value) || 0;
+  currentShow[kind][Number(idx)].amount = Math.round(Number(e.target.value) || 0);
   // barReceipts feeds barCosts/vhBarLevy — keep the spend table's calculated cells live. Never
   // re-render the table currently being typed in, though — that would rebuild the very input
   // under the cursor and drop focus on every keystroke; just recompute its total instead.
@@ -433,10 +433,14 @@ function handleLineRemove(e, kind) {
 }
 
 function renderForecast() {
+  const cardsEl = document.getElementById('forecastCards');
+  // The template's numbers are all zero/placeholder by design — a forecast for it isn't
+  // meaningful, so skip it there rather than show a permanent £0 row.
+  if (currentShow.isTemplate) { cardsEl.innerHTML = ''; return; }
   const inc = incomeTotal(currentShow);
   const sp = spendTotal(currentShow);
   const fc = inc - sp;
-  document.getElementById('forecastCards').innerHTML = `
+  cardsEl.innerHTML = `
     <div class="summary-card"><div class="snum">${money(inc)}</div><div class="slabel">Total income</div></div>
     <div class="summary-card"><div class="snum">${money(sp)}</div><div class="slabel">Total spend</div></div>
     <div class="summary-card"><div class="snum" style="color:${fc >= 0 ? 'var(--success)' : 'var(--danger)'}">${money(fc)}</div><div class="slabel">Forecast (income − spend)</div></div>
@@ -460,7 +464,7 @@ document.getElementById('addItemModal').addEventListener('click', (e) => { if (e
 
 document.getElementById('addItemSubmitBtn').addEventListener('click', () => {
   const label = document.getElementById('addItemLabel').value.trim();
-  const amount = Number(document.getElementById('addItemAmount').value) || 0;
+  const amount = Math.round(Number(document.getElementById('addItemAmount').value) || 0);
   if (!label) { showToast('Enter a label', 'error'); return; }
   currentShow[addItemKind].push({ id: uid(), label, formula: null, amount });
   document.getElementById('addItemModal').style.display = 'none';
