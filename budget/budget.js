@@ -5,7 +5,7 @@
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-function money(n) { return `£${Math.round(Number(n) || 0).toLocaleString('en-GB')}`; }
+function money(n) { return Math.round(Number(n) || 0).toLocaleString('en-GB'); }
 function uid() { return crypto.randomUUID(); }
 
 function showToast(message, type = 'info') {
