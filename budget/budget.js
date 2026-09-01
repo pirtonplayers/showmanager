@@ -271,7 +271,7 @@ function renderEditor() {
   document.getElementById('headerTitle').textContent = currentShow.name || 'ShowBudget';
   document.getElementById('showNameInput').value = currentShow.name || '';
   document.getElementById('printShowName').textContent = currentShow.name || '';
-  document.getElementById('printShowMeta').textContent = currentShow.isTemplate ? 'Template' : `Copied from: ${allShows.find(s => s.id === currentShow.copiedFrom)?.name || '—'}`;
+  document.getElementById('printShowMeta').textContent = currentShow.isTemplate ? 'Template' : '';
 
   const fp = currentShow.fixedParams;
   document.getElementById('fpTicketPrice').value = fp.ticketPrice || 0;
@@ -543,7 +543,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
     { Parameter: 'Number in cast', Value: fp.castSize },
     { Parameter: 'Rehearsal subs per cast member', Value: fp.rehearsalSubsPerCast },
   ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(paramsRows), 'Fixed Parameters');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(paramsRows), 'Show Details');
 
   const salesPct = (fp.expectedSalesPct ?? 100) / 100;
   const perfRows = fp.performances.map(p => ({

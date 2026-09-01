@@ -41,11 +41,13 @@ body.theme-budget {
 
 .print-header { display: none; }
 
-/* ── Fixed parameters: compact left column of the params themselves, Performances on the
-   right — "smaller grid" than one field per full-width row. ── */
+/* ── Fixed parameters: label|value grid so every value lines up in its own column, params on
+   the left, Performances on the right. Label and input are direct grid children (no per-field
+   wrapper) — that's what lets a shared grid line up every value regardless of label length. ── */
 .fixed-params-grid { display: grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start; }
-.fp-col-params { display: flex; flex-direction: column; gap: 10px; }
-.fp-col-params .form-group { margin-bottom: 0; }
+.fp-col-params { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px 12px; }
+.fp-col-params label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+.fp-col-params input.num-input { text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 700px) {
   .fixed-params-grid { grid-template-columns: 1fr; }
 }
@@ -76,11 +78,11 @@ body.theme-budget {
   .card-body { padding: 6px 10px; }
   .section-header { margin-bottom: 8px; }
 
-  .fixed-params-grid { grid-template-columns: 1fr; gap: 4px; }
-  .fp-col-params { flex-direction: row; flex-wrap: wrap; gap: 4px 18px; }
-  .fp-col-params .form-group { display: flex; align-items: baseline; gap: 4px; }
+  /* .fp-col-perf is hidden in print (below), leaving .fp-col-params as the grid's only visible
+     child — collapse back to a single column so it isn't left half-width next to empty space. */
+  .fixed-params-grid { grid-template-columns: 1fr; gap: 0; }
+  .fp-col-params { grid-template-columns: max-content max-content; justify-content: start; gap: 4px 14px; }
   .fp-col-params label { font-size: 10px; white-space: nowrap; }
-  .fp-col-params .muted { display: none; }
 
   .budget-columns { grid-template-columns: 1fr 1fr !important; gap: 10px; margin-bottom: 8px; }
   .expense-table th { font-size: 9px; padding: 3px 8px; }

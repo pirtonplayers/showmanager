@@ -10,7 +10,7 @@
   <title>ShowBudget</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=1.0.7">
+  <link rel="stylesheet" href="style.css?v=1.0.8">
 </head>
 <body class="theme-budget">
 
@@ -133,41 +133,28 @@
       </div>
 
       <div class="card" style="margin-bottom:20px">
-        <div class="card-header"><h2>Fixed parameters</h2></div>
-        <div class="card-body">
+        <div class="card-body" style="padding-top:20px">
           <div class="fixed-params-grid">
             <div class="fp-col-params">
-              <div class="form-group">
-                <label for="fpTicketPrice">Default ticket price (£)</label>
-                <input type="number" id="fpTicketPrice" class="form-control num-input" min="0" step="1">
-              </div>
-              <div class="form-group">
-                <label for="fpSeats">Seats per performance</label>
-                <input type="number" id="fpSeats" class="form-control num-input" min="0" step="1">
-              </div>
-              <div class="form-group">
-                <label for="fpExpectedSalesPct">Expected sales (%)</label>
-                <input type="number" id="fpExpectedSalesPct" class="form-control num-input" min="0" max="100" step="1">
-                <p class="muted no-print" style="margin-top:4px">Ticket income = price × seats × expected sales.</p>
-              </div>
-              <div class="form-group">
-                <label for="fpCastSize">Number in cast</label>
-                <input type="number" id="fpCastSize" class="form-control num-input" min="0" step="1">
-              </div>
-              <div class="form-group">
-                <label for="fpRehearsalSubs">Rehearsal subs per cast member (£)</label>
-                <input type="number" id="fpRehearsalSubs" class="form-control num-input" min="0" step="1">
-              </div>
+              <label for="fpTicketPrice">Default ticket price (£)</label>
+              <input type="number" id="fpTicketPrice" class="form-control num-input" min="0" step="1">
+
+              <label for="fpSeats">Seats per performance</label>
+              <input type="number" id="fpSeats" class="form-control num-input" min="0" step="1">
+
+              <label for="fpExpectedSalesPct">Expected sales (%)</label>
+              <input type="number" id="fpExpectedSalesPct" class="form-control num-input" min="0" max="100" step="1">
+
+              <label for="fpCastSize">Number in cast</label>
+              <input type="number" id="fpCastSize" class="form-control num-input" min="0" step="1">
+
+              <label for="fpRehearsalSubs">Rehearsal subs per cast member (£)</label>
+              <input type="number" id="fpRehearsalSubs" class="form-control num-input" min="0" step="1">
             </div>
 
             <div class="fp-col-perf">
               <label>Performances</label>
-              <p class="muted no-print" style="margin:-4px 0 8px">
-                Set the first date and how many performances, then Generate fills in consecutive
-                days — each one editable afterwards, including its own ticket price (defaults to
-                the price above; change a row to override just that performance).
-              </p>
-              <div class="form-row no-print" style="grid-template-columns:1fr 120px auto;align-items:end;margin-bottom:12px">
+              <div class="form-row no-print" style="grid-template-columns:1fr 120px auto;align-items:end;margin:8px 0 12px">
                 <div class="form-group" style="margin-bottom:0">
                   <label for="genPerfDate">First performance date</label>
                   <input type="date" id="genPerfDate" class="form-control">
@@ -288,9 +275,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="version.js?v=1.0.7"></script>
-<script src="../shared/firebase-config.js?v=1.0.7"></script>
-<script src="../shared/auth.js?v=1.0.7"></script>
-<script src="budget.js?v=1.0.7"></script>
+<script src="version.js?v=1.0.8"></script>
+<script src="../shared/firebase-config.js?v=1.0.8"></script>
+<script src="../shared/auth.js?v=1.0.8"></script>
+<script src="budget.js?v=1.0.8"></script>
 </body>
 </html>
