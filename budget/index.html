@@ -10,7 +10,7 @@
   <title>ShowBudget</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=1.0.5">
+  <link rel="stylesheet" href="style.css?v=1.0.6">
 </head>
 <body class="theme-budget">
 
@@ -163,32 +163,17 @@
               <input type="number" id="fpRehearsalSubs" class="form-control num-input" min="0" step="0.01">
             </div>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="fpCostumeCost">Costume cost per cast member (£)</label>
-              <input type="number" id="fpCostumeCost" class="form-control num-input" min="0" step="0.01">
-            </div>
-            <div class="form-group">
-              <label for="fpScriptCost">Script cost per cast member (£)</label>
-              <input type="number" id="fpScriptCost" class="form-control num-input" min="0" step="0.01">
-            </div>
-          </div>
-
           <div class="form-group">
             <label>Performances</label>
             <p class="muted no-print" style="margin:-4px 0 8px">
-              Set the first date/time and how many performances, then Generate fills in
-              consecutive days — each one editable afterwards, including its own ticket price
-              (defaults to the price above; change a row to override just that performance).
+              Set the first date and how many performances, then Generate fills in consecutive
+              days — each one editable afterwards, including its own ticket price (defaults to
+              the price above; change a row to override just that performance).
             </p>
-            <div class="form-row no-print" style="grid-template-columns:1fr 1fr 120px auto;align-items:end;margin-bottom:12px">
+            <div class="form-row no-print" style="grid-template-columns:1fr 120px auto;align-items:end;margin-bottom:12px">
               <div class="form-group" style="margin-bottom:0">
                 <label for="genPerfDate">First performance date</label>
                 <input type="date" id="genPerfDate" class="form-control">
-              </div>
-              <div class="form-group" style="margin-bottom:0">
-                <label for="genPerfTime">Time</label>
-                <input type="time" id="genPerfTime" class="form-control">
               </div>
               <div class="form-group" style="margin-bottom:0">
                 <label for="genPerfCount">No. of performances</label>
@@ -198,7 +183,7 @@
             </div>
             <div class="expense-table-wrap">
               <table class="expense-table" id="perfTable">
-                <thead><tr><th>Date</th><th style="width:120px">Time</th><th style="width:140px">Ticket price (£)</th><th class="no-print" style="width:44px"></th></tr></thead>
+                <thead><tr><th>Date</th><th style="width:140px">Ticket price (£)</th><th class="no-print" style="width:44px"></th></tr></thead>
                 <tbody id="perfTableBody"></tbody>
               </table>
             </div>
@@ -305,9 +290,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="version.js?v=1.0.5"></script>
-<script src="../shared/firebase-config.js?v=1.0.5"></script>
-<script src="../shared/auth.js?v=1.0.5"></script>
-<script src="budget.js?v=1.0.5"></script>
+<script src="version.js?v=1.0.6"></script>
+<script src="../shared/firebase-config.js?v=1.0.6"></script>
+<script src="../shared/auth.js?v=1.0.6"></script>
+<script src="budget.js?v=1.0.6"></script>
 </body>
 </html>

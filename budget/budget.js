@@ -38,8 +38,6 @@ function barReceipts(income) {
 }
 
 const SPEND_FORMULAS = {
-  costumes: (fp) => (fp.costumeCostPerCast || 0) * (fp.castSize || 0),
-  scripts: (fp) => (fp.scriptCost || 0) * (fp.castSize || 0),
   barCosts: (fp, income) => 0.40 * barReceipts(income),
   vhBarLevy: (fp, income) => 0.10 * barReceipts(income),
 };
@@ -49,10 +47,10 @@ function resolveAmount(item, fp, income, formulas) {
   return fn ? fn(fp, income) : Number(item.amount || 0);
 }
 
-function fmtPerfDateTime(p) {
+function fmtPerfDate(p) {
   if (!p.date) return '(no date)';
   const [y, m, d] = p.date.split('-');
-  return `${d}/${m}/${y}${p.time ? ' ' + p.time : ''}`;
+  return `${d}/${m}/${y}`;
 }
 
 // Ticket sales isn't a single formula line any more — it's one computed, read-only income line
@@ -64,7 +62,7 @@ function performanceIncomeLines(show) {
   const pct = (fp.expectedSalesPct ?? 100) / 100;
   return (fp.performances || []).map((p, i) => ({
     id: `perf-${i}`,
-    label: `Ticket sales — ${fmtPerfDateTime(p)}`,
+    label: `Ticket sales — ${fmtPerfDate(p)}`,
     formula: 'perf',
     amount: (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0) * pct,
     isPerformance: true,
@@ -86,7 +84,7 @@ function emptyFixedParams() {
   return {
     performances: [],
     ticketPrice: 0, seatsPerPerformance: 0, expectedSalesPct: 100, castSize: 0,
-    rehearsalSubsPerCast: 0, costumeCostPerCast: 0, scriptCost: 0,
+    rehearsalSubsPerCast: 0,
   };
 }
 
@@ -107,16 +105,15 @@ function defaultTemplateData() {
       { id: 'licenses',            label: 'Licenses',                formula: null,        amount: 0 },
       { id: 'setConstruction',     label: 'Set construction',        formula: null,        amount: 0 },
       { id: 'lighting',            label: 'Lighting',                formula: null,        amount: 0 },
-      { id: 'costumes',            label: 'Costumes',                formula: 'costumes',  amount: 0 },
-      { id: 'scripts',             label: 'Scripts',                 formula: 'scripts',   amount: 0 },
+      { id: 'costumes',            label: 'Costumes',                formula: null,        amount: 0 },
+      { id: 'scripts',             label: 'Scripts',                 formula: null,        amount: 0 },
       { id: 'props',               label: 'Props',                   formula: null,        amount: 0 },
       { id: 'marketing',           label: 'Marketing',               formula: null,        amount: 0 },
       { id: 'barCosts',            label: 'Bar costs',               formula: 'barCosts',  amount: 0 },
       { id: 'vhBarLevy',           label: 'VH bar levy',             formula: 'vhBarLevy', amount: 0 },
       { id: 'gifts',               label: 'Gifts',                   formula: null,        amount: 0 },
       { id: 'iceCream',            label: 'Ice cream',               formula: null,        amount: 0 },
-      { id: 'hallHireRehearsals',  label: 'Hall hire for rehearsals', formula: null,       amount: 0 },
-      { id: 'hallHireShowWeek',    label: 'Hall hire for show week',  formula: null,        amount: 0 },
+      { id: 'hallHire',            label: 'Hall hire',               formula: null,        amount: 0 },
       { id: 'misc',                label: 'Misc',                    formula: null,         amount: 0 },
     ],
   };
@@ -173,6 +170,22 @@ document.getElementById('showsList').addEventListener('click', async (e) => {
   }
 });
 
+// costumes/scripts used to be cost-per-cast formula lines; hall hire used to be two separate
+// lines (rehearsals/show week). Shows saved before those changes still have the old shape —
+// convert on load rather than losing whatever amount was already entered.
+function cleanSpend(spend) {
+  let list = (spend || []).map(i =>
+    (i.id === 'costumes' || i.id === 'scripts') ? { ...i, formula: null } : i
+  );
+  const rehearsals = list.find(i => i.id === 'hallHireRehearsals');
+  const showWeek = list.find(i => i.id === 'hallHireShowWeek');
+  if (rehearsals || showWeek) {
+    list = list.filter(i => i.id !== 'hallHireRehearsals' && i.id !== 'hallHireShowWeek');
+    list.push({ id: 'hallHire', label: 'Hall hire', formula: null, amount: (rehearsals?.amount || 0) + (showWeek?.amount || 0) });
+  }
+  return list;
+}
+
 // Defensive: fills in any field a show doc might be missing (e.g. added to the spec after that
 // show was created) so the rest of the app can assume every field always exists.
 function withDefaults(show) {
@@ -184,7 +197,7 @@ function withDefaults(show) {
     // £0 with no way to remove it from the UI, showing up as a stray extra income/performance
     // row. Self-heals here on load; persists once the show is next saved.
     income: (show.income || []).filter(i => i.id !== 'ticketSales'),
-    spend: show.spend || [],
+    spend: cleanSpend(show.spend),
   };
 }
 
@@ -266,8 +279,6 @@ function renderEditor() {
   document.getElementById('fpExpectedSalesPct').value = fp.expectedSalesPct ?? 100;
   document.getElementById('fpCastSize').value = fp.castSize || 0;
   document.getElementById('fpRehearsalSubs').value = fp.rehearsalSubsPerCast || 0;
-  document.getElementById('fpCostumeCost').value = fp.costumeCostPerCast || 0;
-  document.getElementById('fpScriptCost').value = fp.scriptCost || 0;
 
   document.getElementById('setTemplateBtn').style.display = currentShow.isTemplate ? 'none' : '';
 
@@ -278,8 +289,8 @@ function renderEditor() {
 }
 
 // ── Performances ─────────────────────────────────────────────────────────
-// Each performance is its own editable row: date, time, and a ticket price that defaults to the
-// show's default ticket price but can be overridden per row. Ticket sales income (one line per
+// Each performance is its own editable row: date and a ticket price that defaults to the show's
+// default ticket price but can be overridden per row. Ticket sales income (one line per
 // performance — see performanceIncomeLines) recomputes from whatever's here, live.
 
 function refreshAfterPerfChange() {
@@ -293,16 +304,14 @@ function renderPerfTable() {
   tbody.innerHTML = perfs.length ? perfs.map((p, i) => `
     <tr>
       <td><input type="date" class="form-control" value="${p.date || ''}" data-perf-field="${i}:date"></td>
-      <td><input type="time" class="form-control" value="${p.time || ''}" data-perf-field="${i}:time"></td>
       <td><input type="number" class="form-control num-input" min="0" step="0.01" value="${p.price ?? currentShow.fixedParams.ticketPrice ?? 0}" data-perf-field="${i}:price"></td>
       <td class="no-print"><button class="grid-del-btn" data-perf-remove="${i}" title="Remove">×</button></td>
     </tr>
-  `).join('') : '<tr><td colspan="4" class="empty-state">No performances yet — generate some above.</td></tr>';
+  `).join('') : '<tr><td colspan="3" class="empty-state">No performances yet — generate some above.</td></tr>';
 }
 
 document.getElementById('generatePerfsBtn').addEventListener('click', () => {
   const date = document.getElementById('genPerfDate').value;
-  const time = document.getElementById('genPerfTime').value;
   const count = Math.max(1, Number(document.getElementById('genPerfCount').value) || 1);
   if (!date) { showToast('Pick the first performance date', 'error'); return; }
   const existing = currentShow.fixedParams.performances;
@@ -313,7 +322,7 @@ document.getElementById('generatePerfsBtn').addEventListener('click', () => {
   for (let i = 0; i < count; i++) {
     const dt = new Date(y, m - 1, d + i);
     const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-    perfs.push({ date: iso, time, price: currentShow.fixedParams.ticketPrice || 0 });
+    perfs.push({ date: iso, price: currentShow.fixedParams.ticketPrice || 0 });
   }
   currentShow.fixedParams.performances = perfs;
   renderPerfTable();
@@ -321,7 +330,7 @@ document.getElementById('generatePerfsBtn').addEventListener('click', () => {
 });
 
 document.getElementById('addPerfBtn').addEventListener('click', () => {
-  currentShow.fixedParams.performances.push({ date: '', time: '', price: currentShow.fixedParams.ticketPrice || 0 });
+  currentShow.fixedParams.performances.push({ date: '', price: currentShow.fixedParams.ticketPrice || 0 });
   renderPerfTable();
   refreshAfterPerfChange();
 });
@@ -343,12 +352,11 @@ document.getElementById('perfTableBody').addEventListener('click', (e) => {
   refreshAfterPerfChange();
 });
 
-['fpTicketPrice', 'fpSeats', 'fpExpectedSalesPct', 'fpCastSize', 'fpRehearsalSubs', 'fpCostumeCost', 'fpScriptCost'].forEach(id => {
+['fpTicketPrice', 'fpSeats', 'fpExpectedSalesPct', 'fpCastSize', 'fpRehearsalSubs'].forEach(id => {
   document.getElementById(id).addEventListener('input', (e) => {
     const map = {
       fpTicketPrice: 'ticketPrice', fpSeats: 'seatsPerPerformance', fpExpectedSalesPct: 'expectedSalesPct',
-      fpCastSize: 'castSize', fpRehearsalSubs: 'rehearsalSubsPerCast', fpCostumeCost: 'costumeCostPerCast',
-      fpScriptCost: 'scriptCost',
+      fpCastSize: 'castSize', fpRehearsalSubs: 'rehearsalSubsPerCast',
     };
     currentShow.fixedParams[map[id]] = Number(e.target.value) || 0;
     renderLinesTable('income', INCOME_FORMULAS);
@@ -530,14 +538,12 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
     { Parameter: 'Number of performances', Value: fp.performances.length },
     { Parameter: 'Number in cast', Value: fp.castSize },
     { Parameter: 'Rehearsal subs per cast member', Value: fp.rehearsalSubsPerCast },
-    { Parameter: 'Costume cost per cast member', Value: fp.costumeCostPerCast },
-    { Parameter: 'Script cost per cast member', Value: fp.scriptCost },
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(paramsRows), 'Fixed Parameters');
 
   const salesPct = (fp.expectedSalesPct ?? 100) / 100;
   const perfRows = fp.performances.map(p => ({
-    Date: p.date, Time: p.time || '', 'Ticket price': p.price ?? fp.ticketPrice ?? 0,
+    Date: p.date, 'Ticket price': p.price ?? fp.ticketPrice ?? 0,
     Seats: fp.seatsPerPerformance, 'Expected sales %': fp.expectedSalesPct ?? 100,
     'Expected income': (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0) * salesPct,
   }));

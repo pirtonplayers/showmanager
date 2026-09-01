@@ -345,7 +345,15 @@ input[type="file"].form-control { padding: 7px 10px; }
    height on top of the table cell's), giving formula rows and editable rows a visibly
    different height in the same table. Match the input down to the text row's own size instead
    of the other way round, so every row is exactly as tall as the shortest one needs to be. ── */
-#incomeTable td, #spendTable td, #perfTable td { padding: 5px 12px; }
+/* A fixed row height (not just matched padding) is what actually keeps every row — text or
+   input, Income column or Spend column — the same height as the shortest one: without it, a
+   longer label wrapping to two lines (Income and Spend rarely have the same label lengths)
+   would still make that one row taller than the rest, throwing the two columns' rows out of
+   line with each other even though nothing else differs. */
+#incomeTable tr, #spendTable tr, #perfTable tr { height: 36px; }
+#incomeTable td, #spendTable td, #perfTable td {
+  padding: 5px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 #incomeTable input.form-control, #spendTable input.form-control, #perfTable input.form-control {
   padding: 3px 8px; font-size: 14px; height: 30px;
 }
