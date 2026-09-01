@@ -1,12 +1,12 @@
-const CACHE = 'budget-1.0.13';
+const CACHE = 'budget-1.0.14';
 const STATIC = [
   './',
   './index.html',
-  './style.css?v=1.0.13',
-  './budget.js?v=1.0.13',
-  '../shared/firebase-config.js?v=1.0.13',
-  '../shared/auth.js?v=1.0.13',
-  './version.js?v=1.0.13',
+  './style.css?v=1.0.14',
+  './budget.js?v=1.0.14',
+  '../shared/firebase-config.js?v=1.0.14',
+  '../shared/auth.js?v=1.0.14',
+  './version.js?v=1.0.14',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',

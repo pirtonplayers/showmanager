@@ -393,10 +393,11 @@ input[type="file"].form-control { padding: 7px 10px; }
 }
 
 /* Inline percentage, sitting inside a label cell like "Bar costs (40%)" but with the number
-   editable — small enough to read as part of the sentence, not a full field. */
+   editable — still small enough to read as part of the sentence, not a full field, but big
+   enough to actually tap/click comfortably and read at a glance. */
 .pct-input {
-  display: inline-block; width: 40px; padding: 1px 4px; text-align: right;
-  font-size: 13px; border-color: var(--border);
+  display: inline-block; width: 56px; height: 30px; padding: 4px 8px; text-align: right;
+  font-size: 15px; border-color: var(--border);
 }
 
 /* ── Uniform row height in Income/Spend/Performances — a plain calculated-amount cell and a
