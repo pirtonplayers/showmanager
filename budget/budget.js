@@ -140,7 +140,7 @@ async function loadShows() {
 function renderShowsList() {
   const el = document.getElementById('showsList');
   if (!allShows.length) {
-    el.innerHTML = '<p class="empty-state">No shows yet — the template is created automatically the first time you open ShowBudget.</p>';
+    el.innerHTML = '<p class="empty-state">No shows yet — the template is created automatically the first time you open this app.</p>';
     return;
   }
   el.innerHTML = allShows.map(s => `
@@ -273,7 +273,7 @@ async function openShow(id) {
 
 function renderEditor() {
   document.getElementById('editorTitle').textContent = currentShow.name || 'Show budget';
-  document.getElementById('headerTitle').textContent = currentShow.name || 'ShowBudget';
+  document.getElementById('headerTitle').textContent = currentShow.name || 'Budget';
   document.getElementById('showNameInput').value = currentShow.name || '';
   document.getElementById('printShowName').textContent = currentShow.name || '';
   document.getElementById('printShowMeta').textContent = currentShow.isTemplate ? 'Template' : '';
@@ -573,7 +573,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
 
   const salesPct = (fp.expectedSalesPct ?? 100) / 100;
   const perfRows = fp.performances.map(p => ({
-    Date: p.date, 'Ticket price': p.price ?? fp.ticketPrice ?? 0,
+    Date: fmtPerfDate(p), 'Ticket price': p.price ?? fp.ticketPrice ?? 0,
     Seats: fp.seatsPerPerformance, 'Expected sales %': fp.expectedSalesPct ?? 100,
     'Expected income': (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0) * salesPct,
   }));
@@ -673,7 +673,7 @@ firebase.auth().onAuthStateChanged(async user => {
     const allowed = await checkAccess(user.uid, 'budget').catch(() => null);
     if (!allowed) {
       await firebase.auth().signOut();
-      document.getElementById('loginError').textContent = 'This account does not have ShowBudget access — ask a manager to grant it from the showmanager portal.';
+      document.getElementById('loginError').textContent = 'This account does not have Budget access — ask a manager to grant it from the showmanager portal.';
       document.getElementById('loginError').style.display = 'block';
       return;
     }
