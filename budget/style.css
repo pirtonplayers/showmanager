@@ -383,11 +383,13 @@ input[type="file"].form-control { padding: 7px 10px; }
    these sit one-per-cell/row and never need a full-width text box. ── */
 .num-input { width: 100px; text-align: right; }
 .expense-table .num-input { width: 90px; }
-/* Calculated (disabled) amount cells use the same <input class="num-input"> as editable ones so
-   the two look identical — undo the browser's default dimmed/greyed-out disabled styling, which
-   would otherwise visually set them apart again. */
+/* Calculated (disabled) amount cells use the same <input class="num-input"> as editable ones —
+   same box, padding, width, right alignment, font — so the two columns line up and read as one
+   consistent control. Dimming to show it's read-only is fine (that's the point of :disabled);
+   only the layout/alignment needs to match, not the colour. A deliberate, consistent dim here
+   instead of the browser's own default keeps that dimming the same across browsers. */
 .expense-table input.num-input:disabled {
-  opacity: 1; background: var(--surface); color: var(--text); -webkit-text-fill-color: var(--text); cursor: default;
+  opacity: .55; cursor: default;
 }
 
 /* Inline percentage, sitting inside a label cell like "Bar costs (40%)" but with the number
