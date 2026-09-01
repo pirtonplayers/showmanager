@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#92400e">
+  <title>Help — Pirton Players Expenses Admin</title>
+  <link rel="stylesheet" href="style.css?v=1.0.51">
+</head>
+<body class="theme-admin" style="background:var(--bg)">
+
+<div style="max-width:640px;margin:0 auto;padding:28px 20px 60px">
+  <p style="margin-bottom:20px"><a href="admin.html" style="color:var(--primary);font-weight:600;text-decoration:none">‹ Back to the app</a></p>
+  <h1 style="font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px">Help</h1>
+  <p class="muted" style="margin-bottom:28px">Pirton Players Expenses — Admin</p>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><h2>Signing in</h2></div>
+    <div class="card-body">
+      <p>This app is manager-only — the account needs <strong>Manager</strong> switched on
+      (Users tab) to get in at all. Same "Forgot password?" flow as the player app if needed.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><h2>Expenses</h2></div>
+    <div class="card-body">
+      <p style="margin-bottom:10px">Defaults to unpaid expenses only — switch the filter to see
+      paid ones too, or filter further by show or by name/email. Receipts open in a new tab
+      (a dropdown if there's more than one attached to the same expense).</p>
+      <p><strong>Delete</strong> removes a mistaken entry entirely. <strong>Export to
+      Excel</strong> downloads whatever the current filters are showing.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><h2>Mark expenses as paid</h2></div>
+    <div class="card-body">
+      <p style="margin-bottom:10px">Choose a person from the dropdown (only people with an
+      outstanding balance are listed), tick which of their expenses you're paying — all ticked
+      by default — and watch the running total. Untick anything you're not paying yet.</p>
+      <p>Submitting marks every ticked expense as paid and sends that person <strong>one</strong>
+      email listing everything just paid and the total, whether it's one expense or several.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><h2>Reports</h2></div>
+    <div class="card-body">
+      <p style="margin-bottom:10px">Three linked views — by show, by submitter, and a full
+      detail table — all reflecting the same show / date range / paid-unpaid filters.</p>
+      <p><strong>Export report</strong> downloads a three-sheet workbook matching whatever's
+      currently filtered.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><h2>Shows</h2></div>
+    <div class="card-body">
+      <p>Add a show here to make it selectable in the player app. Untick <strong>Active</strong>
+      to hide it from that dropdown without deleting it — past expenses against it are
+      unaffected either way, including if you remove it entirely.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><h2>Users</h2></div>
+    <div class="card-body">
+      <p style="margin-bottom:10px"><strong>Add a user</strong> creates a player's login with a
+      temporary password you set and pass on — they're forced to choose their own on first
+      sign-in. <strong>Send link</strong> emails them a link to the app plus an optional note
+      (handy for passing on that temporary password) — set a default message for this under
+      Settings if you send the same sort of note often.</p>
+      <p style="margin-bottom:10px"><strong>Approved</strong> gates whether someone can submit
+      expenses; <strong>Manager</strong> gives them access to this admin app. <strong>Delete</strong>
+      permanently removes a login (their past expenses stay on record).</p>
+      <p><strong>Sync manager permissions</strong> is a fix-it button — use it if a manager ever
+      finds they can't view a receipt that should be visible to them (they'll also need to sign
+      out and back in afterward to pick it up).</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>Settings</h2></div>
+    <div class="card-body">
+      <p style="margin-bottom:10px"><strong>Expense notification emails</strong> — who's told
+      whenever a player submits new expenses. <strong>Sender email</strong> — the "from" address
+      on all outgoing emails; it has to already be a verified sender in Brevo or mail silently
+      fails to send.</p>
+      <p><strong>Default link message</strong> pre-fills Send link's message box.
+      <strong>Storage</strong> shows how much space receipt photos are actually using — this
+      project's on the pay-as-you-go plan, so there's no fixed quota, just cost.</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

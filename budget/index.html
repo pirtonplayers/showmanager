@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#6d28d9">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>ShowBudget</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css?v=1.0.2">
+</head>
+<body class="theme-budget">
+
+<div id="updateBanner">
+  <span>A new version is available</span>
+  <button class="btn btn-sm" id="updateBtn" style="background:#fff;color:#3b0764">Update now</button>
+</div>
+
+<div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)">
+  <div class="card" style="width:100%;max-width:360px;margin:20px">
+    <div class="card-header"><h2>ShowBudget</h2></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" class="form-control" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">Password</label>
+        <div class="password-field">
+          <input type="password" id="loginPassword" class="form-control" autocomplete="current-password">
+          <button type="button" class="password-toggle-btn" id="togglePasswordBtn" title="Show password">👁</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" id="loginSubmitBtn">Sign In</button>
+      <p style="text-align:center;margin-top:14px">
+        <a href="#" id="forgotPasswordLink" style="font-size:13px;color:var(--text-muted)">Forgot password?</a>
+      </p>
+      <p id="loginError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Same mustChangePassword flag/flow as every other app — one field on the shared users/{uid}
+     doc, so clearing it here clears it everywhere. -->
+<div id="changePasswordScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:var(--bg)">
+  <div class="card" style="width:100%;max-width:360px;margin:20px">
+    <div class="card-header"><h2>Set your password</h2></div>
+    <div class="card-body">
+      <p class="muted" style="margin-bottom:14px">
+        Choose a new password for <strong id="changePasswordEmailText"></strong> — the one set
+        for you was only temporary, so you'll need to set your own before continuing.
+      </p>
+      <form id="changePasswordForm">
+        <div class="form-group">
+          <label for="newPasswordInput">New password</label>
+          <input type="password" id="newPasswordInput" class="form-control" required autocomplete="new-password" minlength="6">
+        </div>
+        <div class="form-group">
+          <label for="newPasswordConfirmInput">Confirm new password</label>
+          <input type="password" id="newPasswordConfirmInput" class="form-control" required autocomplete="new-password" minlength="6">
+        </div>
+        <p id="changePasswordError" style="color:var(--danger);font-size:13px;margin-bottom:12px"></p>
+        <button type="submit" class="btn btn-primary btn-full">Set password and continue</button>
+      </form>
+      <button class="btn btn-secondary btn-full" id="changePasswordSignOutBtn" style="margin-top:10px">Sign out</button>
+    </div>
+  </div>
+</div>
+
+<div id="adminApp" style="display:none">
+
+  <header class="admin-header">
+    <div style="position:relative">
+      <button class="hamburger-btn" id="menuBtn">☰</button>
+      <div id="mainMenuDropdown" class="dropdown-menu" style="display:none">
+        <button class="tab-btn active" data-tab="shows">Shows</button>
+        <a href="../index.html" class="tab-btn">Portal</a>
+        <div class="dropdown-divider"></div>
+        <button class="btn btn-danger btn-sm" id="signOutBtn">Sign Out</button>
+      </div>
+    </div>
+    <div class="header-title" id="headerTitle">ShowBudget</div>
+    <div style="font-size:11px;opacity:.55;margin-left:auto" id="headerVersion"></div>
+  </header>
+
+  <nav class="admin-sidebar" id="adminSidebar">
+    <button class="tab-btn active" data-tab="shows">Shows</button>
+    <a href="../index.html" class="tab-btn">Portal</a>
+    <div class="dropdown-divider"></div>
+    <button class="btn btn-danger btn-sm" id="sidebarSignOutBtn">Sign Out</button>
+  </nav>
+  <button class="sidebar-toggle" id="sidebarToggleBtn" title="Collapse/expand menu">‹</button>
+
+  <main class="admin-content">
+
+    <!-- ── SHOWS LIST ── -->
+    <div id="tab-shows" class="tab-panel active">
+      <div class="section-header">
+        <h2>Shows</h2>
+        <button class="btn btn-primary btn-sm" id="newShowBtn">+ New show</button>
+      </div>
+      <div class="item-list" id="showsList"></div>
+    </div>
+
+    <!-- ── SHOW EDITOR ── -->
+    <div id="tab-editor" class="tab-panel">
+      <div class="section-header no-print">
+        <h2 id="editorTitle">Show budget</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" id="backToShowsBtn">← All shows</button>
+          <button class="btn btn-secondary btn-sm" id="setTemplateBtn">Make this the template</button>
+          <button class="btn btn-secondary btn-sm" id="exportExcelBtn">⬇ Export to Excel</button>
+          <button class="btn btn-secondary btn-sm" id="printBtn">🖨 Print / PDF</button>
+          <button class="btn btn-danger btn-sm" id="deleteShowBtn">Delete</button>
+        </div>
+      </div>
+
+      <div class="print-header" style="display:none">
+        <h1 id="printShowName"></h1>
+        <p id="printShowMeta" class="muted"></p>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Show name</h2></div>
+        <div class="card-body">
+          <div class="form-group" style="margin-bottom:0">
+            <input type="text" id="showNameInput" class="form-control" placeholder="e.g. Summer Concert 2027">
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Fixed parameters</h2></div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="fpTicketPrice">Ticket price per performance (£)</label>
+              <input type="number" id="fpTicketPrice" class="form-control" min="0" step="0.01">
+            </div>
+            <div class="form-group">
+              <label for="fpSeats">Seats per performance</label>
+              <input type="number" id="fpSeats" class="form-control" min="0" step="1">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="fpCastSize">Number in cast</label>
+              <input type="number" id="fpCastSize" class="form-control" min="0" step="1">
+            </div>
+            <div class="form-group">
+              <label for="fpRehearsalSubs">Rehearsal subs per cast member (£)</label>
+              <input type="number" id="fpRehearsalSubs" class="form-control" min="0" step="0.01">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="fpCostumeCost">Costume cost per cast member (£)</label>
+              <input type="number" id="fpCostumeCost" class="form-control" min="0" step="0.01">
+            </div>
+            <div class="form-group">
+              <label for="fpScriptCost">Script cost per cast member (£)</label>
+              <input type="number" id="fpScriptCost" class="form-control" min="0" step="0.01">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Performance dates &amp; times</label>
+            <div style="display:flex;gap:8px;margin-bottom:8px" class="no-print">
+              <input type="date" id="newPerfDate" class="form-control">
+              <input type="time" id="newPerfTime" class="form-control">
+              <button class="btn btn-primary" id="addPerfBtn">Add</button>
+            </div>
+            <div class="dates-list" id="perfList"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <h2>Income</h2>
+          <span id="incomeTotalText" class="amount-cell"></span>
+        </div>
+        <div class="card-body" style="padding:0">
+          <div class="expense-table-wrap">
+            <table class="expense-table" id="incomeTable">
+              <thead><tr><th>Item</th><th style="width:160px">Amount</th><th class="no-print" style="width:44px"></th></tr></thead>
+              <tbody id="incomeTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-body no-print" style="padding-top:0">
+          <button class="btn btn-secondary btn-sm" id="addIncomeItemBtn">+ Add income item</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <h2>Spend</h2>
+          <span id="spendTotalText" class="amount-cell"></span>
+        </div>
+        <div class="card-body" style="padding:0">
+          <div class="expense-table-wrap">
+            <table class="expense-table" id="spendTable">
+              <thead><tr><th>Item</th><th style="width:160px">Amount</th><th class="no-print" style="width:44px"></th></tr></thead>
+              <tbody id="spendTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-body no-print" style="padding-top:0">
+          <button class="btn btn-secondary btn-sm" id="addSpendItemBtn">+ Add spend item</button>
+        </div>
+      </div>
+
+      <div class="summary-grid" id="forecastCards"></div>
+
+      <div class="no-print" style="margin:20px 0 60px">
+        <button class="btn btn-primary" id="saveShowBtn">Save changes</button>
+        <span id="saveStatusText" class="muted" style="margin-left:10px"></span>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- New show modal -->
+<div id="newShowModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>New show</h3>
+      <button class="modal-close-btn" id="newShowCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="newShowName">Show name</label>
+        <input type="text" id="newShowName" class="form-control" required>
+      </div>
+      <div class="form-group">
+        <label for="newShowSource">Start from</label>
+        <select id="newShowSource" class="form-control"></select>
+      </div>
+      <p id="newShowError" class="muted" style="color:var(--danger);margin-bottom:12px"></p>
+      <button class="btn btn-primary btn-full" id="newShowCreateBtn">Create show</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add income/spend item modal -->
+<div id="addItemModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="addItemTitle">Add item</h3>
+      <button class="modal-close-btn" id="addItemCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="addItemLabel">Label</label>
+        <input type="text" id="addItemLabel" class="form-control" required placeholder="e.g. Raffle">
+      </div>
+      <div class="form-group">
+        <label for="addItemAmount">Starting amount (£)</label>
+        <input type="number" id="addItemAmount" class="form-control" min="0" step="0.01" value="0">
+      </div>
+      <button class="btn btn-primary btn-full" id="addItemSubmitBtn">Add</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="version.js?v=1.0.2"></script>
+<script src="../shared/firebase-config.js?v=1.0.2"></script>
+<script src="../shared/auth.js?v=1.0.2"></script>
+<script src="budget.js?v=1.0.2"></script>
+</body>
+</html>

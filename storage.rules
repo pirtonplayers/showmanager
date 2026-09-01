@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Receipt photos, one folder per uploader (folder name = their own uid — expenses/app.js
+    // writes there, never anyone else's). A player can read/write only their own folder; an
+    // expenses admin can read every folder. Admin status is an `expensesAdmin` custom claim
+    // rather than a Firestore lookup — cross-service Storage→Firestore rules aren't enabled on
+    // this project (Console: "your project is not configured to execute those calls"), so a
+    // firestore.get() here would silently deny every time regardless of the actual
+    // users/{uid}.access.expensesAdmin value. The syncManagerClaim function (functions/index.js)
+    // keeps this claim mirrored from isManager || access.expensesAdmin.
+    match /receipts/{uid}/{fileName} {
+      allow read: if request.auth != null && (request.auth.uid == uid || request.auth.token.expensesAdmin == true);
+      allow write: if request.auth != null && request.auth.uid == uid
+                   && request.resource.size < 8 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

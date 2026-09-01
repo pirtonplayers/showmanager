@@ -1,0 +1,9 @@
+node_modules/
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+.DS_Store
+migration/migration-output/
+migration/*.json
+!migration/package.json
+*.key.json

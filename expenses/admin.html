@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#92400e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pirton Players Expenses — Admin</title>
+  <link rel="manifest" href="admin-manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-admin.png">
+  <link rel="stylesheet" href="style.css?v=1.0.51">
+</head>
+<body class="theme-admin">
+
+<div id="updateBanner">
+  <span>A new version is available</span>
+  <button class="btn btn-sm" id="updateBtn" style="background:#fff;color:#0b3d38">Update now</button>
+</div>
+
+<div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)">
+  <div class="card" style="width:100%;max-width:360px;margin:20px">
+    <div class="card-header"><h2>Pirton Players Expenses — Admin</h2></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" class="form-control" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">Password</label>
+        <div class="password-field">
+          <input type="password" id="loginPassword" class="form-control" autocomplete="current-password">
+          <button type="button" class="password-toggle-btn" id="togglePasswordBtn" title="Show password">👁</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" id="loginSubmitBtn">Sign In</button>
+      <p style="text-align:center;margin-top:14px">
+        <a href="#" id="forgotPasswordLink" style="font-size:13px;color:var(--text-muted)">Forgot password?</a>
+      </p>
+      <p id="loginError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Shown instead of #adminApp when mustChangePassword is set on this account — same flag and
+     same flow as the entry app's, so clearing it in either app clears it for both (it's a
+     single field on the one users/{uid} doc, not tracked per app). -->
+<div id="changePasswordScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:var(--bg)">
+  <div class="card" style="width:100%;max-width:360px;margin:20px">
+    <div class="card-header"><h2>Set your password</h2></div>
+    <div class="card-body">
+      <p class="muted" style="margin-bottom:14px">
+        Choose a new password for <strong id="changePasswordEmailText"></strong> — the one set
+        for you was only temporary, so you'll need to set your own before continuing.
+      </p>
+      <form id="changePasswordForm">
+        <div class="form-group">
+          <label for="newPasswordInput">New password</label>
+          <input type="password" id="newPasswordInput" class="form-control" required autocomplete="new-password" minlength="6">
+        </div>
+        <div class="form-group">
+          <label for="newPasswordConfirmInput">Confirm new password</label>
+          <input type="password" id="newPasswordConfirmInput" class="form-control" required autocomplete="new-password" minlength="6">
+        </div>
+        <p id="changePasswordError" style="color:var(--danger);font-size:13px;margin-bottom:12px"></p>
+        <button type="submit" class="btn btn-primary btn-full">Set password and continue</button>
+      </form>
+      <button class="btn btn-secondary btn-full" id="changePasswordSignOutBtn" style="margin-top:10px">Sign out</button>
+    </div>
+  </div>
+</div>
+
+<div id="adminApp" style="display:none">
+
+  <header class="admin-header">
+    <div style="position:relative">
+      <button class="hamburger-btn" id="menuBtn">☰</button>
+      <div id="mainMenuDropdown" class="dropdown-menu" style="display:none">
+        <button class="tab-btn active" data-tab="dashboard">Expenses</button>
+        <button class="tab-btn" data-tab="reports">Reports</button>
+        <button class="tab-btn" data-tab="shows">Shows</button>
+        <button class="tab-btn" data-tab="settings">Settings</button>
+        <a href="../index.html" class="tab-btn">Portal → Users</a>
+        <a href="admin-help.html" class="tab-btn">Help</a>
+        <div class="dropdown-divider"></div>
+        <button class="btn btn-danger btn-sm" id="signOutBtn">Sign Out</button>
+      </div>
+    </div>
+    <div class="header-title">Pirton Players Expenses</div>
+    <div style="font-size:11px;opacity:.55;margin-left:auto" id="headerVersion"></div>
+  </header>
+
+  <!-- Desktop-only collapsible sidebar — the buttons below share .tab-btn[data-tab] with the
+       mobile dropdown above, so the same click handler in admin.js drives both. -->
+  <nav class="admin-sidebar" id="adminSidebar">
+    <button class="tab-btn active" data-tab="dashboard">Expenses</button>
+    <button class="tab-btn" data-tab="reports">Reports</button>
+    <button class="tab-btn" data-tab="shows">Shows</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
+    <a href="../index.html" class="tab-btn">Portal → Users</a>
+    <a href="admin-help.html" class="tab-btn">Help</a>
+    <div class="dropdown-divider"></div>
+    <button class="btn btn-danger btn-sm" id="sidebarSignOutBtn">Sign Out</button>
+  </nav>
+  <button class="sidebar-toggle" id="sidebarToggleBtn" title="Collapse/expand menu">‹</button>
+
+  <main class="admin-content">
+
+    <!-- ── DASHBOARD / EXPENSES ── -->
+    <div id="tab-dashboard" class="tab-panel active">
+      <div class="section-header">
+        <h2>Expenses</h2>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" id="openMarkPaidBtn">Mark expenses as paid</button>
+          <button class="btn btn-secondary btn-sm" id="exportBtn">⬇ Export to Excel</button>
+        </div>
+      </div>
+
+      <div class="summary-grid" id="summaryCards"></div>
+
+      <div class="filters-toolbar">
+        <select id="filterShow" class="form-control"><option value="">All shows</option></select>
+        <input type="text" id="filterUser" class="form-control" placeholder="Filter by name or email">
+        <select id="filterPaid" class="form-control">
+          <option value="0" selected>Unpaid only</option>
+          <option value="">Paid + Unpaid</option>
+          <option value="1">Paid only</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <div class="expense-table-wrap">
+          <table class="expense-table">
+            <thead>
+              <tr>
+                <th>Show</th>
+                <th>Description</th>
+                <th>Submitted by</th>
+                <th>Receipt</th>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Paid</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="expenseTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SHOWS ── -->
+    <div id="tab-shows" class="tab-panel">
+      <div class="section-header"><h2>Shows</h2></div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Add a show</h2></div>
+        <div class="card-body">
+          <form id="addShowForm" class="form-row" style="align-items:end">
+            <div class="form-group" style="margin-bottom:0">
+              <label for="newShowName">Show name</label>
+              <input type="text" id="newShowName" class="form-control" required>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label for="newShowDate">Date (optional)</label>
+              <input type="date" id="newShowDate" class="form-control">
+            </div>
+            <button type="submit" class="btn btn-primary" style="height:38px">+ Add show</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="item-list" id="showList"></div>
+    </div>
+
+    <!-- ── REPORTS ── -->
+    <div id="tab-reports" class="tab-panel">
+      <div class="section-header">
+        <h2>Reports</h2>
+        <button class="btn btn-secondary btn-sm" id="exportReportBtn">⬇ Export report</button>
+      </div>
+
+      <div class="filters-toolbar">
+        <select id="reportFilterShow" class="form-control"><option value="">All shows</option></select>
+        <input type="date" id="reportFilterFrom" class="form-control" title="From date">
+        <input type="date" id="reportFilterTo" class="form-control" title="To date">
+        <select id="reportFilterPaid" class="form-control">
+          <option value="">Paid + Unpaid</option>
+          <option value="0">Unpaid only</option>
+          <option value="1">Paid only</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" id="reportFilterClearBtn">Clear filters</button>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>By show</h2></div>
+        <div class="expense-table-wrap">
+          <table class="expense-table">
+            <thead><tr><th>Show</th><th>Expenses</th><th>Total</th><th>Unpaid</th><th>Paid</th></tr></thead>
+            <tbody id="reportByShowBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>By submitter</h2></div>
+        <div class="expense-table-wrap">
+          <table class="expense-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Expenses</th><th>Total</th><th>Unpaid</th><th>Paid</th></tr></thead>
+            <tbody id="reportByUserBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2>Detail</h2></div>
+        <div class="expense-table-wrap">
+          <table class="expense-table">
+            <thead>
+              <tr><th>Show</th><th>Description</th><th>Submitted by</th><th>Receipt</th><th>Date</th><th>Amount</th><th>Status</th></tr>
+            </thead>
+            <tbody id="reportDetailBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SETTINGS ── -->
+    <div id="tab-settings" class="tab-panel">
+      <div class="section-header"><h2>Settings</h2></div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Users</h2></div>
+        <div class="card-body">
+          <p class="muted">
+            Logins and access are managed in one place for every showmanager app now —
+            <a href="../index.html">open the portal → Users</a> to add someone, grant Expenses
+            admin access, or mark expenses access approved/unapproved.
+          </p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2>Expense notification emails</h2></div>
+        <div class="card-body">
+          <p class="muted" style="margin-bottom:14px">
+            Everyone on this list gets an email whenever a player submits a new expense (or
+            registers). The submitter is separately emailed when their own expense is marked paid.
+          </p>
+          <form id="addNotifyEmailForm" class="form-row" style="align-items:end;grid-template-columns:1fr auto">
+            <div class="form-group" style="margin-bottom:0">
+              <label for="newNotifyEmail">Add an email</label>
+              <input type="email" id="newNotifyEmail" class="form-control" required placeholder="manager@example.com">
+            </div>
+            <button type="submit" class="btn btn-primary" style="height:38px">+ Add</button>
+          </form>
+          <div class="item-list" id="notifyEmailList" style="margin-top:16px"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <div class="card-header"><h2>Sender email</h2></div>
+        <div class="card-body">
+          <p class="muted" style="margin-bottom:14px">
+            The "from" address on both emails above (new-expense notifications and paid
+            acknowledgements). <strong>Must be a sender already verified in Brevo</strong> — an
+            unverified address will fail to send, or land in spam, rather than notify anyone.
+            Leave blank to fall back to the SMTP_FROM secret set at deploy time.
+          </p>
+          <form id="fromEmailForm" class="form-row" style="align-items:end;grid-template-columns:1fr auto">
+            <div class="form-group" style="margin-bottom:0">
+              <label for="fromEmailInput">Sends from</label>
+              <input type="email" id="fromEmailInput" class="form-control" placeholder="expenses@pirtonplayers.org.uk">
+            </div>
+            <button type="submit" class="btn btn-primary" style="height:38px">Save</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <div class="card-header"><h2>Default link message</h2></div>
+        <div class="card-body">
+          <p class="muted" style="margin-bottom:14px">
+            Pre-fills the message box on Users → Send link — still editable per person before
+            it's sent, this just saves retyping the usual note each time.
+          </p>
+          <form id="defaultLinkMessageForm">
+            <div class="form-group">
+              <label for="defaultLinkMessageInput">Message</label>
+              <textarea id="defaultLinkMessageInput" class="form-control" rows="4" style="resize:vertical" placeholder="e.g. Here's the link to submit your show expenses..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <div class="card-header">
+          <h2>Storage</h2>
+          <button class="btn btn-secondary btn-sm" id="checkStorageUsageBtn">Check usage</button>
+        </div>
+        <div class="card-body">
+          <p class="muted" style="margin-bottom:4px">
+            Receipt photos only — this project is on the Blaze (pay-as-you-go) plan, so there's
+            no fixed quota to run out of, just cost, which scales with how much is stored.
+          </p>
+          <p id="storageUsageResult" class="muted"></p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Mark expenses as paid: choose a person, tick which of their outstanding expenses to pay,
+     one email covers the whole batch — same flow whether that's one expense or several. -->
+<div id="markPaidModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Mark expenses as paid</h3>
+      <button class="modal-close-btn" id="markPaidCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="markPaidPersonSelect">Person</label>
+        <select id="markPaidPersonSelect" class="form-control">
+          <option value="">Choose a person…</option>
+        </select>
+      </div>
+      <div id="markPaidExpenseList"></div>
+      <div id="markPaidTotalRow" style="display:none;align-items:center;justify-content:space-between;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <strong>Total selected</strong>
+        <strong id="markPaidTotalText">£0.00</strong>
+      </div>
+      <button class="btn btn-primary btn-full" id="markPaidSubmitBtn" style="margin-top:16px;display:none">Mark as paid</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="version.js?v=1.0.51"></script>
+<script src="../shared/firebase-config.js?v=1.0.51"></script>
+<script src="../shared/auth.js?v=1.0.51"></script>
+<script src="admin.js?v=1.0.51"></script>
+</body>
+</html>

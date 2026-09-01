@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Shared access model ─────────────────────────────────────────────────
+    // One users/{uid} doc per account (id = Firebase Auth uid), shared by every app under
+    // showmanager. isManager is the portal-level role — manages users/access for every app and
+    // implicitly passes every hasAccess() check below. Everyone else only gets in where their
+    // own access.{key} flag is true.
+    function isManager() {
+      return request.auth != null &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isManager == true;
+    }
+    function hasAccess(key) {
+      return isManager() || (
+        request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.access[key] == true
+      );
+    }
+
+    // Accounts are provisioned by a manager via the createUser Cloud Function (Admin SDK,
+    // bypasses these rules) — no client-side registration, so create is denied outright here. A
+    // manager can update anyone's doc (name/access/isManager, portal → Users); the one thing a
+    // non-manager can do to their own doc is clear mustChangePassword once they've set their own
+    // password — never set it, and never touch any other field in the same write.
+    match /users/{uid} {
+      allow create: if false;
+      allow read: if request.auth != null && (request.auth.uid == uid || isManager());
+      allow update: if isManager() ||
+        (request.auth != null && request.auth.uid == uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']) &&
+         request.resource.data.mustChangePassword == false);
+    }
+
+    // ── Expenses ─────────────────────────────────────────────────────────────
+    match /expenses_shows/{id} {
+      allow read: if true; // entry app needs the list before login even finishes rendering
+      allow write: if hasAccess('expensesAdmin');
+    }
+    match /expenses_config/{id} {
+      allow read, write: if hasAccess('expensesAdmin');
+    }
+    // A manager/expensesAdmin can always submit; an approved player (access.expenses) can submit
+    // only as themselves (userEmail must match their own verified auth email). Reading is scoped
+    // the same way. Only expensesAdmin can update (mark paid) or delete.
+    match /expenses/{id} {
+      allow create: if hasAccess('expensesAdmin') ||
+        (request.auth != null && hasAccess('expenses') && request.resource.data.userEmail == request.auth.token.email);
+      allow read: if hasAccess('expensesAdmin') || (request.auth != null && resource.data.userEmail == request.auth.token.email);
+      allow update, delete: if hasAccess('expensesAdmin');
+    }
+
+    // ── ShowDrinks ───────────────────────────────────────────────────────────
+    // Customer-facing paths (order.js) stay open to anonymous users, same as before — showdrinks
+    // never required a login for placing/checking an order. Admin-only collections now check
+    // access.showdrinksAdmin instead of the old bare `request.auth != null`.
+    match /showdrinks_shows/{id} {
+      allow read: if true;
+      allow write: if hasAccess('showdrinksAdmin');
+    }
+    match /showdrinks_config/{doc} {
+      allow read: if true;
+      allow write: if hasAccess('showdrinksAdmin');
+    }
+    match /showdrinks_menuItems/{id} {
+      allow read: if true;
+      allow write: if hasAccess('showdrinksAdmin');
+    }
+    match /showdrinks_locations/{id} {
+      allow read, write: if hasAccess('showdrinksAdmin'); // the PWA never reads this collection directly
+    }
+    match /showdrinks_posGrids/{id} {
+      allow read: if true;
+      allow write: if hasAccess('showdrinksAdmin');
+    }
+    match /showdrinks_counters/{id} {
+      allow read, write: if true; // anonymous customers increment these when placing an order
+    }
+    match /showdrinks_orders/{id} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if hasAccess('showdrinksAdmin');
+    }
+    match /showdrinks_tabMembers/{id} {
+      allow read, write: if hasAccess('showdrinksAdmin'); // admin-only, the PWA never touches these
+    }
+    match /showdrinks_tabOrders/{id} {
+      allow read, write: if hasAccess('showdrinksAdmin');
+    }
+
+    // ── ShowBudget ───────────────────────────────────────────────────────────
+    match /budget_shows/{id} {
+      allow read, write: if hasAccess('budget');
+    }
+  }
+}

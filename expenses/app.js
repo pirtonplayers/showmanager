@@ -1,0 +1,645 @@
+const storage = firebase.storage();
+// Cloud Functions are deployed to europe-west1 — the default region is us-central1, so this
+// has to be requested explicitly or callable functions 404.
+const functionsRegion = firebase.app().functions('europe-west1');
+
+// ── State ────────────────────────────────────────────────────────────────
+
+const state = { name: '', email: '' };
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function money(n) {
+  return `£${Number(n).toFixed(2)}`;
+}
+
+function formatDate(d) {
+  return d.toLocaleDateString('en-GB'); // day/month/year, not the browser locale's default
+}
+
+function showToast(message, type = 'info') {
+  const toast = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = `toast-msg ${type}`;
+  const text = document.createElement('span');
+  text.textContent = message;
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'toast-close';
+  closeBtn.setAttribute('aria-label', 'Dismiss');
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', () => el.remove());
+  el.append(text, closeBtn);
+  toast.appendChild(el);
+  // Errors stay up until dismissed by hand — plenty of time to read and copy the message,
+  // instead of it vanishing after 3.5s.
+  if (type !== 'error') setTimeout(() => el.remove(), 3500);
+}
+
+function goTo(screenId) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+
+  // Two entirely separate containers: #authScreen (a plain centered card, matching
+  // admin.html's own login screen) for login/forgot/change-password, and the app chrome
+  // (hero/sidebar/content) for the two signed-in screens.
+  const loggedInScreen = screenId === 'screenMain' || screenId === 'screenExpenses';
+  document.getElementById('authScreen').style.display = loggedInScreen ? 'none' : 'flex';
+  document.querySelector('.pwa-hero').style.display = loggedInScreen ? '' : 'none';
+  document.querySelector('.pwa-content').style.display = loggedInScreen ? '' : 'none';
+  document.getElementById('heroMenuWrap').style.display = loggedInScreen ? '' : 'none';
+  document.getElementById('mainMenuDropdown').style.display = 'none';
+  document.getElementById('pwaSidebar').style.display = loggedInScreen ? '' : 'none';
+  document.getElementById('pwaSidebarToggleBtn').style.display = loggedInScreen ? '' : 'none';
+  document.querySelector('.pwa-content').classList.toggle('with-sidebar', loggedInScreen);
+  // The nav buttons exist twice — once in the mobile dropdown, once in the desktop sidebar —
+  // sharing the same data-screen values, so switching via either keeps both in sync.
+  document.querySelectorAll('.tab-btn[data-screen]')
+    .forEach(b => b.classList.toggle('active', b.dataset.screen === screenId));
+}
+
+// ── Menu ─────────────────────────────────────────────────────────────────
+// Hamburger in the hero, shown only once signed in (see goTo) — switches between the New
+// expense screen and the Your expenses screen.
+
+document.getElementById('menuBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const menu = document.getElementById('mainMenuDropdown');
+  menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+});
+document.addEventListener('click', () => { document.getElementById('mainMenuDropdown').style.display = 'none'; });
+
+document.querySelectorAll('.tab-btn[data-screen]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    goTo(btn.dataset.screen);
+  });
+});
+document.getElementById('menuSignOutBtn').addEventListener('click', () => firebase.auth().signOut());
+document.getElementById('pwaSidebarSignOutBtn').addEventListener('click', () => firebase.auth().signOut());
+
+// Desktop sidebar collapse — same mechanism as admin.html's, own localStorage key so the two
+// apps' collapsed/expanded state don't affect each other.
+const pwaSidebarToggleBtn = document.getElementById('pwaSidebarToggleBtn');
+function applyPwaSidebarState(collapsed) {
+  document.body.classList.toggle('pwa-sidebar-collapsed', collapsed);
+  pwaSidebarToggleBtn.textContent = collapsed ? '›' : '‹';
+}
+applyPwaSidebarState(localStorage.getItem('expenses_pwa_sidebar_collapsed') === '1');
+pwaSidebarToggleBtn.addEventListener('click', () => {
+  const collapsed = !document.body.classList.contains('pwa-sidebar-collapsed');
+  applyPwaSidebarState(collapsed);
+  localStorage.setItem('expenses_pwa_sidebar_collapsed', collapsed ? '1' : '0');
+});
+
+// ── Auth ─────────────────────────────────────────────────────────────────
+// No self-registration: a manager creates every login (admin.html -> Users), giving the
+// player a temporary password. mustChangePassword on their users/{uid} doc then forces them
+// through screenChangePassword before they can do anything else.
+
+document.getElementById('togglePasswordBtn').addEventListener('click', (e) => {
+  const input = document.getElementById('loginPassword');
+  input.type = input.type === 'password' ? 'text' : 'password';
+  e.target.style.opacity = input.type === 'text' ? '1' : '';
+});
+
+document.getElementById('showForgotLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('forgotEmail').value = document.getElementById('loginEmail').value;
+  goTo('screenForgot');
+});
+document.getElementById('showLoginFromForgotLink').addEventListener('click', (e) => { e.preventDefault(); goTo('screenLogin'); });
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('loginError');
+  errorEl.textContent = '';
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value.trim();
+  try {
+    await firebase.auth().signInWithEmailAndPassword(email, password);
+  } catch (err) {
+    errorEl.textContent = err.message;
+  }
+});
+
+document.getElementById('forgotForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const statusEl = document.getElementById('forgotStatus');
+  statusEl.style.color = '';
+  const email = document.getElementById('forgotEmail').value.trim();
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    statusEl.textContent = 'Check your email for a reset link.';
+  } catch (err) {
+    statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = err.message;
+  }
+});
+
+document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('changePasswordError');
+  errorEl.textContent = '';
+  const password = document.getElementById('newPasswordInput').value.trim();
+  const passwordConfirm = document.getElementById('newPasswordConfirmInput').value.trim();
+
+  if (password !== passwordConfirm) {
+    errorEl.textContent = 'Passwords do not match.';
+    return;
+  }
+
+  try {
+    await firebase.auth().currentUser.updatePassword(password);
+    await db.collection('users').doc(firebase.auth().currentUser.uid).update({ mustChangePassword: false });
+    // The live listener in handleUser picks this up and moves on to screenMain by itself.
+  } catch (err) {
+    errorEl.textContent = err.code === 'auth/requires-recent-login'
+      ? 'Please sign out and sign in again, then retry.'
+      : err.message;
+  }
+});
+
+document.getElementById('changePasswordSignOutBtn').addEventListener('click', () => firebase.auth().signOut());
+
+let userDocUnsub = null;
+
+function handleUser(user) {
+  if (userDocUnsub) { userDocUnsub(); userDocUnsub = null; }
+
+  if (user) {
+    state.name = user.displayName || user.email;
+    state.email = user.email;
+    document.getElementById('changePasswordEmailText').textContent = state.email;
+
+    // Live listener, not a one-off get: so the screen flips to the main app the moment
+    // mustChangePassword clears, with no refresh needed.
+    userDocUnsub = db.collection('users').doc(user.uid).onSnapshot(doc => {
+      const data = doc.data();
+      // No doc at all (e.g. the account was deleted) fails closed the same as still needing
+      // to change the password — either way they shouldn't land in the main app.
+      if (!data || data.mustChangePassword) {
+        goTo('screenChangePassword');
+      } else {
+        // Their name comes from the users/{uid} doc, not Auth's own displayName (which is
+        // often blank — e.g. any account created by hand in the Firebase Console rather than
+        // via admin.html's "Add a user").
+        state.name = data.name || user.displayName || user.email;
+        goTo('screenMain');
+        subscribeMyExpenses();
+      }
+    }, err => {
+      console.error(err);
+      goTo('screenChangePassword');
+    });
+  } else {
+    if (myExpensesUnsub) { myExpensesUnsub(); myExpensesUnsub = null; }
+    state.name = '';
+    state.email = '';
+    document.getElementById('loginForm').reset();
+    document.getElementById('changePasswordForm').reset();
+    goTo('screenLogin');
+  }
+}
+
+firebase.auth().onAuthStateChanged(handleUser);
+
+// ── Shows ────────────────────────────────────────────────────────────────
+
+async function loadShows() {
+  const select = document.getElementById('showSelect');
+  try {
+    const snap = await db.collection('expenses_shows').get();
+    const shows = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(s => s.active)
+      .sort((a, b) => (b.showDate || '').localeCompare(a.showDate || ''));
+
+    if (!shows.length) {
+      select.innerHTML = '<option value="">No shows available — contact the manager</option>';
+      return;
+    }
+    select.innerHTML = shows.map(s =>
+      `<option value="${s.id}" data-name="${escapeHtml(s.name)}">${escapeHtml(s.name)}${s.showDate ? ' — ' + s.showDate : ''}</option>`
+    ).join('');
+  } catch (err) {
+    select.innerHTML = '<option value="">Could not load shows</option>';
+    console.error(err);
+  }
+}
+
+// ── My expenses ──────────────────────────────────────────────────────────
+
+let myExpensesCache = [];
+let myExpensesUnsub = null;
+
+// Live listener, not a one-off get: a manager marking something paid shows up here
+// immediately — no manual reload needed.
+function subscribeMyExpenses() {
+  if (myExpensesUnsub) { myExpensesUnsub(); myExpensesUnsub = null; }
+  const list = document.getElementById('myExpenses');
+  if (!state.email) return;
+  myExpensesUnsub = db.collection('expenses').where('userEmail', '==', state.email).onSnapshot(snap => {
+    myExpensesCache = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+    renderMyExpenses();
+    renderMyUnpaidTotal();
+  }, err => {
+    list.innerHTML = '<p class="empty-state">Could not load your expenses.</p>';
+    console.error(err);
+  });
+}
+
+function renderMyUnpaidTotal() {
+  const el = document.getElementById('myUnpaidTotalText');
+  if (!el) return;
+  const unpaid = myExpensesCache.filter(r => !r.paid).reduce((sum, r) => sum + Number(r.amount), 0);
+  el.textContent = money(unpaid);
+}
+
+function renderMyExpenses() {
+  const list = document.getElementById('myExpenses');
+  const showAll = document.getElementById('showAllExpensesToggle').checked;
+  const rows = showAll ? myExpensesCache : myExpensesCache.filter(r => !r.paid);
+
+  if (!rows.length) {
+    list.innerHTML = `<p class="empty-state">${showAll ? 'No expenses submitted yet.' : 'No unpaid expenses — nice.'}</p>`;
+    return;
+  }
+  list.innerHTML = rows.map(r => `
+    <div class="past-expense-card ${r.paid ? 'paid' : ''}" data-expense-detail="${r.id}">
+      <div class="pec-info">
+        <div class="pec-desc">${escapeHtml(r.description)}</div>
+        <div class="pec-detail">${escapeHtml(r.showName)} · ${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : ''}</div>
+      </div>
+      <div class="pec-right">
+        <div class="pec-amount">${money(r.amount)}</div>
+        <span class="badge ${r.paid ? 'badge-success' : 'badge-warning'}">${r.paid ? 'Paid' : 'Unpaid'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('showAllExpensesToggle').addEventListener('change', (e) => {
+  document.getElementById('showAllExpensesText').textContent = e.target.checked ? 'All' : 'Unpaid only';
+  renderMyExpenses();
+});
+
+// ── Expense detail modal ────────────────────────────────────────────────
+// receiptPaths is the current (possibly-multiple) field; receiptPath is the older single-file
+// one still sitting on any expense submitted before this became an array.
+function receiptPathsOf(r) {
+  return r.receiptPaths || (r.receiptPath ? [r.receiptPath] : []);
+}
+
+function closeExpenseDetail() {
+  document.getElementById('expenseDetailModal').style.display = 'none';
+}
+document.getElementById('expenseDetailCloseBtn').addEventListener('click', closeExpenseDetail);
+document.getElementById('expenseDetailModal').addEventListener('click', (e) => {
+  if (e.target.id === 'expenseDetailModal') closeExpenseDetail();
+});
+
+document.getElementById('myExpenses').addEventListener('click', async (e) => {
+  const card = e.target.closest('[data-expense-detail]');
+  if (!card) return;
+  const r = myExpensesCache.find(x => x.id === card.getAttribute('data-expense-detail'));
+  if (!r) return;
+
+  const body = document.getElementById('expenseDetailBody');
+  body.innerHTML = `
+    <div class="detail-row"><span class="dr-label">Show</span><span class="dr-value">${escapeHtml(r.showName || '—')}</span></div>
+    <div class="detail-row"><span class="dr-label">Description</span><span class="dr-value">${escapeHtml(r.description)}</span></div>
+    <div class="detail-row"><span class="dr-label">Amount</span><span class="dr-value">${money(r.amount)}</span></div>
+    <div class="detail-row"><span class="dr-label">Date</span><span class="dr-value">${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : '—'}</span></div>
+    <div class="detail-row"><span class="dr-label">Status</span><span class="dr-value"><span class="badge ${r.paid ? 'badge-success' : 'badge-warning'}">${r.paid ? 'Paid' : 'Unpaid'}</span></span></div>
+  `;
+  document.getElementById('expenseDetailModal').style.display = 'flex';
+
+  const paths = receiptPathsOf(r);
+  for (const path of paths) {
+    try {
+      const url = await storage.ref(path).getDownloadURL();
+      const img = document.createElement('img');
+      img.className = 'receipt-thumb';
+      img.src = url;
+      img.alt = 'Receipt photo';
+      img.addEventListener('click', () => window.open(url, '_blank'));
+      body.appendChild(img);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+});
+
+// ── Receipt compression ─────────────────────────────────────────────────
+// A receipt just needs to be readable, not print-quality — a straight-off-the-camera phone
+// photo is routinely several MB for no real benefit here, so every upload gets resized/
+// re-encoded as a JPEG capped at RECEIPT_MAX_DIMENSION on its longest side first. Falls back to
+// uploading the original file untouched if anything about that goes wrong (unsupported format,
+// browser quirk, etc.) rather than blocking the submission over it.
+
+const RECEIPT_MAX_DIMENSION = 1000;
+const RECEIPT_JPEG_QUALITY = 0.45;
+
+function compressReceiptImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(1, RECEIPT_MAX_DIMENSION / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => resolve(blob || file), 'image/jpeg', RECEIPT_JPEG_QUALITY);
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
+    img.src = objectUrl;
+  });
+}
+
+// ── Add to list / Submit all ────────────────────────────────────────────
+// "+ Add to list" stages an expense locally (receipts uploaded right away, so a mistake caught
+// before Submit all can still be cleaned up from Storage) rather than writing it to Firestore
+// immediately — lets several be built up and sent together in one go instead of one at a time.
+
+let pendingExpenses = [];
+let editingPendingId = null; // id of the pending item currently loaded into the form, or null
+let editingRemovedReceiptPaths = []; // its receipts marked for removal, not yet actually deleted
+
+function renderPendingList() {
+  const section = document.getElementById('pendingSection');
+  const list = document.getElementById('pendingList');
+  if (!pendingExpenses.length) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+  document.getElementById('pendingTotalText').textContent = money(pendingExpenses.reduce((sum, p) => sum + p.amount, 0));
+  list.innerHTML = pendingExpenses.map(p => `
+    <div class="pending-item">
+      <div class="pec-info">
+        <div class="pec-desc">${escapeHtml(p.description)}</div>
+        <div class="pec-detail">${escapeHtml(p.showName)}${p.receiptPaths.length ? ` · ${p.receiptPaths.length} receipt${p.receiptPaths.length === 1 ? '' : 's'}` : ''}</div>
+      </div>
+      <div class="pec-right">
+        <div class="pec-amount">${money(p.amount)}</div>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="icon-btn" data-edit-pending="${p.id}" title="Edit" aria-label="Edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+          </button>
+          <button type="button" class="icon-btn icon-btn-danger" data-remove-pending="${p.id}" title="Remove" aria-label="Remove">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Loads a staged item back into the form — its fields, plus its already-uploaded receipts
+// (removable individually) with the file picker free to add more on top, rather than the only
+// way to fix a mistake being to remove the whole item and start over.
+function startEditPending(id) {
+  const p = pendingExpenses.find(x => x.id === id);
+  if (!p) return;
+  editingPendingId = id;
+  editingRemovedReceiptPaths = [];
+  document.getElementById('showSelect').value = p.showId;
+  document.getElementById('descInput').value = p.description;
+  document.getElementById('amountInput').value = p.amount;
+  document.getElementById('receiptInput').value = '';
+  renderEditingExistingReceipts();
+  document.getElementById('editingNotice').style.display = 'block';
+  document.getElementById('submitBtn').textContent = 'Update item';
+}
+
+function renderEditingExistingReceipts() {
+  const el = document.getElementById('editingExistingReceipts');
+  const p = pendingExpenses.find(x => x.id === editingPendingId);
+  const remaining = p ? p.receiptPaths.filter(rp => !editingRemovedReceiptPaths.includes(rp)) : [];
+  if (!remaining.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+  el.innerHTML = remaining
+    .map((rp, i) => `<span class="badge badge-warning" data-existing-receipt="${escapeHtml(rp)}" style="cursor:pointer">Receipt ${i + 1} ×</span>`)
+    .join('');
+}
+
+document.getElementById('editingExistingReceipts').addEventListener('click', (e) => {
+  const path = e.target.getAttribute('data-existing-receipt');
+  if (!path) return;
+  editingRemovedReceiptPaths.push(path);
+  renderEditingExistingReceipts();
+});
+
+function resetExpenseForm() {
+  editingPendingId = null;
+  editingRemovedReceiptPaths = [];
+  document.getElementById('editingNotice').style.display = 'none';
+  document.getElementById('editingExistingReceipts').style.display = 'none';
+  document.getElementById('editingExistingReceipts').innerHTML = '';
+  document.getElementById('submitBtn').textContent = '+ Add to list';
+  document.getElementById('expenseForm').reset();
+}
+document.getElementById('cancelEditBtn').addEventListener('click', (e) => { e.preventDefault(); resetExpenseForm(); });
+
+document.getElementById('pendingList').addEventListener('click', (e) => {
+  if (e.target.matches('[data-edit-pending]')) {
+    startEditPending(e.target.getAttribute('data-edit-pending'));
+    return;
+  }
+  if (!e.target.matches('[data-remove-pending]')) return;
+  const id = e.target.getAttribute('data-remove-pending');
+  const idx = pendingExpenses.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const [removed] = pendingExpenses.splice(idx, 1);
+  removed.receiptPaths.forEach(p => storage.ref(p).delete().catch(() => {}));
+  if (editingPendingId === id) resetExpenseForm();
+  renderPendingList();
+});
+
+document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const statusEl = document.getElementById('formStatus');
+  const submitBtn = document.getElementById('submitBtn');
+  const showSelect = document.getElementById('showSelect');
+  const showId = showSelect.value;
+  const showName = showSelect.selectedOptions[0]?.dataset.name || '';
+  const description = document.getElementById('descInput').value.trim();
+  const amount = Number(document.getElementById('amountInput').value);
+  const files = Array.from(document.getElementById('receiptInput').files || []);
+
+  if (!showId) { statusEl.textContent = 'Please select a show.'; return; }
+  if (!description) { statusEl.textContent = 'Please describe the expense.'; return; }
+  if (!Number.isFinite(amount) || amount <= 0) { statusEl.textContent = 'Please enter a valid amount.'; return; }
+
+  const wasEditing = editingPendingId;
+  submitBtn.disabled = true;
+  statusEl.textContent = wasEditing ? 'Updating…' : 'Adding…';
+
+  // New photos only — files picked here are in addition to whatever's already attached (shown
+  // above the picker while editing), not a replacement for them.
+  const newReceiptPaths = [];
+  try {
+    for (const file of files) {
+      const blob = await compressReceiptImage(file);
+      const compressed = blob !== file;
+      const ext = compressed ? 'jpg' : (file.name.split('.').pop() || 'jpg').toLowerCase();
+      // Path is receipts/{own uid}/... — storage.rules only lets an account read/write its own
+      // uid folder (or a manager read any of them), so this has to be the uid, not anything
+      // derived from the email.
+      const path = `receipts/${firebase.auth().currentUser.uid}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+      await storage.ref(path).put(blob, compressed ? { contentType: 'image/jpeg' } : undefined);
+      newReceiptPaths.push(path);
+    }
+
+    const p = wasEditing && pendingExpenses.find(x => x.id === wasEditing);
+    if (p) {
+      editingRemovedReceiptPaths.forEach(rp => storage.ref(rp).delete().catch(() => {}));
+      p.showId = showId;
+      p.showName = showName;
+      p.description = description;
+      p.amount = amount;
+      p.receiptPaths = p.receiptPaths.filter(rp => !editingRemovedReceiptPaths.includes(rp)).concat(newReceiptPaths);
+    } else {
+      // Also the fallback if wasEditing was set but that item's gone (submitted/removed from
+      // under it) — add it as new rather than silently dropping it.
+      pendingExpenses.push({ id: crypto.randomUUID(), showId, showName, description, amount, receiptPaths: newReceiptPaths });
+    }
+    resetExpenseForm();
+    renderPendingList();
+
+    statusEl.textContent = '';
+    showToast(wasEditing ? 'Item updated' : 'Added to list', 'success');
+  } catch (err) {
+    console.error(err);
+    newReceiptPaths.forEach(p => storage.ref(p).delete().catch(() => {}));
+    statusEl.textContent = '';
+    showToast(err.message || 'Could not save expense', 'error');
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
+
+document.getElementById('submitAllBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('submitAllBtn');
+  btn.disabled = true;
+  const failed = [];
+  const submittedIds = [];
+  for (const p of pendingExpenses) {
+    try {
+      const ref = await db.collection('expenses').add({
+        showId: p.showId,
+        showName: p.showName,
+        description: p.description,
+        amount: p.amount,
+        userName: state.name,
+        userEmail: state.email,
+        receiptPaths: p.receiptPaths,
+        paid: false,
+        paidAt: null,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      submittedIds.push(ref.id);
+    } catch (err) {
+      console.error(err);
+      failed.push(p);
+    }
+  }
+  pendingExpenses = failed;
+  // Submit all doesn't go through the form's own submit handler, so nothing else clears
+  // editingPendingId — left set, the form would silently misbehave on the very next "+ Add to
+  // list": it'd try to update an item that's just been submitted and no longer exists, instead
+  // of adding a new one.
+  resetExpenseForm();
+  renderPendingList();
+  btn.disabled = false;
+  showToast(
+    failed.length ? `${failed.length} expense${failed.length === 1 ? '' : 's'} failed to submit — still in the list, try again.` : 'Submitted — thank you!',
+    failed.length ? 'error' : 'success'
+  );
+  // One summary email covering the whole batch, not one per expense — managers don't need a
+  // separate email for each line of a multi-expense submission.
+  if (submittedIds.length) {
+    functionsRegion.httpsCallable('notifyExpensesSubmitted')({ ids: submittedIds }).catch(err => console.error(err));
+  }
+  // The live listener in subscribeMyExpenses picks each of these up as soon as its write lands.
+});
+
+// ── Service worker update banner ────────────────────────────────────────
+
+function initServiceWorker() {
+  // Still registered — needed for offline support and for the page to qualify as an
+  // installable PWA — but its own install/update lifecycle no longer decides whether the
+  // banner shows (see checkForUpdate). That lifecycle runs on its own schedule, separate from
+  // the page's: index.html/app.js/version.js are always fetched fresh over the network
+  // regardless of service worker state (network-first, both with and without one active), so
+  // the version actually on screen can easily be newer than whatever the service worker has
+  // gotten around to installing — showing "a new version is available" while the header
+  // already reads the latest version, confusingly. Comparing the real version number instead
+  // ties the banner to the same thing you can see on screen, not a second, looser proxy for it.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(e => console.warn('SW failed', e));
+  }
+
+  checkForUpdate();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForUpdate();
+  });
+}
+
+async function checkForUpdate() {
+  if (typeof APP_VERSION === 'undefined') return;
+  try {
+    const res = await fetch('version.js?_=' + Date.now(), { cache: 'no-store' });
+    const latest = (await res.text()).match(/APP_VERSION\s*=\s*'([^']+)'/)?.[1];
+    if (latest && latest !== APP_VERSION) showUpdateBanner();
+  } catch (err) {
+    // Offline or the request failed — nothing meaningful to report either way.
+  }
+}
+
+let updateBtnWired = false;
+
+function showUpdateBanner() {
+  const banner = document.getElementById('updateBanner');
+  if (!banner) return;
+  banner.classList.add('visible');
+  if (updateBtnWired) return; // updatefound can fire more than once; only wire the click once
+  updateBtnWired = true;
+  document.getElementById('updateBtn').addEventListener('click', async () => {
+    banner.querySelector('span').textContent = 'Updating…';
+    // Previously tried the "proper" skipWaiting/clients.claim()/controllerchange handoff —
+    // that's now caused two separate bugs (a stale worker reference; then this button
+    // reappearing in a loop even against a version held steady) and there's no way to step
+    // through the browser's own service worker lifecycle to find a third. This is simpler and
+    // leaves no lifecycle state to get stuck in: drop the service worker and its caches
+    // entirely, then reload — the reload re-registers a fresh one from whatever's actually live.
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(r => r.unregister()));
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+    } catch (err) {
+      console.error(err);
+    }
+    // Once the service worker's gone, THIS reload is no longer covered by its own
+    // cache-bypassing fetch strategy — it's a plain browser request, and GitHub Pages serves
+    // this page with Cache-Control: max-age=600, so a plain reload() could still hand back
+    // whatever the browser's own HTTP cache has sitting around. A cache-busting query string
+    // forces a genuinely fresh request.
+    window.location.href = window.location.pathname + '?v=' + Date.now();
+  });
+}
+
+// ── Bootstrap ────────────────────────────────────────────────────────────
+
+initServiceWorker();
+document.getElementById('appVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';
+loadShows();

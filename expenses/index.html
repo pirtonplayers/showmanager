@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pirton Players Expenses</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css?v=1.0.51">
+</head>
+<body class="pwa-body">
+
+<div id="updateBanner">
+  <span>A new version is available</span>
+  <button class="btn btn-sm" id="updateBtn" style="background:#fff;color:#0b3d38">Update now</button>
+</div>
+
+<!-- Pre-sign-in screens: a plain centered card on a flat background, same layout as
+     admin.html's #loginScreen (just this app's own teal accent instead of admin's amber). -->
+<div id="authScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)">
+
+  <!-- Screen: sign in -->
+  <div id="screenLogin" class="screen card" style="width:100%;max-width:360px;margin:20px">
+    <div class="card-header"><h2>Pirton Players Expenses</h2></div>
+    <div class="card-body">
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" class="form-control" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <div class="password-field">
+            <input type="password" id="loginPassword" class="form-control" required autocomplete="current-password">
+            <button type="button" class="password-toggle-btn" id="togglePasswordBtn" title="Show password">👁</button>
+          </div>
+        </div>
+        <p id="loginError" class="muted" style="color:var(--danger);margin-bottom:12px"></p>
+        <button type="submit" class="btn btn-primary btn-full">Sign in</button>
+        <p style="text-align:center;margin-top:14px" class="muted">
+          Don't have an account? Ask a manager to set one up for you.
+        </p>
+        <p style="text-align:center;margin-top:8px">
+          <a href="#" id="showForgotLink" style="font-size:13px;color:var(--text-muted)">Forgot password?</a>
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Screen: forgot password -->
+  <div id="screenForgot" class="screen card" style="width:100%;max-width:360px;margin:20px">
+    <div class="card-header"><h2>Reset your password</h2></div>
+    <div class="card-body">
+      <p class="muted" style="margin-bottom:14px">We'll email you a link to choose a new one.</p>
+      <form id="forgotForm">
+        <div class="form-group">
+          <label for="forgotEmail">Email</label>
+          <input type="email" id="forgotEmail" class="form-control" required autocomplete="username">
+        </div>
+        <p id="forgotStatus" class="muted" style="margin-bottom:12px"></p>
+        <button type="submit" class="btn btn-primary btn-full">Send reset link</button>
+        <p style="text-align:center;margin-top:14px">
+          <a href="#" id="showLoginFromForgotLink" style="font-size:13px;color:var(--primary-dark)">Back to sign in</a>
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Screen: must set a real password before continuing -->
+  <div id="screenChangePassword" class="screen card" style="width:100%;max-width:360px;margin:20px">
+    <div class="card-header"><h2>Set your password</h2></div>
+    <div class="card-body">
+      <p class="muted" style="margin-bottom:14px">
+        Choose a new password for <strong id="changePasswordEmailText"></strong> — the one a
+        manager gave you was only temporary, so you'll need to set your own before continuing.
+      </p>
+      <form id="changePasswordForm">
+        <div class="form-group">
+          <label for="newPasswordInput">New password</label>
+          <input type="password" id="newPasswordInput" class="form-control" required autocomplete="new-password" minlength="6">
+        </div>
+        <div class="form-group">
+          <label for="newPasswordConfirmInput">Confirm new password</label>
+          <input type="password" id="newPasswordConfirmInput" class="form-control" required autocomplete="new-password" minlength="6">
+        </div>
+        <p id="changePasswordError" class="muted" style="color:var(--danger);margin-bottom:12px"></p>
+        <button type="submit" class="btn btn-primary btn-full">Set password and continue</button>
+      </form>
+      <button class="btn btn-secondary btn-full" id="changePasswordSignOutBtn" style="margin-top:10px">Sign out</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Signed-in app chrome: hidden until goTo() shows it (see app.js) — always compact, since the
+     big banner treatment only ever applied to the pre-sign-in screens above, which don't use
+     this any more. -->
+<div class="pwa-hero compact" style="display:none">
+  <div id="heroMenuWrap" style="display:none">
+    <button class="hamburger-btn" id="menuBtn">☰</button>
+    <div id="mainMenuDropdown" class="dropdown-menu" style="display:none">
+      <button class="tab-btn active" data-screen="screenMain">New expense</button>
+      <button class="tab-btn" data-screen="screenExpenses">Your expenses</button>
+      <a href="help.html" class="tab-btn">Help</a>
+      <div class="dropdown-divider"></div>
+      <button class="btn btn-danger btn-sm" id="menuSignOutBtn">Sign Out</button>
+    </div>
+  </div>
+  <h1>Pirton Players Expenses</h1>
+  <span id="appVersion" class="hero-version"></span>
+</div>
+
+<!-- Desktop-only sidebar nav (mirrors admin.html's) — hidden on mobile and before sign-in;
+     see goTo() in app.js. Shares data-screen buttons/handler with #mainMenuDropdown above. -->
+<nav class="admin-sidebar" id="pwaSidebar" style="display:none">
+  <button class="tab-btn active" data-screen="screenMain">New expense</button>
+  <button class="tab-btn" data-screen="screenExpenses">Your expenses</button>
+  <a href="help.html" class="tab-btn">Help</a>
+  <div class="dropdown-divider"></div>
+  <button class="btn btn-danger btn-sm" id="pwaSidebarSignOutBtn">Sign Out</button>
+</nav>
+<button class="sidebar-toggle" id="pwaSidebarToggleBtn" title="Collapse/expand menu" style="display:none">‹</button>
+
+<div class="pwa-content" style="display:none">
+
+  <!-- Screen: main app -->
+  <div id="screenMain" class="screen">
+    <div class="summary-grid" style="margin-bottom:16px">
+      <div class="summary-card"><div class="snum" id="myUnpaidTotalText">£0.00</div><div class="slabel">Your unpaid total</div></div>
+    </div>
+    <div class="section-label">New expense</div>
+    <div class="card" style="margin-bottom:8px">
+      <div class="card-body">
+        <form id="expenseForm">
+          <p id="editingNotice" class="muted" style="display:none;margin-bottom:12px">
+            Editing an item on the list below — <a href="#" id="cancelEditBtn">cancel</a>
+          </p>
+          <div class="form-group">
+            <label for="showSelect">Show</label>
+            <select id="showSelect" class="form-control" required></select>
+          </div>
+          <div class="form-group">
+            <label for="descInput">What was it for?</label>
+            <input type="text" id="descInput" class="form-control" placeholder="e.g. Programme printing" required>
+          </div>
+          <div class="form-group">
+            <label for="amountInput">Amount paid (£)</label>
+            <input type="number" id="amountInput" class="form-control" placeholder="0.00" step="0.01" min="0.01" required>
+          </div>
+          <div class="form-group">
+            <label for="receiptInput">Receipt photo(s) (optional)</label>
+            <div id="editingExistingReceipts" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
+            <input type="file" id="receiptInput" class="form-control" accept="image/*" multiple>
+          </div>
+          <p id="formStatus" class="muted" style="margin-bottom:12px"></p>
+          <button type="submit" class="btn btn-primary btn-full btn-lg" id="submitBtn">+ Add to list</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Staged locally, uploaded already, but not written as real expenses until Submit all —
+         lets several be built up and sent together instead of one at a time. -->
+    <div id="pendingSection" style="display:none">
+      <div class="section-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Ready to submit</span>
+        <span id="pendingTotalText" class="muted"></span>
+      </div>
+      <div id="pendingList"></div>
+      <button type="button" class="btn btn-primary btn-full btn-lg" id="submitAllBtn" style="margin-top:10px">Submit all</button>
+    </div>
+  </div>
+
+  <!-- Screen: expense list -->
+  <div id="screenExpenses" class="screen">
+    <div class="pwa-section-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Your expenses</span>
+      <label class="switch-label">
+        <input type="checkbox" id="showAllExpensesToggle">
+        <span class="switch"></span>
+        <span id="showAllExpensesText">Unpaid only</span>
+      </label>
+    </div>
+    <div id="myExpenses"></div>
+  </div>
+
+</div>
+
+<!-- Expense detail modal (screenExpenses -> tap a card) -->
+<div id="expenseDetailModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Expense detail</h3>
+      <button class="modal-close-btn" id="expenseDetailCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body" id="expenseDetailBody"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
+<script src="version.js?v=1.0.51"></script>
+<script src="../shared/firebase-config.js?v=1.0.51"></script>
+<script src="../shared/auth.js?v=1.0.51"></script>
+<script src="app.js?v=1.0.51"></script>
+</body>
+</html>

@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ShowDrinks Admin</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)">
+  <div class="card" style="width:100%;max-width:360px;margin:20px">
+    <div class="card-header"><h2>ShowDrinks Admin</h2></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" class="form-control" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">Password</label>
+        <div class="password-field">
+          <input type="password" id="loginPassword" class="form-control" autocomplete="current-password">
+          <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('loginPassword',this)" title="Show password">👁</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" style="width:100%" id="loginSubmitBtn">Sign In</button>
+      <p style="text-align:center;margin-top:14px">
+        <a href="#" id="forgotPasswordLink" style="font-size:13px;color:var(--text-muted)">Forgot password?</a>
+      </p>
+      <p id="loginError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></p>
+    </div>
+  </div>
+</div>
+
+<div id="adminApp" style="display:none">
+
+<header class="admin-header">
+  <div style="position:relative">
+    <button class="hamburger-btn" onclick="toggleMainMenu(event)">☰</button>
+    <div id="mainMenuDropdown" class="dropdown-menu" style="display:none;left:0;right:auto">
+      <button class="tab-btn active" data-tab="show">Show &amp; Sessions</button>
+      <button class="tab-btn" data-tab="menu">Menu Items</button>
+      <button class="tab-btn" data-tab="locations">Locations</button>
+      <button class="tab-btn" data-tab="orders">Orders</button>
+      <button class="tab-btn" data-tab="tabs">Show Tabs</button>
+      <button class="tab-btn" data-tab="pos">POS Layout</button>
+      <button class="tab-btn" data-tab="settings">Settings &amp; QR</button>
+      <div class="dropdown-divider"></div>
+      <button class="btn btn-secondary btn-sm" id="changePasswordBtn">Change Password</button>
+      <button class="btn btn-danger btn-sm" id="signOutBtn">Sign Out</button>
+    </div>
+  </div>
+  <div class="header-show-name" id="headerShowName">Loading…</div>
+  <div style="font-size:11px;opacity:.55;margin-left:auto" id="headerVersion"></div>
+</header>
+
+<main class="admin-content">
+
+  <!-- ── SHOW & SESSIONS ── -->
+  <div id="tab-show" class="tab-panel active">
+    <div class="section-header">
+      <h2>Show &amp; Sessions</h2>
+      <button class="btn btn-primary" id="saveShowBtn">Save Changes</button>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+        <h2>Shows</h2>
+        <button class="btn btn-primary btn-sm" id="addShowBtn">+ New Show</button>
+      </div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+          Add as many shows as you like. Only the show marked <strong>Current</strong> is picked up by the customer PWA.
+        </p>
+        <div class="item-list" id="showsList"></div>
+      </div>
+    </div>
+
+    <div id="showEditorWrap" style="display:none">
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+          <h2>Show Details</h2>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" id="setCurrentShowBtn">Set as Current</button>
+            <button class="btn btn-danger btn-sm" id="deleteShowBtn">Delete Show</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label for="showName">Show Name</label>
+            <input type="text" id="showName" class="form-control" placeholder="e.g. Summer Concert 2026">
+          </div>
+          <div class="form-group">
+            <label>Show Dates</label>
+            <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 8px">
+              Optional — used to filter the Orders tab by date. The customer PWA always orders for
+              today; it doesn't ask customers to pick a date.
+            </p>
+            <div style="display:flex;gap:8px;margin-bottom:8px">
+              <input type="date" id="newDateInput" class="form-control">
+              <button class="btn btn-primary" id="addDateBtn">Add</button>
+            </div>
+            <div class="dates-list" id="datesList"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Payment Settings (this show)</h2></div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+            Leave any of these blank to fall back to the system defaults set in
+            <strong>Settings &amp; QR</strong>.
+          </p>
+          <div class="form-group">
+            <label for="showPaymentMode">Payment Mode</label>
+            <select id="showPaymentMode" class="form-control">
+              <option value="">Use system default</option>
+              <option value="bar">Pay at Bar (no online payment)</option>
+              <option value="sumup">SumUp Online Checkout</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="showSumupMerchantCode">Merchant Code</label>
+            <input type="text" id="showSumupMerchantCode" class="form-control" placeholder="Use system default">
+          </div>
+          <div class="form-group">
+            <label for="showSumupApiKey">API Key (keep secret)</label>
+            <div class="password-field">
+              <input type="password" id="showSumupApiKey" class="form-control" placeholder="Use system default">
+              <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('showSumupApiKey',this)" title="Show">👁</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+      <div class="card-header"><h2>Sessions</h2></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+          Configure the time slots during a show day.
+        </p>
+
+        <div class="session-card" id="sessionBefore">
+          <h3><span class="session-tag before">Before</span> Before Show</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Session Name</label>
+              <input type="text" id="beforeName" class="form-control" value="Before Show">
+            </div>
+            <div class="form-group">
+              <label>Enabled</label>
+              <select id="beforeEnabled" class="form-control">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="session-card" id="sessionInterval">
+          <h3><span class="session-tag interval">Interval</span> Interval</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Session Name</label>
+              <input type="text" id="intervalName" class="form-control" value="Interval">
+            </div>
+            <div class="form-group">
+              <label>Enabled</label>
+              <select id="intervalEnabled" class="form-control">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="session-card" id="sessionAfter">
+          <h3><span class="session-tag after">After</span> After Show</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Session Name</label>
+              <input type="text" id="afterName" class="form-control" value="After Show">
+            </div>
+            <div class="form-group">
+              <label>Enabled</label>
+              <select id="afterEnabled" class="form-control">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ── MENU ITEMS ── -->
+  <div id="tab-menu" class="tab-panel">
+    <div class="section-header">
+      <h2>Menu Items</h2>
+      <button class="btn btn-danger btn-sm" id="clearAllMenuBtn" style="display:none">Clear All</button>
+    </div>
+    <div id="menuCategoryBar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <div class="card">
+      <div class="card-body" style="padding:0;overflow-x:auto">
+        <table class="menu-grid-table">
+          <thead>
+            <tr>
+              <th style="width:180px">Category</th>
+              <th>Name</th>
+              <th style="width:110px">Price (£)</th>
+              <th style="width:44px"></th>
+            </tr>
+          </thead>
+          <tbody id="menuTableBody">
+            <tr><td colspan="4" style="color:var(--text-muted);padding:20px;text-align:center">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LOCATIONS ── -->
+  <div id="tab-locations" class="tab-panel">
+    <div class="section-header">
+      <h2>Collection Locations</h2>
+    </div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><h2>Add Location</h2></div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px">
+          <input type="text" id="locationName" class="form-control" placeholder="e.g. Bar, Foyer, Stage Left">
+          <button class="btn btn-primary" id="addLocationBtn">Add</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Locations</h2></div>
+      <div class="card-body">
+        <div class="item-list" id="locationsList">
+          <p style="color:var(--text-muted);font-size:14px">No locations yet.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ORDERS ── -->
+  <div id="tab-orders" class="tab-panel">
+    <div class="section-header">
+      <h2>Orders</h2>
+      <button class="btn btn-secondary btn-sm" id="refreshOrdersBtn">⟳ Refresh</button>
+      <button class="btn btn-danger btn-sm" id="clearAllOrdersBtn">Clear All Orders</button>
+    </div>
+
+    <div class="orders-toolbar">
+      <div class="form-group" style="margin:0;flex:1;min-width:160px">
+        <label for="filterDate">Date</label>
+        <select id="filterDate" class="form-control">
+          <option value="">All dates</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;flex:1;min-width:160px">
+        <label for="filterSession">Session</label>
+        <select id="filterSession" class="form-control">
+          <option value="">All sessions</option>
+          <option value="before">Before Show</option>
+          <option value="interval">Interval</option>
+          <option value="after">After Show</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;flex:1;min-width:160px">
+        <label for="filterStatus">Status</label>
+        <select id="filterStatus" class="form-control">
+          <option value="">Active (not collected)</option>
+          <option value="pending">Pending</option>
+          <option value="ready">Ready</option>
+          <option value="collected">Collected</option>
+          <option value="all">All orders</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="summary-grid" id="ordersSummary"></div>
+
+    <div id="ordersContainer">
+      <p style="color:var(--text-muted);font-size:14px">Select a date to see orders.</p>
+    </div>
+  </div>
+
+  <!-- ── SHOW TABS ── -->
+  <div id="tab-tabs" class="tab-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px;flex-wrap:wrap" id="tabSubNav">
+      <div style="display:flex;gap:8px">
+        <button class="cat-filter-btn active" data-subtab="pos" onclick="selectTabsSubtab('pos')">Point of Sale</button>
+        <button class="cat-filter-btn" data-subtab="members" onclick="selectTabsSubtab('members')">Members &amp; Totals</button>
+      </div>
+      <div style="position:relative">
+        <button class="btn btn-secondary btn-sm" onclick="toggleTabsMenu(event)">⋯</button>
+        <div id="tabsMenuDropdown" class="dropdown-menu" style="display:none">
+          <button class="btn btn-secondary btn-sm" onclick="emailAllOwingMembers()">✉ Email All Owing</button>
+          <button class="btn btn-secondary btn-sm" id="exportTabSalesBtn">⬇ Export Sales (CSV)</button>
+          <button class="btn btn-danger btn-sm" id="clearAllTabsBtn">Clear Sales History</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="subtab-pos" class="subtab-panel">
+      <div class="card">
+        <div class="card-body">
+          <div class="form-group" style="max-width:320px">
+            <select id="tabMemberSelect" class="form-control" onchange="selectTabMember(this.value)">
+              <option value="">— choose a member —</option>
+            </select>
+          </div>
+
+          <div id="tabPosArea" class="tab-pos-split" style="display:none">
+            <div class="tab-pos-buttons">
+              <div id="tabPosGrid"></div>
+            </div>
+            <div class="tab-pos-order">
+              <div id="tabBasket" style="min-height:36px;background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:13px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="subtab-members" class="subtab-panel" style="display:none">
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Add Member</h2></div>
+        <div class="card-body">
+          <div style="display:flex;gap:8px;max-width:640px">
+            <input type="text" id="newTabMemberName" class="form-control" placeholder="Cast/crew member name">
+            <input type="email" id="newTabMemberEmail" class="form-control" placeholder="Email (optional)">
+            <button class="btn btn-primary" id="addTabMemberBtn">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2>Members &amp; Totals</h2></div>
+        <div class="card-body">
+          <div class="item-list" id="tabMembersList">
+            <p style="color:var(--text-muted);font-size:14px">No tab members yet.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── POS LAYOUT ── -->
+  <div id="tab-pos" class="tab-panel">
+    <div class="section-header">
+      <h2>POS Layout</h2>
+      <button class="btn btn-secondary btn-sm" onclick="posOpenTest()">▶ Test</button>
+      <button class="btn btn-primary" id="posSaveBtn">Save Layout</button>
+    </div>
+    <div class="pos-editor">
+      <div class="pos-sidebar">
+        <div class="pos-grids-panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <strong style="font-size:13px">Grids</strong>
+            <button class="btn btn-primary btn-sm" id="posAddGridBtn">+ Add</button>
+          </div>
+          <div id="posGridList"></div>
+        </div>
+        <div class="pos-items-panel">
+          <strong style="font-size:13px">Menu Items</strong>
+          <p style="font-size:11px;color:var(--text-muted);margin:4px 0 6px">Drag onto a cell</p>
+          <select id="posCatFilter" class="form-control" style="font-size:12px;padding:4px 8px;margin-bottom:6px" onchange="posRenderMenuItems()">
+            <option value="">All categories</option>
+          </select>
+          <div id="posMenuItems"></div>
+        </div>
+      </div>
+      <div class="pos-main-panel">
+        <div id="posEditor"><p style="color:var(--text-muted)">Select a grid to edit</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS & QR ── -->
+  <div id="tab-settings" class="tab-panel">
+    <div class="section-header">
+      <h2>Settings &amp; QR Code</h2>
+      <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><h2>Admin Users</h2></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted)">
+          Logins and access are managed in one place for every showmanager app now —
+          <a href="../index.html">open the portal → Users</a> to add someone or grant them
+          ShowDrinks admin access.
+        </p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><h2>Site URL</h2></div>
+      <div class="card-body">
+        <div class="form-group">
+          <label for="siteUrl">Base URL (where this site is hosted)</label>
+          <input type="url" id="siteUrl" class="form-control" placeholder="https://antonjung.github.io/showdrinks">
+        </div>
+        <p style="font-size:13px;color:var(--text-muted)">Used to generate the QR code customers scan to open the ordering PWA.</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><h2>SumUp Payment Settings (system default)</h2></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+          Used for any show that doesn't set its own payment settings. Per-show overrides
+          live in Show &amp; Sessions → Payment Settings.
+        </p>
+        <div class="form-group">
+          <label for="sumupMerchantCode">Merchant Code</label>
+          <input type="text" id="sumupMerchantCode" class="form-control" placeholder="Your SumUp merchant code">
+        </div>
+        <div class="form-group">
+          <label for="sumupApiKey">API Key (keep secret)</label>
+          <div class="password-field">
+            <input type="password" id="sumupApiKey" class="form-control" placeholder="Your SumUp API key">
+            <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('sumupApiKey',this)" title="Show">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="paymentMode">Payment Mode</label>
+          <select id="paymentMode" class="form-control">
+            <option value="bar">Pay at Bar (no online payment)</option>
+            <option value="sumup">SumUp Online Checkout</option>
+          </select>
+        </div>
+        <p style="font-size:13px;color:var(--text-muted)">
+          SumUp online checkout requires a server-side function (Firebase Cloud Function) to create checkouts securely.
+          See README for setup instructions.
+        </p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><h2>Show Tabs Email Template</h2></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+          Used by the ✉ button on a Show Tabs member's card. Placeholders:
+          <code>[name]</code>, <code>[drinks]</code> (their unpaid items), <code>[total]</code> (amount owed).
+        </p>
+        <div class="form-group">
+          <label for="emailTemplateSubject">Subject</label>
+          <input type="text" id="emailTemplateSubject" class="form-control">
+        </div>
+        <div class="form-group">
+          <label for="emailTemplateBody">Body</label>
+          <textarea id="emailTemplateBody" class="form-control" rows="6"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>Customer QR Code</h2></div>
+      <div class="card-body" style="text-align:center">
+        <p style="font-size:14px;color:var(--text-muted);margin-bottom:16px">
+          Customers scan this to open the drink ordering page.
+        </p>
+        <div id="qrcode" style="display:inline-block;margin:0 auto 16px"></div>
+        <div>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px" id="qrUrl"></p>
+          <button class="btn btn-primary" id="generateQrBtn">Generate QR Code</button>
+          <button class="btn btn-secondary" id="downloadQrBtn" style="margin-left:8px;display:none">Download PNG</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+</div>
+<!-- /#adminApp -->
+
+<!-- Edit modal -->
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:400px;margin:20px">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+      <h2 id="editModalTitle">Edit Item</h2>
+      <button onclick="closeModal()" style="background:none;border:none;font-size:20px;cursor:pointer">×</button>
+    </div>
+    <div class="card-body">
+      <div class="form-group">
+        <label for="editName">Name</label>
+        <input type="text" id="editName" class="form-control">
+      </div>
+      <div class="form-group" id="editPriceGroup">
+        <label for="editPrice">Price (£)</label>
+        <input type="number" id="editPrice" class="form-control" min="0" step="0.50">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="editSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- POS Test Modal -->
+<div id="posTestModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:360px;margin:20px">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+      <h2>Test POS Grid</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-secondary btn-sm" onclick="posResetTest()">↺ Reset</button>
+        <button onclick="posCloseTest()" style="background:none;border:none;font-size:20px;cursor:pointer;line-height:1">×</button>
+      </div>
+    </div>
+    <div class="card-body" style="padding:12px">
+      <div id="testBasket" style="min-height:36px;background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:13px"></div>
+      <div id="testPosGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- POS Cell Editor Modal -->
+<div id="posCellModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:380px;margin:20px">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+      <h2>Edit Cell</h2>
+      <button onclick="posCloseCellModal()" style="background:none;border:none;font-size:20px;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div class="card-body">
+      <div class="form-group">
+        <label>Type</label>
+        <select id="posCellType" class="form-control" onchange="posUpdateCellForm()">
+          <option value="empty">Empty</option>
+          <option value="item">Menu Item</option>
+          <option value="grid">Go to Grid</option>
+          <option value="back">Back</option>
+          <option value="finish">Finish / Review</option>
+          <option value="clear">Clear Order</option>
+          <option value="plus">+ Plus (add one)</option>
+          <option value="minus">− Minus (remove one)</option>
+        </select>
+      </div>
+      <div class="form-group" id="posCellLabelRow">
+        <label>Label</label>
+        <input type="text" id="posCellLabel" class="form-control" placeholder="Button label">
+      </div>
+      <div class="form-group" id="posCellItemRow" style="display:none">
+        <label>Menu Item</label>
+        <select id="posCellItemSel" class="form-control" onchange="posCellItemChange()"></select>
+      </div>
+      <div class="form-group" id="posCellGridRow" style="display:none">
+        <label>Target Grid</label>
+        <select id="posCellGridSel" class="form-control"></select>
+      </div>
+      <div class="form-group">
+        <label>Colour</label>
+        <div id="posCellColors" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <button class="btn btn-danger btn-sm" onclick="posClearCell()">Clear Cell</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="posCloseCellModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="posSaveCellEdit()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="version.js"></script>
+<script src="../shared/firebase-config.js"></script>
+<script src="../shared/auth.js"></script>
+<script src="admin.js"></script>
+<script>
+  document.addEventListener('gesturestart', e => e.preventDefault());
+  document.addEventListener('touchmove', e => { if (e.scale !== undefined && e.scale !== 1) e.preventDefault(); }, { passive: false });
+</script>
+</body>
+</html>

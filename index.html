@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1d4ed8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pirton Players — showmanager</title>
+  <link rel="stylesheet" href="style.css?v=1.0.2">
+</head>
+<body class="theme-portal">
+
+<div id="updateBanner">
+  <span>A new version is available</span>
+  <button class="btn btn-sm" id="updateBtn" style="background:#fff;color:#1e3a8a">Update now</button>
+</div>
+
+<div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)">
+  <div class="card" style="width:100%;max-width:360px;margin:20px">
+    <div class="card-header"><h2>Pirton Players</h2></div>
+    <div class="card-body">
+      <p class="muted" style="margin-bottom:14px">Sign in once for expenses, ShowDrinks admin and ShowBudget.</p>
+      <div class="form-group">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" class="form-control" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">Password</label>
+        <div class="password-field">
+          <input type="password" id="loginPassword" class="form-control" autocomplete="current-password">
+          <button type="button" class="password-toggle-btn" id="togglePasswordBtn" title="Show password">👁</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" id="loginSubmitBtn">Sign In</button>
+      <p style="text-align:center;margin-top:14px">
+        <a href="#" id="forgotPasswordLink" style="font-size:13px;color:var(--text-muted)">Forgot password?</a>
+      </p>
+      <p id="loginError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></p>
+    </div>
+  </div>
+</div>
+
+<div id="changePasswordScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:var(--bg)">
+  <div class="card" style="width:100%;max-width:360px;margin:20px">
+    <div class="card-header"><h2>Set your password</h2></div>
+    <div class="card-body">
+      <p class="muted" style="margin-bottom:14px">
+        Choose a new password for <strong id="changePasswordEmailText"></strong> — the one set
+        for you was only temporary, so you'll need to set your own before continuing.
+      </p>
+      <form id="changePasswordForm">
+        <div class="form-group">
+          <label for="newPasswordInput">New password</label>
+          <input type="password" id="newPasswordInput" class="form-control" required autocomplete="new-password" minlength="6">
+        </div>
+        <div class="form-group">
+          <label for="newPasswordConfirmInput">Confirm new password</label>
+          <input type="password" id="newPasswordConfirmInput" class="form-control" required autocomplete="new-password" minlength="6">
+        </div>
+        <p id="changePasswordError" style="color:var(--danger);font-size:13px;margin-bottom:12px"></p>
+        <button type="submit" class="btn btn-primary btn-full">Set password and continue</button>
+      </form>
+      <button class="btn btn-secondary btn-full" id="changePasswordSignOutBtn" style="margin-top:10px">Sign out</button>
+    </div>
+  </div>
+</div>
+
+<div id="adminApp" style="display:none">
+
+  <header class="admin-header">
+    <div style="position:relative">
+      <button class="hamburger-btn" id="menuBtn">☰</button>
+      <div id="mainMenuDropdown" class="dropdown-menu" style="display:none">
+        <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+        <button class="tab-btn" data-tab="users" id="usersNavBtn" style="display:none">Users</button>
+        <div class="dropdown-divider"></div>
+        <button class="btn btn-danger btn-sm" id="signOutBtn">Sign Out</button>
+      </div>
+    </div>
+    <div class="header-title">Pirton Players — showmanager</div>
+    <div style="font-size:11px;opacity:.55;margin-left:auto" id="headerVersion"></div>
+  </header>
+
+  <nav class="admin-sidebar" id="adminSidebar">
+    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn" data-tab="users" id="usersNavBtnSidebar" style="display:none">Users</button>
+    <div class="dropdown-divider"></div>
+    <button class="btn btn-danger btn-sm" id="sidebarSignOutBtn">Sign Out</button>
+  </nav>
+  <button class="sidebar-toggle" id="sidebarToggleBtn" title="Collapse/expand menu">‹</button>
+
+  <main class="admin-content">
+
+    <!-- ── DASHBOARD ── -->
+    <div id="tab-dashboard" class="tab-panel active">
+      <div class="section-header"><h2>Your apps</h2></div>
+      <div class="tile-grid" id="tileGrid"></div>
+      <p class="muted" id="noAccessNote" style="display:none">
+        Your account doesn't have access to any app yet — ask a manager to grant some from the
+        Users screen.
+      </p>
+    </div>
+
+    <!-- ── USERS (isManager only) ── -->
+    <div id="tab-users" class="tab-panel">
+      <div class="section-header"><h2>Users</h2></div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Add a user</h2></div>
+        <div class="card-body">
+          <p class="muted" style="margin-bottom:14px">
+            There's no self-registration — set a temporary password here and pass it on to
+            them. They'll be forced to choose their own password the first time they sign in to
+            any app.
+          </p>
+          <form id="addUserForm">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="newUserName">Name</label>
+                <input type="text" id="newUserName" class="form-control" required autocomplete="off">
+              </div>
+              <div class="form-group">
+                <label for="newUserEmail">Email</label>
+                <input type="email" id="newUserEmail" class="form-control" required autocomplete="off">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="newUserPassword">Temporary password</label>
+              <input type="text" id="newUserPassword" class="form-control" required minlength="6" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label>Access</label>
+              <div class="item-list" id="newUserAccessList"></div>
+            </div>
+            <p id="addUserError" class="muted" style="color:var(--danger);margin-bottom:12px"></p>
+            <button type="submit" class="btn btn-primary" id="addUserBtn">+ Add user</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>All users</h2>
+          <button class="btn btn-secondary btn-sm" id="resyncClaimsBtn">Sync permissions</button>
+        </div>
+        <div class="card-body">
+          <p class="muted" style="margin-bottom:14px">
+            Manager can manage every user and app. Each other switch grants access to one app —
+            <strong>Expenses</strong> is the entry app (submit expenses), <strong>Expenses
+            admin</strong>/<strong>ShowDrinks admin</strong>/<strong>Budget</strong> are the
+            admin screens. <strong>Sync permissions</strong> re-applies each account's actual
+            login claims (needed once after a Manager/Expenses admin toggle if receipt viewing
+            ever says "permission" for someone who should have access — then that person needs
+            to sign out and back in to pick it up).
+          </p>
+          <input type="text" id="userSearchInput" class="form-control" placeholder="Search by name or email" style="margin-bottom:14px">
+          <div class="item-list" id="userList"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
+<script src="version.js?v=1.0.2"></script>
+<script src="shared/firebase-config.js?v=1.0.2"></script>
+<script src="shared/auth.js?v=1.0.2"></script>
+<script src="portal.js?v=1.0.2"></script>
+</body>
+</html>

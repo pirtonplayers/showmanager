@@ -1,0 +1,24 @@
+{
+  "name": "Pirton Players — showmanager",
+  "short_name": "showmanager",
+  "description": "Shared login and dashboard for Pirton Players' apps",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1d4ed8",
+  "theme_color": "#1d4ed8",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

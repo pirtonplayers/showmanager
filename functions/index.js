@@ -1,0 +1,345 @@
+'use strict';
+
+// Merged Cloud Functions for showmanager — expenses + showdrinks, one codebase, one shared
+// users/{uid} access model (see firestore.rules). Region europe-west1 throughout, matching both
+// source projects (the default us-central1 would 404 every callable from the client, which
+// always requests europe-west1 explicitly).
+
+const { onDocumentWritten } = require('firebase-functions/v2/firestore');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
+const { initializeApp } = require('firebase-admin/app');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
+const { getStorage } = require('firebase-admin/storage');
+const nodemailer = require('nodemailer');
+
+initializeApp();
+const db = getFirestore();
+
+const SMTP_USER = defineSecret('SMTP_USER');
+const SMTP_PASS = defineSecret('SMTP_PASS');
+const SMTP_FROM = defineSecret('SMTP_FROM');
+const SMTP_SECRETS = [SMTP_USER, SMTP_PASS, SMTP_FROM];
+
+const EXPENSES_ADMIN_URL = 'https://antonjung.github.io/showmanager/expenses/admin.html';
+const EXPENSES_ENTRY_URL = 'https://antonjung.github.io/showmanager/expenses/index.html';
+
+function transporter() {
+  return nodemailer.createTransport({
+    host: 'smtp-relay.brevo.com',
+    port: 587,
+    secure: false,
+    auth: { user: SMTP_USER.value(), pass: SMTP_PASS.value() },
+  });
+}
+
+function money(n) {
+  return `£${Number(n).toFixed(2)}`;
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Builds matching plain-text and HTML bodies from the same list of lines, so a link actually
+// renders as a clickable <a> in HTML-capable mail clients.
+function mailBody(lines) {
+  const text = lines.join('\n');
+  const html = lines
+    .map(line => (/^https?:\/\/\S+$/.test(line) ? `<p><a href="${line}">${line}</a></p>` : line === '' ? '<br>' : `<p style="margin:0 0 8px">${escapeHtml(line)}</p>`))
+    .join('\n');
+  return { text, html };
+}
+
+async function getSettings(configCollection) {
+  const doc = await db.collection(configCollection).doc('settings').get();
+  return doc.exists ? doc.data() : {};
+}
+
+// A settings doc's "Sender email" field, falling back to the SMTP_FROM secret when unset.
+function fromAddress(settings) {
+  return settings.fromEmail || SMTP_FROM.value();
+}
+
+// ── Shared access checks ────────────────────────────────────────────────────
+// Every callable re-checks the caller's OWN users/{uid} doc via the Admin SDK rather than
+// trusting anything the client sends — same pattern the original expenses functions used.
+
+async function callerDoc(uid) {
+  const doc = await db.collection('users').doc(uid).get();
+  return doc.exists ? doc.data() : null;
+}
+
+function requireAuth(request) {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'You must be signed in.');
+}
+
+// isManager only — used for anything that manages users/access itself (createUser, deleteUser,
+// resync). A per-app admin (expensesAdmin/showdrinksAdmin) can administer their own app but not
+// grant access to others.
+async function requireManager(request) {
+  requireAuth(request);
+  const data = await callerDoc(request.auth.uid);
+  if (!data || data.isManager !== true) {
+    throw new HttpsError('permission-denied', 'Only a manager can do this.');
+  }
+  return data;
+}
+
+// isManager OR the named per-app access flag.
+async function requireAppAccess(request, key) {
+  requireAuth(request);
+  const data = await callerDoc(request.auth.uid);
+  if (!data || (data.isManager !== true && data.access?.[key] !== true)) {
+    throw new HttpsError('permission-denied', 'Only a manager can do this.');
+  }
+  return data;
+}
+
+// ── Users (portal — shared across every app) ────────────────────────────────
+
+// Create a login — accounts are provisioned by a manager, not self-registered. Sets
+// mustChangePassword so every app's login blocks them from doing anything until they set their
+// own password (firestore.rules only lets the account itself clear that one field).
+exports.createUser = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireManager(request);
+
+  const { name, email, password, isManager, access } = request.data || {};
+  if (!name || !email || !password) {
+    throw new HttpsError('invalid-argument', 'name, email and password are required.');
+  }
+  if (password.length < 6) {
+    throw new HttpsError('invalid-argument', 'Password must be at least 6 characters.');
+  }
+
+  let userRecord;
+  try {
+    userRecord = await getAuth().createUser({ email, password, displayName: name });
+  } catch (err) {
+    throw new HttpsError('already-exists', err.message);
+  }
+
+  await db.collection('users').doc(userRecord.uid).set({
+    name,
+    email,
+    isManager: isManager === true,
+    access: {
+      expenses: access?.expenses === true,
+      expensesAdmin: access?.expensesAdmin === true,
+      showdrinksAdmin: access?.showdrinksAdmin === true,
+      budget: access?.budget === true,
+    },
+    mustChangePassword: true,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  return { ok: true, uid: userRecord.uid };
+});
+
+// Permanently delete a user — their Firebase Auth login AND their users/{uid} doc. Callable only
+// by a manager; a manager can't delete their own account this way (avoids locking everyone out
+// by accident). Past expenses/orders/tabs store the person's name/email directly, not a
+// reference to this doc, so deleting a user never breaks that history.
+exports.deleteUser = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireManager(request);
+  const targetUid = request.data?.uid;
+  if (!targetUid || typeof targetUid !== 'string') {
+    throw new HttpsError('invalid-argument', 'uid is required.');
+  }
+  if (targetUid === request.auth.uid) {
+    throw new HttpsError('failed-precondition', "You can't delete your own account this way.");
+  }
+
+  await db.collection('users').doc(targetUid).delete();
+  await getAuth().deleteUser(targetUid).catch((err) => {
+    if (err.code !== 'auth/user-not-found') throw err;
+  });
+
+  return { ok: true };
+});
+
+// Emails a player a link to the expenses entry app plus whatever note the manager typed.
+// Manager-only; doesn't require the target to be an existing users/{uid} doc, just an email
+// address, so it also works for pointing someone brand new at the app.
+exports.sendUserLink = onCall({ region: 'europe-west1', secrets: SMTP_SECRETS }, async (request) => {
+  await requireManager(request);
+  const email = request.data?.email;
+  if (!email || typeof email !== 'string') {
+    throw new HttpsError('invalid-argument', 'email is required.');
+  }
+  const message = typeof request.data?.message === 'string' ? request.data.message.trim() : '';
+
+  const settings = await getSettings('expenses_config');
+  await transporter().sendMail({
+    from: fromAddress(settings),
+    to: email,
+    subject: 'Pirton Players Expenses',
+    ...mailBody([
+      ...(message ? [...message.split('\n'), ''] : []),
+      'Open the app:',
+      EXPENSES_ENTRY_URL,
+    ]),
+  });
+
+  return { ok: true };
+});
+
+// Mirrors users/{uid}.isManager / access.expensesAdmin onto an `expensesAdmin` custom claim, so
+// storage.rules can check request.auth.token.expensesAdmin instead of calling into Firestore
+// (Storage→Firestore cross-service rules aren't enabled on this project). Fires on every
+// users/{uid} write, including the one createUser itself makes.
+//
+// Custom claims only reach the client on its NEXT signed-in ID token — an already-open session
+// needs to sign out/in (or force a token refresh) to pick up a change made just now.
+exports.syncExpensesAdminClaim = onDocumentWritten('users/{uid}', async (event) => {
+  const after = event.data?.after?.exists ? event.data.after.data() : null;
+  const expensesAdmin = after?.isManager === true || after?.access?.expensesAdmin === true;
+  try {
+    await getAuth().setCustomUserClaims(event.params.uid, { expensesAdmin: expensesAdmin || null });
+  } catch (err) {
+    // The doc can be deleted moments before/after the Auth account itself — nothing to set a
+    // claim on at that point, and that's fine.
+    if (err.code !== 'auth/user-not-found') throw err;
+  }
+});
+
+// Manual/repeat version of the same sync, covering accounts whose doc predates
+// syncExpensesAdminClaim, or a general "permissions seem stuck" fix-it button. Manager-only; the
+// caller re-syncing their own claim still needs to sign out and back in afterward.
+exports.resyncExpensesAdminClaims = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireManager(request);
+
+  const snap = await db.collection('users').get();
+  let updated = 0;
+  for (const doc of snap.docs) {
+    const expensesAdmin = doc.data().isManager === true || doc.data().access?.expensesAdmin === true;
+    try {
+      await getAuth().setCustomUserClaims(doc.id, { expensesAdmin: expensesAdmin || null });
+      updated++;
+    } catch (err) {
+      if (err.code !== 'auth/user-not-found') throw err;
+    }
+  }
+  return { ok: true, updated };
+});
+
+// ── Expenses ─────────────────────────────────────────────────────────────
+
+// Sums the actual size of every stored receipt — the project's on the Blaze plan (pay-as-you-go,
+// no fixed quota), so "used" is the number that's actually actionable. expensesAdmin-only, since
+// it reads every receipt's metadata (cheap, but still real work).
+exports.getStorageUsage = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireAppAccess(request, 'expensesAdmin');
+  const [files] = await getStorage().bucket().getFiles({ prefix: 'receipts/' });
+  const totalBytes = files.reduce((sum, f) => sum + Number(f.metadata.size || 0), 0);
+  return { ok: true, totalBytes, fileCount: files.length };
+});
+
+// Notify expensesAdmins when a player submits new expenses — called once by the entry app after
+// a "Submit all" batch finishes (not a Firestore trigger on expenses/{id}: that fires once per
+// document, so a multi-expense submission would send that many separate emails instead of one
+// summary). Re-reads each expense from Firestore by id rather than trusting the client.
+exports.notifyExpensesSubmitted = onCall({ region: 'europe-west1', secrets: SMTP_SECRETS }, async (request) => {
+  requireAuth(request);
+  const ids = request.data?.ids;
+  if (!Array.isArray(ids) || !ids.length) {
+    throw new HttpsError('invalid-argument', 'ids is required.');
+  }
+
+  const settings = await getSettings('expenses_config');
+  const notifyEmails = settings.notifyEmails || [];
+  if (!notifyEmails.length) return { ok: true };
+
+  const docs = await Promise.all(ids.map(id => db.collection('expenses').doc(id).get()));
+  const expenses = docs
+    .filter(d => d.exists && d.data().userEmail === request.auth.token.email)
+    .map(d => d.data());
+  if (!expenses.length) return { ok: true };
+
+  const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const receiptTotal = expenses.reduce((sum, e) => sum + (e.receiptPaths?.length || (e.receiptPath ? 1 : 0)), 0);
+  const { userName, userEmail } = expenses[0];
+
+  await transporter().sendMail({
+    from: fromAddress(settings),
+    to: notifyEmails,
+    subject: 'New expense added',
+    ...mailBody([
+      `${userName} (${userEmail}) submitted ${expenses.length} new expense${expenses.length === 1 ? '' : 's'}.`,
+      '',
+      ...expenses.map(e => `- ${e.showName}: ${e.description} — ${money(e.amount)}`),
+      '',
+      `Total: ${money(total)}`,
+      receiptTotal ? `${receiptTotal} receipt photo${receiptTotal === 1 ? '' : 's'} attached — view them in the admin app.` : 'No receipts attached.',
+      '',
+      'Review it:',
+      EXPENSES_ADMIN_URL,
+    ]),
+  });
+
+  return { ok: true };
+});
+
+// Notify a player once a batch of their expenses is marked paid — called once by the admin app
+// after a "Mark as paid" batch finishes (same one-email-per-batch reasoning as
+// notifyExpensesSubmitted). Groups by submitter in case ids ever span more than one person.
+exports.notifyExpensesPaid = onCall({ region: 'europe-west1', secrets: SMTP_SECRETS }, async (request) => {
+  await requireAppAccess(request, 'expensesAdmin');
+  const ids = request.data?.ids;
+  if (!Array.isArray(ids) || !ids.length) {
+    throw new HttpsError('invalid-argument', 'ids is required.');
+  }
+
+  const docs = await Promise.all(ids.map(id => db.collection('expenses').doc(id).get()));
+  const expenses = docs.filter(d => d.exists && d.data().paid === true).map(d => d.data());
+  if (!expenses.length) return { ok: true };
+
+  const byEmail = new Map();
+  for (const e of expenses) {
+    if (!byEmail.has(e.userEmail)) byEmail.set(e.userEmail, []);
+    byEmail.get(e.userEmail).push(e);
+  }
+
+  const settings = await getSettings('expenses_config');
+  for (const [userEmail, own] of byEmail) {
+    const total = own.reduce((sum, e) => sum + Number(e.amount), 0);
+    await transporter().sendMail({
+      from: fromAddress(settings),
+      to: userEmail,
+      subject: 'Your expenses have been paid',
+      ...mailBody([
+        `Hi ${own[0].userName},`,
+        '',
+        `${own.length} expense${own.length === 1 ? ' has' : 's have'} been marked as paid:`,
+        '',
+        ...own.map(e => `- ${e.showName}: ${e.description} — ${money(e.amount)}`),
+        '',
+        `Total: ${money(total)}`,
+        '',
+        'Thanks,',
+        'Pirton Players',
+      ]),
+    });
+  }
+
+  return { ok: true };
+});
+
+// ── ShowDrinks ───────────────────────────────────────────────────────────
+
+// The Show Tabs ✉ button — emails a cast/crew member their outstanding tab. showdrinksAdmin-only
+// (was a bare "signed in" check before the shared access model existed).
+exports.sendMemberEmail = onCall({ region: 'europe-west1', secrets: SMTP_SECRETS }, async (request) => {
+  await requireAppAccess(request, 'showdrinksAdmin');
+
+  const { to, subject, body } = request.data || {};
+  if (!to || !subject || !body) {
+    throw new HttpsError('invalid-argument', 'to, subject, and body are required.');
+  }
+
+  const settings = await getSettings('showdrinks_config');
+  await transporter().sendMail({ from: fromAddress(settings), to, subject, text: body });
+
+  return { ok: true };
+});
