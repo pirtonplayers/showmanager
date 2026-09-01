@@ -381,8 +381,8 @@ function renderLinesTable(kind, formulas) {
     total += perfLines.reduce((s, l) => s + l.amount, 0);
     rowsHtml += perfLines.map(line => `
       <tr>
-        <td>${escapeHtml(line.label)} <span class="muted" style="font-size:11px">(calculated)</span></td>
-        <td class="amount-cell">${money(line.amount)}</td>
+        <td>${escapeHtml(line.label)}</td>
+        <td class="amount-cell"><input type="text" class="form-control num-input" value="${money(line.amount)}" disabled></td>
         <td class="no-print"></td>
       </tr>`).join('');
   }
@@ -394,9 +394,9 @@ function renderLinesTable(kind, formulas) {
     total += amount;
     return `
       <tr>
-        <td>${escapeHtml(item.label)}${isFormula ? ' <span class="muted" style="font-size:11px">(calculated)</span>' : ''}</td>
+        <td>${escapeHtml(item.label)}</td>
         <td class="amount-cell">${isFormula
-          ? money(amount)
+          ? `<input type="text" class="form-control num-input" value="${money(amount)}" disabled>`
           : `<input type="number" class="form-control num-input" min="0" step="1" value="${amount}" data-line-amount="${kind}:${i}">`}</td>
         <td class="no-print">${isFormula ? '' : `<button class="grid-del-btn" data-line-remove="${kind}:${i}" title="Remove">×</button>`}</td>
       </tr>`;

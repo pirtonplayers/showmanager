@@ -383,6 +383,12 @@ input[type="file"].form-control { padding: 7px 10px; }
    these sit one-per-cell/row and never need a full-width text box. ── */
 .num-input { width: 100px; text-align: right; }
 .expense-table .num-input { width: 90px; }
+/* Calculated (disabled) amount cells use the same <input class="num-input"> as editable ones so
+   the two look identical — undo the browser's default dimmed/greyed-out disabled styling, which
+   would otherwise visually set them apart again. */
+.expense-table input.num-input:disabled {
+  opacity: 1; background: var(--surface); color: var(--text); -webkit-text-fill-color: var(--text); cursor: default;
+}
 
 /* ── Uniform row height in Income/Spend/Performances — a plain calculated-amount cell and a
    cell holding an <input> would otherwise differ (the input's own padding/font-size adds
