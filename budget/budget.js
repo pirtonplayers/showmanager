@@ -387,7 +387,7 @@ function renderLinesTable(kind, formulas) {
     rowsHtml += perfLines.map(line => `
       <tr>
         <td>${escapeHtml(line.label)}</td>
-        <td class="amount-cell"><input type="text" class="form-control num-input" value="${money(line.amount)}" disabled></td>
+        <td class="amount-cell"><input type="text" class="form-control num-input" style="text-align:right" value="${money(line.amount)}" disabled></td>
         <td class="no-print"></td>
       </tr>`).join('');
   }
@@ -406,8 +406,8 @@ function renderLinesTable(kind, formulas) {
       <tr>
         <td>${escapeHtml(item.label)}${pctInput}</td>
         <td class="amount-cell">${isFormula
-          ? `<input type="text" class="form-control num-input" value="${money(amount)}" disabled>`
-          : `<input type="number" class="form-control num-input" min="0" step="1" value="${amount}" data-line-amount="${kind}:${i}">`}</td>
+          ? `<input type="text" class="form-control num-input" style="text-align:right" value="${money(amount)}" disabled>`
+          : `<input type="number" class="form-control num-input" style="text-align:right" min="0" step="1" value="${amount}" data-line-amount="${kind}:${i}">`}</td>
         <td class="no-print">${isFormula ? '' : `<button class="grid-del-btn" data-line-remove="${kind}:${i}" title="Remove">×</button>`}</td>
       </tr>`;
   }).join('');

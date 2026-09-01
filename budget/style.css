@@ -1,5 +1,13 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* No spin arrows on any number field — every editable amount here also sits next to a disabled
+   type="text" calculated one of the same width (see .num-input below); the spinner ate into
+   just the editable box's right-hand space, so digits in the two never actually lined up with
+   each other even though the boxes did. */
+input[type="number"] { -moz-appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
 :root {
   --primary: #0f766e;
   --primary-dark: #115e59;
@@ -61,6 +69,14 @@ body.theme-budget {
 @media print {
   @page { size: A4 portrait; margin: 12mm; }
   body { font-size: 11px; }
+
+  /* One weight, one typeface, everywhere — headings, labels, badges and amounts otherwise carry
+     their on-screen bold/semibold treatment (card headers, .amount-cell, .snum, badges...);
+     sizes are still set individually below, just not weight or family. */
+  .admin-content, .admin-content *, .print-header, .print-header * {
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-weight: 400 !important;
+  }
 
   .admin-header, .admin-sidebar, .sidebar-toggle, #updateBanner, .no-print,
   .fp-col-perf, .show-name-card /* printShowName in the print header already covers this */ {
