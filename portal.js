@@ -468,7 +468,7 @@ document.getElementById('userList').addEventListener('click', async (e) => {
   const linkId = e.target.getAttribute('data-send-link');
   if (linkId) {
     const user = allUsers.find(u => u.id === linkId);
-    if (user) showUserLinkCard(user.name || user.email, user.email);
+    if (user) showUserLinkModal(user.name || user.email, user.email);
     return;
   }
 
@@ -491,15 +491,23 @@ document.getElementById('userList').addEventListener('click', async (e) => {
 
 const PORTAL_ENTRY_URL = new URL('index.html', location.href).href;
 
-function showUserLinkCard(name, email) {
+function showUserLinkModal(name, email) {
   document.getElementById('userLinkName').textContent = name;
   document.getElementById('userLinkUrl').value = PORTAL_ENTRY_URL;
   document.getElementById('userLinkMessage').value = document.getElementById('defaultLinkMessageInput').value;
-  document.getElementById('userLinkCard').dataset.email = email;
-  const card = document.getElementById('userLinkCard');
-  card.style.display = 'block';
-  try { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (err) { /* cosmetic only */ }
+  document.getElementById('userLinkModal').dataset.email = email;
+  document.getElementById('userLinkModal').style.display = 'flex';
 }
+
+function closeUserLinkModal() {
+  document.getElementById('userLinkModal').style.display = 'none';
+}
+
+document.getElementById('userLinkCloseBtn').addEventListener('click', closeUserLinkModal);
+document.getElementById('userLinkDoneBtn').addEventListener('click', closeUserLinkModal);
+document.getElementById('userLinkModal').addEventListener('click', (e) => {
+  if (e.target.id === 'userLinkModal') closeUserLinkModal();
+});
 
 document.getElementById('copyUserLinkBtn').addEventListener('click', async () => {
   try {
@@ -512,21 +520,18 @@ document.getElementById('copyUserLinkBtn').addEventListener('click', async () =>
 
 document.getElementById('sendUserLinkEmailBtn').addEventListener('click', async () => {
   const btn = document.getElementById('sendUserLinkEmailBtn');
-  const email = document.getElementById('userLinkCard').dataset.email;
+  const email = document.getElementById('userLinkModal').dataset.email;
   const message = document.getElementById('userLinkMessage').value.trim();
   btn.disabled = true;
   try {
     await functionsRegion.httpsCallable('sendPortalUserLink')({ email, message });
     showToast('Link sent', 'success');
+    closeUserLinkModal();
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
     btn.disabled = false;
   }
-});
-
-document.getElementById('userLinkDoneBtn').addEventListener('click', () => {
-  document.getElementById('userLinkCard').style.display = 'none';
 });
 
 // ── Default link message (portal_config/settings — separate from expenses admin's own) ─────

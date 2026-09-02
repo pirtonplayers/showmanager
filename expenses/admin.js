@@ -767,17 +767,20 @@ document.getElementById('markPaidSubmitBtn').addEventListener('click', async () 
 const ENTRY_URL = new URL('index.html', location.href).href;
 
 // Shared by both "just created" (addUserForm submit) and "send an existing user their link
-// again" (the All users list's per-row Send link button) — same card, same fields either way.
-function showSendLinkCard(name, email) {
+// again" (the All users list's per-row Send link button) — same modal, same fields either way.
+function showSendLinkModal(name, email) {
   document.getElementById('newUserLinkName').textContent = name;
   document.getElementById('newUserLinkUrl').value = ENTRY_URL;
   // Pre-fill from Settings → Default link message (still editable per person before sending —
   // see that card's own note); this was previously always left blank.
   document.getElementById('newUserLinkMessage').value = document.getElementById('defaultLinkMessageInput').value;
-  const card = document.getElementById('newUserLinkCard');
-  card.dataset.email = email;
-  card.style.display = 'block';
-  try { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (err) { /* cosmetic only */ }
+  const modal = document.getElementById('newUserLinkModal');
+  modal.dataset.email = email;
+  modal.style.display = 'flex';
+}
+
+function closeSendLinkModal() {
+  document.getElementById('newUserLinkModal').style.display = 'none';
 }
 
 document.getElementById('addUserForm').addEventListener('submit', async (e) => {
@@ -792,7 +795,7 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   btn.disabled = true;
   try {
     await functionsRegion.httpsCallable('createExpensesUser')({ name, email, password });
-    showSendLinkCard(name, email);
+    showSendLinkModal(name, email);
     document.getElementById('addUserForm').reset();
     showToast(`Account created for ${name} — pass on the temporary password`, 'success');
     await loadExpensesUsers();
@@ -858,7 +861,13 @@ document.getElementById('expensesUserList').addEventListener('click', (e) => {
   const uid = e.target.getAttribute('data-send-link');
   if (!uid) return;
   const user = expensesUsers.find(u => u.id === uid);
-  if (user) showSendLinkCard(user.name, user.email);
+  if (user) showSendLinkModal(user.name, user.email);
+});
+
+document.getElementById('newUserLinkCloseBtn').addEventListener('click', closeSendLinkModal);
+document.getElementById('newUserLinkDoneBtn').addEventListener('click', closeSendLinkModal);
+document.getElementById('newUserLinkModal').addEventListener('click', (e) => {
+  if (e.target.id === 'newUserLinkModal') closeSendLinkModal();
 });
 
 document.getElementById('copyLinkBtn').addEventListener('click', async () => {
@@ -872,21 +881,18 @@ document.getElementById('copyLinkBtn').addEventListener('click', async () => {
 
 document.getElementById('sendLinkEmailBtn').addEventListener('click', async () => {
   const btn = document.getElementById('sendLinkEmailBtn');
-  const email = document.getElementById('newUserLinkCard').dataset.email;
+  const email = document.getElementById('newUserLinkModal').dataset.email;
   const message = document.getElementById('newUserLinkMessage').value.trim();
   btn.disabled = true;
   try {
     await functionsRegion.httpsCallable('sendUserLink')({ email, message });
     showToast('Link sent', 'success');
+    closeSendLinkModal();
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
     btn.disabled = false;
   }
-});
-
-document.getElementById('newUserLinkDoneBtn').addEventListener('click', () => {
-  document.getElementById('newUserLinkCard').style.display = 'none';
 });
 
 // ── Service worker update banner ────────────────────────────────────────

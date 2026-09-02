@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Pirton Players — showmanager</title>
-  <link rel="stylesheet" href="style.css?v=1.0.19">
+  <link rel="stylesheet" href="style.css?v=1.0.20">
 </head>
 <body class="theme-portal">
 
@@ -132,23 +132,28 @@
         </div>
       </div>
 
-      <div class="card" id="userLinkCard" style="display:none;margin-bottom:20px">
-        <div class="card-header"><h2>Send <span id="userLinkName"></span> their link</h2></div>
-        <div class="card-body">
-          <div class="form-group">
-            <label for="userLinkUrl">Portal link</label>
-            <div style="display:flex;gap:8px">
-              <input type="text" id="userLinkUrl" class="form-control" readonly>
-              <button type="button" class="btn btn-secondary" id="copyUserLinkBtn" style="flex-shrink:0">Copy link</button>
+      <div id="userLinkModal" class="modal-backdrop" style="display:none">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>Send <span id="userLinkName"></span> their link</h3>
+            <button class="modal-close-btn" id="userLinkCloseBtn" aria-label="Close">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="userLinkUrl">Portal link</label>
+              <div style="display:flex;gap:8px">
+                <input type="text" id="userLinkUrl" class="form-control" readonly>
+                <button type="button" class="btn btn-secondary" id="copyUserLinkBtn" style="flex-shrink:0">Copy link</button>
+              </div>
             </div>
-          </div>
-          <div class="form-group">
-            <label for="userLinkMessage">Message (optional, included in the email)</label>
-            <textarea id="userLinkMessage" class="form-control" rows="3" style="resize:vertical"></textarea>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button type="button" class="btn btn-primary" id="sendUserLinkEmailBtn">Send email</button>
-            <button type="button" class="btn btn-secondary" id="userLinkDoneBtn">Done</button>
+            <div class="form-group">
+              <label for="userLinkMessage">Message (optional, included in the email)</label>
+              <textarea id="userLinkMessage" class="form-control" rows="3" style="resize:vertical"></textarea>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="btn btn-primary" id="sendUserLinkEmailBtn">Send email</button>
+              <button type="button" class="btn btn-secondary" id="userLinkDoneBtn">Done</button>
+            </div>
           </div>
         </div>
       </div>
@@ -194,10 +199,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="version.js?v=1.0.19"></script>
-<script src="shared/firebase-config.js?v=1.0.19"></script>
-<script src="shared/auth.js?v=1.0.19"></script>
-<script src="shared/suite-nav.js?v=1.0.19"></script>
-<script src="portal.js?v=1.0.19"></script>
+<script src="version.js?v=1.0.20"></script>
+<script src="shared/firebase-config.js?v=1.0.20"></script>
+<script src="shared/auth.js?v=1.0.20"></script>
+<script src="shared/suite-nav.js?v=1.0.20"></script>
+<script src="portal.js?v=1.0.20"></script>
 </body>
 </html>
