@@ -500,7 +500,10 @@
         </p>
         <div id="qrcode" style="display:inline-block;margin:0 auto 16px"></div>
         <div>
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px" id="qrUrl"></p>
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:8px">
+            <p style="font-size:13px;color:var(--text-muted);margin:0" id="qrUrl"></p>
+            <button type="button" class="icon-btn" id="copyQrUrlBtn" title="Copy link" aria-label="Copy link" style="display:none">📋</button>
+          </div>
           <button class="btn btn-primary" id="generateQrBtn">Generate QR Code</button>
           <button class="btn btn-secondary" id="downloadQrBtn" style="margin-left:8px;display:none">Download PNG</button>
         </div>

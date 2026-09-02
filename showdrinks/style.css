@@ -36,6 +36,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-lg { padding: 12px 24px; font-size: 16px; }
 .btn-full { width: 100%; justify-content: center; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 30px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-muted); cursor: pointer; transition: all .15s; }
+.icon-btn svg { width: 15px; height: 15px; }
+.icon-btn:hover { background: var(--bg); color: var(--text); border-color: var(--text-muted); }
 
 /* ── Cards ── */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }

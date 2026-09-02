@@ -790,7 +790,17 @@ document.getElementById('generateQrBtn').addEventListener('click', () => {
   });
 
   document.getElementById('downloadQrBtn').style.display = '';
+  document.getElementById('copyQrUrlBtn').style.display = '';
   toast('QR code generated', 'success');
+});
+
+document.getElementById('copyQrUrlBtn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(document.getElementById('qrUrl').textContent);
+    toast('Link copied', 'success');
+  } catch(e) {
+    toast('Could not copy — select and copy the link manually', 'error');
+  }
 });
 
 document.getElementById('downloadQrBtn').addEventListener('click', () => {
