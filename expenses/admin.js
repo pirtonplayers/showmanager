@@ -774,9 +774,10 @@ function showSendLinkCard(name, email) {
   // Pre-fill from Settings → Default link message (still editable per person before sending —
   // see that card's own note); this was previously always left blank.
   document.getElementById('newUserLinkMessage').value = document.getElementById('defaultLinkMessageInput').value;
-  document.getElementById('newUserLinkCard').dataset.email = email;
-  document.getElementById('newUserLinkCard').style.display = 'block';
-  document.getElementById('newUserLinkCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const card = document.getElementById('newUserLinkCard');
+  card.dataset.email = email;
+  card.style.display = 'block';
+  try { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (err) { /* cosmetic only */ }
 }
 
 document.getElementById('addUserForm').addEventListener('submit', async (e) => {

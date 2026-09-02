@@ -487,8 +487,9 @@ function showUserLinkCard(name, email) {
   document.getElementById('userLinkUrl').value = PORTAL_ENTRY_URL;
   document.getElementById('userLinkMessage').value = document.getElementById('defaultLinkMessageInput').value;
   document.getElementById('userLinkCard').dataset.email = email;
-  document.getElementById('userLinkCard').style.display = 'block';
-  document.getElementById('userLinkCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const card = document.getElementById('userLinkCard');
+  card.style.display = 'block';
+  try { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (err) { /* cosmetic only */ }
 }
 
 document.getElementById('copyUserLinkBtn').addEventListener('click', async () => {
