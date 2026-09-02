@@ -735,7 +735,16 @@ async function loadSettings() {
     const doc = await db.collection('showdrinks_config').doc('settings').get();
     _systemSettings = doc.exists ? doc.data() : {};
     const d = _systemSettings;
-    document.getElementById('siteUrl').value = d.siteUrl || '';
+    // Carried over as-is from the old standalone showdrinks project during the showmanager
+    // migration (collection rename only, values untouched) — that old bare URL is stale now
+    // that this site lives under /showmanager/showdrinks, so treat it as unset rather than
+    // keep pointing customers' QR codes at the old site. Leaving it blank falls back to
+    // wherever this page is actually being served from (see generateQrBtn below).
+    const isStaleMigratedUrl = /^https?:\/\/antonjung\.github\.io\/showdrinks\/?$/i.test(d.siteUrl || '');
+    document.getElementById('siteUrl').value = isStaleMigratedUrl ? '' : (d.siteUrl || '');
+    if (isStaleMigratedUrl) {
+      db.collection('showdrinks_config').doc('settings').update({ siteUrl: '' }).catch(() => {});
+    }
     document.getElementById('sumupMerchantCode').value = d.sumupMerchantCode || '';
     document.getElementById('sumupApiKey').value = d.sumupApiKey || '';
     document.getElementById('paymentMode').value = d.paymentMode || 'bar';
