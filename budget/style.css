@@ -202,6 +202,10 @@ input[type="file"].form-control { padding: 7px 10px; }
 .suite-current-section { display: flex; flex-direction: column; gap: 4px; }
 .suite-current-section .tab-btn { padding-left: 28px !important; position: relative; }
 .suite-current-section .tab-btn::before { content: '•'; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+/* A different colour from the app-level active highlight (primary), so it's obvious at a
+   glance which level — app name vs. the sub-item within it — is the one actually selected. */
+.suite-current-section .tab-btn.active { color: var(--accent) !important; background: var(--accent-light) !important; }
+.suite-current-section .tab-btn.active::before { color: var(--accent); }
 
 /* ── Auth gate — covers the page until the first onAuthStateChanged fires, so neither the
    login screen nor the signed-in app ever flashes on a page that's actually already signed in

@@ -47,14 +47,15 @@ function activatePane(key) {
   Object.entries(frames).forEach(([k, frame]) => frame.classList.toggle('active', k === key));
 }
 
-// expandedKeys tracks which apps' sub-menus are shown open in the nav — independent of
-// activeKey (which app's content is showing in the work area), and not exclusive: opening a
-// new app adds its menu to this set without closing anyone else's. Clicking an already-open
-// app's name again just removes it from the set (closes that one menu only).
+// expandedKeys tracks which app's sub-menu is shown open in the nav — independent of activeKey
+// (which app's content is showing in the work area). Exclusive: opening a different app closes
+// whichever other one was expanded. Clicking the already-active app's name again just toggles
+// its own menu without switching the work area.
 const expandedKeys = new Set();
 
 function activateApp(key) {
   activeKey = key;
+  expandedKeys.clear();
   if (key !== 'dashboard' && key !== 'users') expandedKeys.add(key);
   if (key === 'dashboard' || key === 'users') {
     activatePane(key);
