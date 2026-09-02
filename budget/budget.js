@@ -258,7 +258,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
 }
 document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
-  btn.addEventListener('click', () => { switchTab(btn.dataset.tab); document.getElementById('mainMenuDropdown').style.display = 'none'; });
+  btn.addEventListener('click', () => { switchTab(btn.dataset.tab); document.getElementById('mainMenuDropdown').classList.remove('open'); });
 });
 document.getElementById('backToShowsBtn').addEventListener('click', () => { currentShowId = null; currentShow = null; switchTab('shows'); loadShows(); });
 
@@ -598,10 +598,9 @@ document.getElementById('printBtn').addEventListener('click', () => window.print
 
 document.getElementById('menuBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  const menu = document.getElementById('mainMenuDropdown');
-  menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+  document.getElementById('mainMenuDropdown').classList.toggle('open');
 });
-document.addEventListener('click', () => { document.getElementById('mainMenuDropdown').style.display = 'none'; });
+document.addEventListener('click', () => { document.getElementById('mainMenuDropdown').classList.remove('open'); });
 
 const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
 function applySidebarState(collapsed) {

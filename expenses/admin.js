@@ -179,10 +179,9 @@ document.getElementById('changePasswordForm').addEventListener('submit', async (
 
 document.getElementById('menuBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  const menu = document.getElementById('mainMenuDropdown');
-  menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+  document.getElementById('mainMenuDropdown').classList.toggle('open');
 });
-document.addEventListener('click', () => { document.getElementById('mainMenuDropdown').style.display = 'none'; });
+document.addEventListener('click', () => { document.getElementById('mainMenuDropdown').classList.remove('open'); });
 
 // The nav buttons exist twice — once in the mobile dropdown, once in the desktop sidebar —
 // sharing the same data-tab values, so switching via either keeps both in sync.
@@ -192,7 +191,7 @@ document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
     document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById(`tab-${tab}`).classList.add('active');
-    document.getElementById('mainMenuDropdown').style.display = 'none';
+    document.getElementById('mainMenuDropdown').classList.remove('open');
   });
 });
 

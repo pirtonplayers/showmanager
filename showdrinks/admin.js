@@ -51,19 +51,17 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'orders') loadOrders();
     if (btn.dataset.tab === 'tabs') loadShowTabs();
     if (btn.dataset.tab === 'pos') loadPosGrids();
-    document.getElementById('mainMenuDropdown').style.display = 'none';
+    document.getElementById('mainMenuDropdown').classList.remove('open');
   });
 });
 
 window.toggleMainMenu = function(e) {
   e.stopPropagation();
-  const menu = document.getElementById('mainMenuDropdown');
-  menu.style.display = menu.style.display === 'none' ? '' : 'none';
+  document.getElementById('mainMenuDropdown').classList.toggle('open');
 };
 
 document.addEventListener('click', () => {
-  const menu = document.getElementById('mainMenuDropdown');
-  if (menu) menu.style.display = 'none';
+  document.getElementById('mainMenuDropdown')?.classList.remove('open');
 });
 
 // ── Show & Sessions ────────────────────────────────────────────────────────
@@ -1543,7 +1541,7 @@ window.emailAllOwingMembers = async function() {
   const ok = confirm(`Send ${withEmail.length} email${withEmail.length !== 1 ? 's' : ''} (one per member who owes money)?${extra}`);
   if (!ok) return;
 
-  document.getElementById('tabsMenuDropdown').style.display = 'none';
+  document.getElementById('tabsMenuDropdown').classList.remove('open');
   toast(`Sending ${withEmail.length} email${withEmail.length !== 1 ? 's' : ''}…`, 'info');
 
   let sent = 0, failed = 0;
@@ -1560,13 +1558,11 @@ window.emailAllOwingMembers = async function() {
 
 window.toggleTabsMenu = function(e) {
   e.stopPropagation();
-  const menu = document.getElementById('tabsMenuDropdown');
-  menu.style.display = menu.style.display === 'none' ? '' : 'none';
+  document.getElementById('tabsMenuDropdown').classList.toggle('open');
 };
 
 document.addEventListener('click', () => {
-  const menu = document.getElementById('tabsMenuDropdown');
-  if (menu) menu.style.display = 'none';
+  document.getElementById('tabsMenuDropdown')?.classList.remove('open');
 });
 
 function csvField(v) {

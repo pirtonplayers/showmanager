@@ -216,7 +216,17 @@ input[type="file"].form-control { padding: 7px 10px; }
 .hamburger-btn { background: none; border: none; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; }
 .hamburger-btn:hover { opacity: .8; }
 
-.dropdown-menu { position: absolute; left: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 6px; display: flex; flex-direction: column; gap: 4px; z-index: 50; min-width: 200px; }
+/* Animated open/close (slide + fade) instead of an instant display:none/flex swap — toggle the
+   .open class, not inline style.display. */
+.dropdown-menu {
+  position: absolute; left: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 6px; display: flex; flex-direction: column; gap: 4px; z-index: 50; min-width: 200px;
+  opacity: 0; visibility: hidden; transform: translateY(-8px) scale(.98); transform-origin: top left;
+  transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s;
+}
+.dropdown-menu.open {
+  opacity: 1; visibility: visible; transform: translateY(0) scale(1);
+  transition: opacity .16s ease, transform .16s ease;
+}
 /* .tab-btn is a <button> everywhere except the Help link, which is a real <a> (so it works
    without JS) — text-decoration:none here undoes the underline that'd otherwise put on it. */
 .tab-btn { text-decoration: none; }

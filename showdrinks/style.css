@@ -309,7 +309,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .card-corner-btn:hover { color:var(--danger); background:var(--bg); }
 
 /* ── Dropdown menu (Show Tabs "⋯") ── */
-.dropdown-menu { position:absolute; right:0; top:calc(100% + 6px); background:var(--surface); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow-md); padding:6px; display:flex; flex-direction:column; gap:4px; z-index:50; min-width:220px; }
+/* Animated open/close (slide + fade) instead of an instant display:none/flex swap — toggle the
+   .open class, not inline style.display. */
+.dropdown-menu {
+  position:absolute; right:0; top:calc(100% + 6px); background:var(--surface); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow-md); padding:6px; display:flex; flex-direction:column; gap:4px; z-index:50; min-width:220px;
+  opacity: 0; visibility: hidden; transform: translateY(-8px) scale(.98); transform-origin: top right;
+  transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s;
+}
+.dropdown-menu.open {
+  opacity: 1; visibility: visible; transform: translateY(0) scale(1);
+  transition: opacity .16s ease, transform .16s ease;
+}
 .dropdown-menu .btn { width:100%; justify-content:flex-start; }
 
 .pos-drag-item { padding:6px 8px; border:1px solid var(--border); border-radius:6px; margin-bottom:5px; cursor:grab; font-size:13px; background:var(--bg); display:flex; justify-content:space-between; align-items:center; user-select:none; }

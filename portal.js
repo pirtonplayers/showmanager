@@ -118,17 +118,16 @@ function handleNavClick(e) {
   if (btn.dataset.pane) activateApp(btn.dataset.pane);
   else if (btn.dataset.subtab) activateTab(btn.dataset.app, btn.dataset.subtab);
   else activateApp(btn.dataset.app);
-  document.getElementById('shellNavDropdown').style.display = 'none';
+  document.getElementById('shellNavDropdown').classList.remove('open');
 }
 document.getElementById('shellNavSidebar').addEventListener('click', handleNavClick);
 document.getElementById('shellNavDropdown').addEventListener('click', handleNavClick);
 
 document.getElementById('menuBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  const menu = document.getElementById('shellNavDropdown');
-  menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+  document.getElementById('shellNavDropdown').classList.toggle('open');
 });
-document.addEventListener('click', () => { document.getElementById('shellNavDropdown').style.display = 'none'; });
+document.addEventListener('click', () => { document.getElementById('shellNavDropdown').classList.remove('open'); });
 
 const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
 function applySidebarState(collapsed) {

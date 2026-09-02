@@ -51,7 +51,7 @@ function goTo(screenId) {
   document.querySelector('.pwa-hero').style.display = loggedInScreen ? '' : 'none';
   document.querySelector('.pwa-content').style.display = loggedInScreen ? '' : 'none';
   document.getElementById('heroMenuWrap').style.display = loggedInScreen ? '' : 'none';
-  document.getElementById('mainMenuDropdown').style.display = 'none';
+  document.getElementById('mainMenuDropdown').classList.remove('open');
   document.getElementById('pwaSidebar').style.display = loggedInScreen ? '' : 'none';
   document.getElementById('pwaSidebarToggleBtn').style.display = loggedInScreen ? '' : 'none';
   document.querySelector('.pwa-content').classList.toggle('with-sidebar', loggedInScreen);
@@ -67,10 +67,9 @@ function goTo(screenId) {
 
 document.getElementById('menuBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  const menu = document.getElementById('mainMenuDropdown');
-  menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+  document.getElementById('mainMenuDropdown').classList.toggle('open');
 });
-document.addEventListener('click', () => { document.getElementById('mainMenuDropdown').style.display = 'none'; });
+document.addEventListener('click', () => { document.getElementById('mainMenuDropdown').classList.remove('open'); });
 
 document.querySelectorAll('.tab-btn[data-screen]').forEach(btn => {
   btn.addEventListener('click', () => {
