@@ -47,15 +47,15 @@ function activatePane(key) {
   Object.entries(frames).forEach(([k, frame]) => frame.classList.toggle('active', k === key));
 }
 
-// expandedKey tracks which app's sub-menu is shown open in the nav — independent of activeKey
-// (which app's content is showing in the work area). They move together normally (opening an
-// app expands its own menu too), but clicking an already-active app's name again just closes
-// its menu without touching what's showing in the work area.
-let expandedKey = null;
+// expandedKeys tracks which apps' sub-menus are shown open in the nav — independent of
+// activeKey (which app's content is showing in the work area), and not exclusive: opening a
+// new app adds its menu to this set without closing anyone else's. Clicking an already-open
+// app's name again just removes it from the set (closes that one menu only).
+const expandedKeys = new Set();
 
 function activateApp(key) {
   activeKey = key;
-  expandedKey = (key === 'dashboard' || key === 'users') ? null : key;
+  if (key !== 'dashboard' && key !== 'users') expandedKeys.add(key);
   if (key === 'dashboard' || key === 'users') {
     activatePane(key);
     renderShellNav();
@@ -104,9 +104,10 @@ function renderShellNav() {
   html += '<div class="dropdown-divider"></div>';
   for (const app of apps) {
     // The app name highlights whenever its content is showing (activeKey), regardless of
-    // whether its own sub-menu is currently expanded (expandedKey) — those are separate now.
+    // whether its own sub-menu is currently expanded (expandedKeys) — those are separate, and
+    // more than one app's menu can be open at once.
     const isActiveContent = app.key === activeKey;
-    const isExpanded = app.key === expandedKey;
+    const isExpanded = expandedKeys.has(app.key);
     html += `<button class="tab-btn nav-app-btn${isActiveContent ? ' active' : ''}" data-app="${app.key}">${escapeHtml(app.label)}</button>`;
     if (isExpanded) {
       const tabs = APP_SUBNAV[app.key] || [];
@@ -129,17 +130,15 @@ function handleNavClick(e) {
     activateApp(btn.dataset.pane);
   } else if (btn.dataset.subtab) {
     activateTab(btn.dataset.app, btn.dataset.subtab);
-  } else if (btn.dataset.app === activeKey && btn.dataset.app === expandedKey) {
-    // Already showing this app's content and its menu is open — just close the menu, leave the
-    // work area exactly as it is.
-    expandedKey = null;
-    renderShellNav();
   } else if (btn.dataset.app === activeKey) {
-    // Its content is already showing but the menu got closed (the branch above) — clicking the
-    // name again just reopens the menu, nothing to reload.
-    expandedKey = btn.dataset.app;
+    // Already showing this app's content — clicking its name again just toggles its own menu
+    // open/closed, leaving the work area and every other app's menu exactly as they are.
+    if (expandedKeys.has(btn.dataset.app)) expandedKeys.delete(btn.dataset.app);
+    else expandedKeys.add(btn.dataset.app);
     renderShellNav();
   } else {
+    // A different app — switch the work area to it. Its menu opens too (activateApp), but
+    // nobody else's closes.
     activateApp(btn.dataset.app);
   }
   document.getElementById('shellNavDropdown').classList.remove('open');
@@ -264,7 +263,7 @@ firebase.auth().onAuthStateChanged(async user => {
     Object.keys(frames).forEach(k => delete frames[k]);
     Object.keys(lastTab).forEach(k => delete lastTab[k]);
     activeKey = 'dashboard';
-    expandedKey = null;
+    expandedKeys.clear();
   }
 });
 

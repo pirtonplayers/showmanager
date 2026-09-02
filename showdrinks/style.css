@@ -151,7 +151,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
    the wrapper's box model) so an active sub-tab's highlight spans the whole strip, same as a
    top-level app button's does — only the text sits indented, showing it's "under" that app. */
 .suite-current-section { display: flex; flex-direction: column; gap: 4px; }
-.suite-current-section .tab-btn { padding-left: 28px; position: relative; }
+.suite-current-section .tab-btn { padding-left: 28px !important; position: relative; }
 .suite-current-section .tab-btn::before { content: '•'; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
 
 /* ── Auth gate — covers the page until the first onAuthStateChanged fires, so neither the
