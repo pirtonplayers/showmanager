@@ -1639,14 +1639,18 @@ firebase.auth().onAuthStateChanged(async user => {
       await firebase.auth().signOut();
       errEl.textContent = 'This account does not have ShowDrinks admin access — ask a manager to grant it from the showmanager portal.';
       errEl.style.display = '';
+      document.getElementById('authGate').style.display = 'none';
       return;
     }
+    mountSuiteNav(allowed, 'showdrinksAdmin', '../');
     loginScreen.style.display = 'none';
     adminApp.style.display = '';
+    document.getElementById('authGate').style.display = 'none';
     if (!_appInitialized) { _appInitialized = true; init(); }
   } else {
     adminApp.style.display = 'none';
     loginScreen.style.display = 'flex';
+    document.getElementById('authGate').style.display = 'none';
   }
 });
 
@@ -1682,8 +1686,9 @@ document.getElementById('forgotPasswordLink').addEventListener('click', async (e
 });
 
 document.getElementById('signOutBtn').addEventListener('click', () => firebase.auth().signOut());
+document.getElementById('sidebarSignOutBtn').addEventListener('click', () => firebase.auth().signOut());
 
-document.getElementById('changePasswordBtn').addEventListener('click', async () => {
+async function changePasswordPrompt() {
   const newPassword = prompt('Enter your new password (min 6 characters):');
   if (!newPassword) return;
   if (newPassword.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
@@ -1693,6 +1698,21 @@ document.getElementById('changePasswordBtn').addEventListener('click', async () 
   } catch(e) {
     toast('Failed: ' + e.message + ' — you may need to sign out and back in first', 'error');
   }
+}
+document.getElementById('changePasswordBtn').addEventListener('click', changePasswordPrompt);
+document.getElementById('sidebarChangePasswordBtn').addEventListener('click', changePasswordPrompt);
+
+// Desktop sidebar collapse — same pattern as expenses/budget's own admin sidebars.
+const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+function applySidebarState(collapsed) {
+  document.body.classList.toggle('sidebar-collapsed', collapsed);
+  sidebarToggleBtn.textContent = collapsed ? '›' : '‹';
+}
+applySidebarState(localStorage.getItem('showdrinks_sidebar_collapsed') === '1');
+sidebarToggleBtn.addEventListener('click', () => {
+  const collapsed = !document.body.classList.contains('sidebar-collapsed');
+  applySidebarState(collapsed);
+  localStorage.setItem('showdrinks_sidebar_collapsed', collapsed ? '1' : '0');
 });
 
 // Admin accounts are now provisioned from the showmanager portal's Users screen (grants the

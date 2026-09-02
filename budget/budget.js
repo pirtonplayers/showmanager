@@ -675,9 +675,12 @@ firebase.auth().onAuthStateChanged(async user => {
       await firebase.auth().signOut();
       document.getElementById('loginError').textContent = 'This account does not have Budget access — ask a manager to grant it from the showmanager portal.';
       document.getElementById('loginError').style.display = 'block';
+      document.getElementById('authGate').style.display = 'none';
       return;
     }
+    mountSuiteNav(allowed, 'budget', '../');
     document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('authGate').style.display = 'none';
     document.getElementById('changePasswordEmailText').textContent = user.email;
 
     if (allowed.mustChangePassword) {
@@ -699,6 +702,7 @@ firebase.auth().onAuthStateChanged(async user => {
     document.getElementById('changePasswordScreen').style.display = 'none';
     document.getElementById('adminApp').style.display = 'none';
     document.getElementById('changePasswordForm').reset();
+    document.getElementById('authGate').style.display = 'none';
   }
 });
 

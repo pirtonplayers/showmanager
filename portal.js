@@ -125,10 +125,13 @@ firebase.auth().onAuthStateChanged(async user => {
       await firebase.auth().signOut();
       document.getElementById('loginError').textContent = 'This account is not set up — ask a manager to create it.';
       document.getElementById('loginError').style.display = 'block';
+      document.getElementById('authGate').style.display = 'none';
       return;
     }
     currentAccount = data;
+    mountSuiteNav(data, null, '');
     document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('authGate').style.display = 'none';
     document.getElementById('changePasswordEmailText').textContent = user.email;
 
     if (data.mustChangePassword) {
@@ -153,6 +156,7 @@ firebase.auth().onAuthStateChanged(async user => {
     document.getElementById('changePasswordScreen').style.display = 'none';
     document.getElementById('adminApp').style.display = 'none';
     document.getElementById('changePasswordForm').reset();
+    document.getElementById('authGate').style.display = 'none';
   }
 });
 

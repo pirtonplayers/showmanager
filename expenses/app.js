@@ -190,9 +190,11 @@ function handleUser(user) {
         goTo('screenMain');
         subscribeMyExpenses();
       }
+      document.getElementById('authGate').style.display = 'none';
     }, err => {
       console.error(err);
       goTo('screenChangePassword');
+      document.getElementById('authGate').style.display = 'none';
     });
   } else {
     if (myExpensesUnsub) { myExpensesUnsub(); myExpensesUnsub = null; }
@@ -201,6 +203,7 @@ function handleUser(user) {
     document.getElementById('loginForm').reset();
     document.getElementById('changePasswordForm').reset();
     goTo('screenLogin');
+    document.getElementById('authGate').style.display = 'none';
   }
 }
 
