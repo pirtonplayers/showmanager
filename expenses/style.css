@@ -112,6 +112,18 @@ input[type="file"].form-control { padding: 7px 10px; }
 #authGate::after { content: ''; width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--primary); animation: authGateSpin .7s linear infinite; }
 @keyframes authGateSpin { to { transform: rotate(360deg); } }
 
+/* ── Embedded in the showmanager shell's iframe (shared/embed.js sets this on <html> before
+   first paint) — this page's own chrome is redundant with the shell's one strip, so hide all
+   of it: header/sidebar/toggle for the admin-style page, hero/sidebar/toggle for the PWA entry
+   page, and the auth gate (the shell's own gate already covered the login flash). ── */
+.embedded #authGate,
+.embedded .admin-header, .embedded .admin-sidebar, .embedded .sidebar-toggle,
+.embedded .pwa-hero, .embedded #pwaSidebar, .embedded #pwaSidebarToggleBtn {
+  display: none !important;
+}
+.embedded .admin-content { margin-left: 0 !important; }
+.embedded .pwa-content.with-sidebar { margin-left: auto !important; }
+
 /* ════════════════════════ ADMIN LAYOUT ════════════════════════ */
 .admin-header { background: var(--primary); color: #fff; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 16px; box-shadow: var(--shadow-md); position: sticky; top: 0; z-index: 100; }
 .header-title { font-size: 14px; opacity: .85; }

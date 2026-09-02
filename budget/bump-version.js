@@ -10,7 +10,7 @@ const version = `${m[1]}${next}`;
 fs.writeFileSync(file, content.replace(/APP_VERSION = '[\d.]+'/, `APP_VERSION = '${version}'`));
 
 // Same cache-busting scheme as expenses/bump-version.js — see the comment there for why.
-const ASSETS = ['style.css', 'budget.js', 'version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js'];
+const ASSETS = ['style.css', 'budget.js', 'version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js'];
 
 function restamp(text) {
   for (const asset of ASSETS) {

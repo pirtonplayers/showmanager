@@ -31,23 +31,104 @@ const TILE_META = {
   budget:          { emoji: '📊', desc: 'Plan and track show budgets.' },
 };
 
-// ── Tabs / menu / sidebar (same pattern as every other admin.html) ─────────
+// ── The shell ────────────────────────────────────────────────────────────
+// One generalised menu strip + one generalised work area for the whole suite. Picking Dashboard
+// or Users shows a native pane; picking an app shows (creating on first visit) an iframe onto
+// that app's own existing page, left alive from then on so switching back is instant. The app's
+// own header/sidebar are hidden inside the iframe (shared/embed.js) — this strip is the only
+// nav visible once you're signed in, anywhere in showmanager.
 
-function switchTab(tab) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
-  document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+let activeKey = 'dashboard'; // 'dashboard' | 'users' | an ACCESS_APPS[].key
+const lastTab = {};          // ACCESS_APPS[].key -> last APP_SUBNAV tab id chosen for it
+const frames = {};           // ACCESS_APPS[].key -> its <iframe>, created lazily
+
+function activatePane(key) {
+  document.querySelectorAll('.work-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + key));
+  Object.entries(frames).forEach(([k, frame]) => frame.classList.toggle('active', k === key));
 }
-document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
-  btn.addEventListener('click', () => { switchTab(btn.dataset.tab); document.getElementById('mainMenuDropdown').style.display = 'none'; });
-});
+
+function activateApp(key) {
+  activeKey = key;
+  if (key === 'dashboard' || key === 'users') {
+    activatePane(key);
+    renderShellNav();
+    return;
+  }
+  const app = ACCESS_APPS.find(a => a.key === key);
+  if (!app) return;
+  activatePane(null); // hides every native pane and every other iframe
+
+  let frame = frames[key];
+  if (!frame) {
+    frame = document.createElement('iframe');
+    frame.className = 'shell-frame';
+    frame.title = app.label;
+    frame.src = app.href;
+    // Only postMessage the starting tab once this fresh iframe has actually loaded and had a
+    // chance to register its own message listener (shared/embed.js) — an earlier message would
+    // just be missed.
+    frame.addEventListener('load', () => activateTab(key, lastTab[key] || APP_SUBNAV[key]?.[0]?.id));
+    document.getElementById('workAreaFrames').appendChild(frame);
+    frames[key] = frame;
+  } else if (lastTab[key]) {
+    activateTab(key, lastTab[key]);
+  }
+  frame.classList.add('active');
+  renderShellNav();
+}
+
+function activateTab(key, tabId) {
+  lastTab[key] = tabId;
+  const tab = APP_SUBNAV[key]?.find(t => t.id === tabId);
+  const frame = frames[key];
+  if (tab && frame?.contentWindow) {
+    frame.contentWindow.postMessage({ source: 'showmanager-shell', type: 'activateTab', selector: tab.selector }, '*');
+  }
+  if (key === activeKey) renderShellNav();
+}
+
+function renderShellNav() {
+  if (!currentAccount) return;
+  const apps = accessibleApps(currentAccount);
+  let html = `<button class="tab-btn${activeKey === 'dashboard' ? ' active' : ''}" data-pane="dashboard">Dashboard</button>`;
+  if (currentAccount.isManager) {
+    html += `<button class="tab-btn${activeKey === 'users' ? ' active' : ''}" data-pane="users">Users</button>`;
+  }
+  html += '<div class="dropdown-divider"></div>';
+  for (const app of apps) {
+    const isActive = app.key === activeKey;
+    html += `<button class="tab-btn${isActive ? ' active' : ''}" data-app="${app.key}">${escapeHtml(app.label)}</button>`;
+    if (isActive) {
+      const tabs = APP_SUBNAV[app.key] || [];
+      const current = lastTab[app.key] || tabs[0]?.id;
+      html += '<div class="suite-current-section">' + tabs.map(t => `
+        <button class="tab-btn${t.id === current ? ' active' : ''}" data-app="${app.key}" data-subtab="${t.id}">${escapeHtml(t.label)}</button>
+      `).join('') + '</div>';
+    }
+  }
+  html += '<div class="dropdown-divider"></div><button class="btn btn-danger btn-sm signout-btn">Sign Out</button>';
+  document.getElementById('shellNavSidebar').innerHTML = html;
+  document.getElementById('shellNavDropdown').innerHTML = html;
+}
+
+function handleNavClick(e) {
+  if (e.target.closest('.signout-btn')) { firebase.auth().signOut(); return; }
+  const btn = e.target.closest('[data-pane],[data-app]');
+  if (!btn) return;
+  if (btn.dataset.pane) activateApp(btn.dataset.pane);
+  else if (btn.dataset.subtab) activateTab(btn.dataset.app, btn.dataset.subtab);
+  else activateApp(btn.dataset.app);
+  document.getElementById('shellNavDropdown').style.display = 'none';
+}
+document.getElementById('shellNavSidebar').addEventListener('click', handleNavClick);
+document.getElementById('shellNavDropdown').addEventListener('click', handleNavClick);
 
 document.getElementById('menuBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  const menu = document.getElementById('mainMenuDropdown');
+  const menu = document.getElementById('shellNavDropdown');
   menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
 });
-document.addEventListener('click', () => { document.getElementById('mainMenuDropdown').style.display = 'none'; });
+document.addEventListener('click', () => { document.getElementById('shellNavDropdown').style.display = 'none'; });
 
 const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
 function applySidebarState(collapsed) {
@@ -91,8 +172,6 @@ document.getElementById('forgotPasswordLink').addEventListener('click', async (e
     showToast(err.message, 'error');
   }
 });
-document.getElementById('signOutBtn').addEventListener('click', () => firebase.auth().signOut());
-document.getElementById('sidebarSignOutBtn').addEventListener('click', () => firebase.auth().signOut());
 document.getElementById('changePasswordSignOutBtn').addEventListener('click', () => firebase.auth().signOut());
 
 document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
@@ -129,7 +208,6 @@ firebase.auth().onAuthStateChanged(async user => {
       return;
     }
     currentAccount = data;
-    mountSuiteNav(data, null, '');
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('authGate').style.display = 'none';
     document.getElementById('changePasswordEmailText').textContent = user.email;
@@ -140,9 +218,8 @@ firebase.auth().onAuthStateChanged(async user => {
     } else {
       document.getElementById('changePasswordScreen').style.display = 'none';
       document.getElementById('adminApp').style.display = 'block';
-      document.getElementById('usersNavBtn').style.display = data.isManager ? '' : 'none';
-      document.getElementById('usersNavBtnSidebar').style.display = data.isManager ? '' : 'none';
       renderTiles(data);
+      renderShellNav();
       if (!dashboardInitialized) {
         dashboardInitialized = true;
         document.getElementById('headerVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';
@@ -157,22 +234,35 @@ firebase.auth().onAuthStateChanged(async user => {
     document.getElementById('adminApp').style.display = 'none';
     document.getElementById('changePasswordForm').reset();
     document.getElementById('authGate').style.display = 'none';
+    // Drop every app iframe on sign-out — otherwise a different account signing in on the same
+    // browser would (briefly, until each iframe's own auth listener catches up) still be sitting
+    // in front of whatever the previous account had open.
+    Object.values(frames).forEach(f => f.remove());
+    Object.keys(frames).forEach(k => delete frames[k]);
+    Object.keys(lastTab).forEach(k => delete lastTab[k]);
+    activeKey = 'dashboard';
   }
 });
 
 // ── Dashboard tiles ──────────────────────────────────────────────────────
 
 function renderTiles(data) {
-  const apps = ACCESS_APPS.filter(a => data.isManager || data.access?.[a.key]);
+  const apps = accessibleApps(data);
+  // Buttons, not links — clicking activates the app in the shell's own work area (see
+  // activateApp), never a page navigation.
   document.getElementById('tileGrid').innerHTML = apps.map(a => `
-    <a class="app-tile" href="${a.href}">
+    <button class="app-tile" type="button" data-app="${a.key}">
       <span class="at-emoji">${TILE_META[a.key]?.emoji || '📄'}</span>
       <span class="at-name">${escapeHtml(a.label)}</span>
       <span class="at-desc">${escapeHtml(TILE_META[a.key]?.desc || '')}</span>
-    </a>
+    </button>
   `).join('');
   document.getElementById('noAccessNote').style.display = apps.length ? 'none' : 'block';
 }
+document.getElementById('tileGrid').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-app]');
+  if (btn) activateApp(btn.dataset.app);
+});
 
 // ── Users (isManager only) ──────────────────────────────────────────────
 

@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
+       sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
+  <script src="../shared/embed.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
   <link rel="stylesheet" href="style.css">

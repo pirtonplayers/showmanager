@@ -154,6 +154,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 #authGate::after { content: ''; width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--primary); animation: authGateSpin .7s linear infinite; }
 @keyframes authGateSpin { to { transform: rotate(360deg); } }
 
+/* ── Embedded in the showmanager shell's iframe (shared/embed.js sets this on <html> before
+   first paint) — this page's own chrome is redundant with the shell's one strip. ── */
+.embedded #authGate, .embedded .admin-header, .embedded .admin-sidebar, .embedded .sidebar-toggle {
+  display: none !important;
+}
+.embedded .admin-content { margin-left: 0 !important; }
+
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
