@@ -172,6 +172,44 @@ exports.createExpensesUser = onCall({ region: 'europe-west1' }, async (request) 
   return { ok: true, uid: userRecord.uid };
 });
 
+// Every account with some expenses-related access — expensesAdmin-scoped listing for
+// expenses/admin.html's own Users tab (firestore.rules only lets a non-manager read their own
+// doc, so this has to go through a function). Deliberately returns only what that screen needs
+// — never isManager or the other apps' access flags, so an expenses admin managing this list
+// isn't shown who has ShowDrinks/Budget access.
+exports.listExpensesUsers = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireAppAccess(request, 'expensesAdmin');
+  const snap = await db.collection('users').get();
+  const users = snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(u => u.access?.expenses === true || u.access?.expensesAdmin === true)
+    .map(u => ({
+      id: u.id, name: u.name || u.email, email: u.email,
+      access: { expenses: u.access?.expenses === true, expensesAdmin: u.access?.expensesAdmin === true },
+      mustChangePassword: u.mustChangePassword === true,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { ok: true, users };
+});
+
+// Grants/revokes just access.expenses on an existing account — expensesAdmin-scoped (unlike the
+// portal's general users/{uid} update, which is Manager-only). Deliberately can't touch
+// access.expensesAdmin itself (or isManager, or any other app) — granting admin rights stays a
+// Manager-only action in the portal, so an expenses admin can't promote anyone (including
+// themselves) to expensesAdmin from this screen.
+exports.setExpensesUserAccess = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireAppAccess(request, 'expensesAdmin');
+  const { uid, value } = request.data || {};
+  if (!uid || typeof value !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'uid and a boolean value are required.');
+  }
+  if (uid === request.auth.uid && value === false) {
+    throw new HttpsError('failed-precondition', "You can't remove your own Expenses access this way.");
+  }
+  await db.collection('users').doc(uid).update({ 'access.expenses': value });
+  return { ok: true };
+});
+
 // Permanently delete a user — their Firebase Auth login AND their users/{uid} doc. Callable only
 // by a manager; a manager can't delete their own account this way (avoids locking everyone out
 // by accident). Past expenses/orders/tabs store the person's name/email directly, not a

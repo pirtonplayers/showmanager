@@ -293,26 +293,26 @@ document.getElementById('tileGrid').addEventListener('click', (e) => {
 let allUsers = [];
 
 // Manager stays its own checkbox (a different kind of thing — portal-level, manages every app
-// and every user — not just "another app to pick"); the apps themselves are a multi-select
-// dropdown instead of one checkbox per app.
+// and every user — not just "another app to pick"); the apps themselves are one checkbox each,
+// same as before. (Only the *existing users list* below got a dropdown — one row per user, a
+// checkbox per app there would be a wide, wrapping mess; a single new-user form has the room.)
 function accessPickerHtml(idPrefix, access = {}) {
-  const selected = new Set(ACCESS_APPS.filter(a => access[a.key]).map(a => a.key));
   return `
     <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:10px">
       <input type="checkbox" id="${idPrefix}-isManager"> Manager (all apps, manages users)
     </label>
-    <label for="${idPrefix}-appsSelect" style="display:block;font-size:13px;font-weight:500;color:var(--text-muted);margin-bottom:6px">
-      Apps (Ctrl/Cmd-click, or drag, to pick more than one)
-    </label>
-    <select id="${idPrefix}-appsSelect" class="form-control" multiple size="4">
-      ${ACCESS_APPS.map(a => `<option value="${a.key}"${selected.has(a.key) ? ' selected' : ''}>${escapeHtml(a.label)}</option>`).join('')}
-    </select>`;
+    <div style="display:flex;flex-wrap:wrap;gap:14px">
+      ${ACCESS_APPS.map(a => `
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+          <input type="checkbox" class="${idPrefix}-app-cb" value="${a.key}" ${access[a.key] ? 'checked' : ''}> ${escapeHtml(a.label)}
+        </label>
+      `).join('')}
+    </div>`;
 }
 
 function readAccessPicker(idPrefix) {
-  const chosen = new Set([...document.getElementById(`${idPrefix}-appsSelect`).selectedOptions].map(o => o.value));
   const access = {};
-  ACCESS_APPS.forEach(a => { access[a.key] = chosen.has(a.key); });
+  document.querySelectorAll(`.${idPrefix}-app-cb`).forEach(cb => { access[cb.value] = cb.checked; });
   return access;
 }
 
@@ -334,7 +334,10 @@ function renderUserList() {
   const search = document.getElementById('userSearchInput').value.trim().toLowerCase();
   const rows = allUsers.filter(u => !search || u.name?.toLowerCase().includes(search) || u.email?.toLowerCase().includes(search));
 
-  document.getElementById('userList').innerHTML = rows.map(u => `
+  document.getElementById('userList').innerHTML = rows.map(u => {
+    const selectedLabels = ACCESS_APPS.filter(a => u.access?.[a.key]).map(a => a.label);
+    const summary = u.isManager ? 'All apps' : (selectedLabels.length ? selectedLabels.join(', ') : 'No apps');
+    return `
     <div class="item-row" style="flex-wrap:wrap">
       <div style="flex:1;min-width:180px">
         <div class="item-name">${escapeHtml(u.name || u.email)}</div>
@@ -344,15 +347,21 @@ function renderUserList() {
         <label style="display:flex;align-items:center;gap:5px;font-size:12px">
           <input type="checkbox" data-toggle="${u.id}:isManager" ${u.isManager ? 'checked' : ''} ${u.id === currentUid ? 'disabled title="You can\'t change your own Manager status"' : ''}> Manager
         </label>
-        ${ACCESS_APPS.map(a => `
-          <label style="display:flex;align-items:center;gap:5px;font-size:12px">
-            <input type="checkbox" data-toggle="${u.id}:access.${a.key}" ${u.access?.[a.key] ? 'checked' : ''} ${u.isManager ? 'disabled title="Managers already have every app"' : ''}> ${escapeHtml(a.label)}
-          </label>
-        `).join('')}
+        <details class="access-dropdown">
+          <summary title="Apps">${escapeHtml(summary)}</summary>
+          <div class="access-dropdown-menu">
+            ${ACCESS_APPS.map(a => `
+              <label>
+                <input type="checkbox" data-toggle="${u.id}:access.${a.key}" ${u.access?.[a.key] ? 'checked' : ''} ${u.isManager ? 'disabled title="Managers already have every app"' : ''}> ${escapeHtml(a.label)}
+              </label>
+            `).join('')}
+          </div>
+        </details>
         <button class="btn btn-danger btn-sm" data-delete-user="${u.id}" ${u.id === currentUid ? 'disabled title="You can\'t delete your own account this way"' : ''}>Delete</button>
       </div>
     </div>
-  `).join('') || '<p class="empty-state">No registered users yet.</p>';
+  `;
+  }).join('') || '<p class="empty-state">No registered users yet.</p>';
 }
 document.getElementById('userSearchInput').addEventListener('input', renderUserList);
 

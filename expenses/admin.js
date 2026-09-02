@@ -192,6 +192,7 @@ document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById(`tab-${tab}`).classList.add('active');
     document.getElementById('mainMenuDropdown').classList.remove('open');
+    if (tab === 'users') loadExpensesUsers();
   });
 });
 
@@ -765,6 +766,17 @@ document.getElementById('markPaidSubmitBtn').addEventListener('click', async () 
 
 const ENTRY_URL = new URL('index.html', location.href).href;
 
+// Shared by both "just created" (addUserForm submit) and "send an existing user their link
+// again" (the All users list's per-row Send link button) — same card, same fields either way.
+function showSendLinkCard(name, email) {
+  document.getElementById('newUserLinkName').textContent = name;
+  document.getElementById('newUserLinkUrl').value = ENTRY_URL;
+  document.getElementById('newUserLinkMessage').value = '';
+  document.getElementById('newUserLinkCard').dataset.email = email;
+  document.getElementById('newUserLinkCard').style.display = 'block';
+  document.getElementById('newUserLinkCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const errorEl = document.getElementById('addUserError');
@@ -777,18 +789,73 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   btn.disabled = true;
   try {
     await functionsRegion.httpsCallable('createExpensesUser')({ name, email, password });
-    document.getElementById('newUserLinkName').textContent = name;
-    document.getElementById('newUserLinkUrl').value = ENTRY_URL;
-    document.getElementById('newUserLinkMessage').value = '';
-    document.getElementById('newUserLinkCard').dataset.email = email;
-    document.getElementById('newUserLinkCard').style.display = 'block';
+    showSendLinkCard(name, email);
     document.getElementById('addUserForm').reset();
     showToast(`Account created for ${name} — pass on the temporary password`, 'success');
+    await loadExpensesUsers();
   } catch (err) {
     errorEl.textContent = err.message;
   } finally {
     btn.disabled = false;
   }
+});
+
+// All users with any expenses-related access (listExpensesUsers — expensesAdmin-scoped, returns
+// only what this screen needs). The "Expenses access" toggle here calls setExpensesUserAccess,
+// which can only ever touch that one flag — granting Expenses admin (or any other app) stays a
+// portal-only action, so it isn't offered here even as a toggle.
+let expensesUsers = [];
+
+async function loadExpensesUsers() {
+  try {
+    const result = await functionsRegion.httpsCallable('listExpensesUsers')();
+    expensesUsers = result.data.users || [];
+  } catch (err) {
+    showToast(err.message, 'error');
+    return;
+  }
+  renderExpensesUserList();
+}
+
+function renderExpensesUserList() {
+  const search = document.getElementById('expensesUserSearchInput').value.trim().toLowerCase();
+  const rows = expensesUsers.filter(u => !search || u.name?.toLowerCase().includes(search) || u.email?.toLowerCase().includes(search));
+  document.getElementById('expensesUserList').innerHTML = rows.map(u => `
+    <div class="item-row" style="flex-wrap:wrap">
+      <div style="flex:1;min-width:180px">
+        <div class="item-name">${escapeHtml(u.name)}</div>
+        <div class="item-sub">${escapeHtml(u.email)}${u.access.expensesAdmin ? ' · Expenses admin' : ''}</div>
+      </div>
+      <div class="item-actions">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px">
+          <input type="checkbox" data-toggle-expenses="${u.id}" ${u.access.expenses ? 'checked' : ''}> Expenses access
+        </label>
+        <button type="button" class="btn btn-secondary btn-sm" data-send-link="${u.id}">Send link</button>
+      </div>
+    </div>
+  `).join('') || '<p class="empty-state">No users yet.</p>';
+}
+document.getElementById('expensesUserSearchInput').addEventListener('input', renderExpensesUserList);
+
+document.getElementById('expensesUserList').addEventListener('change', async (e) => {
+  const uid = e.target.getAttribute('data-toggle-expenses');
+  if (!uid) return;
+  const checked = e.target.checked;
+  try {
+    await functionsRegion.httpsCallable('setExpensesUserAccess')({ uid, value: checked });
+    showToast('Updated', 'success');
+    await loadExpensesUsers();
+  } catch (err) {
+    e.target.checked = !checked;
+    showToast(err.message, 'error');
+  }
+});
+
+document.getElementById('expensesUserList').addEventListener('click', (e) => {
+  const uid = e.target.getAttribute('data-send-link');
+  if (!uid) return;
+  const user = expensesUsers.find(u => u.id === uid);
+  if (user) showSendLinkCard(user.name, user.email);
 });
 
 document.getElementById('copyLinkBtn').addEventListener('click', async () => {

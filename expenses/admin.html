@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.61"></script>
+  <script src="../shared/embed.js?v=1.0.62"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#92400e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Pirton Players Expenses — Admin</title>
   <link rel="manifest" href="admin-manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-admin.png">
-  <link rel="stylesheet" href="style.css?v=1.0.61">
+  <link rel="stylesheet" href="style.css?v=1.0.62">
 </head>
 <body class="theme-admin">
 
@@ -247,11 +247,6 @@
       <div class="card" style="margin-bottom:20px">
         <div class="card-header"><h2>Add a user</h2></div>
         <div class="card-body">
-          <p class="muted" style="margin-bottom:14px">
-            Creates a login for submitting expenses only. For anything else — Expenses admin,
-            ShowDrinks, Budget, or Manager — use the <a href="../index.html">portal's Users
-            screen</a> instead.
-          </p>
           <form id="addUserForm">
             <div class="form-row">
               <div class="form-group">
@@ -273,13 +268,9 @@
         </div>
       </div>
 
-      <div class="card" id="newUserLinkCard" style="display:none">
+      <div class="card" id="newUserLinkCard" style="display:none;margin-bottom:20px">
         <div class="card-header"><h2>Send <span id="newUserLinkName"></span> their link</h2></div>
         <div class="card-body">
-          <p class="muted" style="margin-bottom:14px">
-            Account created — pass on the temporary password above, and use either of these to
-            point them at the app.
-          </p>
           <div class="form-group">
             <label for="newUserLinkUrl">Entry app link</label>
             <div style="display:flex;gap:8px">
@@ -295,6 +286,14 @@
             <button type="button" class="btn btn-primary" id="sendLinkEmailBtn">Send email</button>
             <button type="button" class="btn btn-secondary" id="newUserLinkDoneBtn">Done</button>
           </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2>All users</h2></div>
+        <div class="card-body">
+          <input type="text" id="expensesUserSearchInput" class="form-control" placeholder="Search by name or email" style="margin-bottom:14px">
+          <div class="item-list" id="expensesUserList"></div>
         </div>
       </div>
     </div>
@@ -419,10 +418,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="version.js?v=1.0.61"></script>
-<script src="../shared/firebase-config.js?v=1.0.61"></script>
-<script src="../shared/auth.js?v=1.0.61"></script>
-<script src="../shared/suite-nav.js?v=1.0.61"></script>
-<script src="admin.js?v=1.0.61"></script>
+<script src="version.js?v=1.0.62"></script>
+<script src="../shared/firebase-config.js?v=1.0.62"></script>
+<script src="../shared/auth.js?v=1.0.62"></script>
+<script src="../shared/suite-nav.js?v=1.0.62"></script>
+<script src="admin.js?v=1.0.62"></script>
 </body>
 </html>
