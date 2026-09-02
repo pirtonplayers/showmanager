@@ -23,6 +23,7 @@ const APP_SUBNAV = {
     { id: 'dashboard', label: 'Expenses', selector: '[data-tab="dashboard"]' },
     { id: 'reports', label: 'Reports', selector: '[data-tab="reports"]' },
     { id: 'shows', label: 'Shows', selector: '[data-tab="shows"]' },
+    { id: 'users', label: 'Users', selector: '[data-tab="users"]' },
     { id: 'settings', label: 'Settings', selector: '[data-tab="settings"]' },
   ],
   showdrinksAdmin: [

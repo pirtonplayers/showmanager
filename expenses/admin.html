@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.60"></script>
+  <script src="../shared/embed.js?v=1.0.61"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#92400e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Pirton Players Expenses — Admin</title>
   <link rel="manifest" href="admin-manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-admin.png">
-  <link rel="stylesheet" href="style.css?v=1.0.60">
+  <link rel="stylesheet" href="style.css?v=1.0.61">
 </head>
 <body class="theme-admin">
 
@@ -89,6 +89,7 @@
           <button class="tab-btn active" data-tab="dashboard">Expenses</button>
           <button class="tab-btn" data-tab="reports">Reports</button>
           <button class="tab-btn" data-tab="shows">Shows</button>
+          <button class="tab-btn" data-tab="users">Users</button>
           <button class="tab-btn" data-tab="settings">Settings</button>
         </div>
         <a href="admin-help.html" class="tab-btn">Help</a>
@@ -109,6 +110,7 @@
       <button class="tab-btn active" data-tab="dashboard">Expenses</button>
       <button class="tab-btn" data-tab="reports">Reports</button>
       <button class="tab-btn" data-tab="shows">Shows</button>
+      <button class="tab-btn" data-tab="users">Users</button>
       <button class="tab-btn" data-tab="settings">Settings</button>
     </div>
     <a href="admin-help.html" class="tab-btn">Help</a>
@@ -238,6 +240,65 @@
       </div>
     </div>
 
+    <!-- ── USERS (expenses-only — broader access changes still go through the portal) ── -->
+    <div id="tab-users" class="tab-panel">
+      <div class="section-header"><h2>Users</h2></div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Add a user</h2></div>
+        <div class="card-body">
+          <p class="muted" style="margin-bottom:14px">
+            Creates a login for submitting expenses only. For anything else — Expenses admin,
+            ShowDrinks, Budget, or Manager — use the <a href="../index.html">portal's Users
+            screen</a> instead.
+          </p>
+          <form id="addUserForm">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="newUserName">Name</label>
+                <input type="text" id="newUserName" class="form-control" required autocomplete="off">
+              </div>
+              <div class="form-group">
+                <label for="newUserEmail">Email</label>
+                <input type="email" id="newUserEmail" class="form-control" required autocomplete="off">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="newUserPassword">Temporary password</label>
+              <input type="text" id="newUserPassword" class="form-control" required minlength="6" autocomplete="off">
+            </div>
+            <p id="addUserError" class="muted" style="color:var(--danger);margin-bottom:12px"></p>
+            <button type="submit" class="btn btn-primary" id="addUserBtn">+ Add user</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card" id="newUserLinkCard" style="display:none">
+        <div class="card-header"><h2>Send <span id="newUserLinkName"></span> their link</h2></div>
+        <div class="card-body">
+          <p class="muted" style="margin-bottom:14px">
+            Account created — pass on the temporary password above, and use either of these to
+            point them at the app.
+          </p>
+          <div class="form-group">
+            <label for="newUserLinkUrl">Entry app link</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="newUserLinkUrl" class="form-control" readonly>
+              <button type="button" class="btn btn-secondary" id="copyLinkBtn" style="flex-shrink:0">Copy link</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="newUserLinkMessage">Message (optional, included in the email)</label>
+            <textarea id="newUserLinkMessage" class="form-control" rows="3" style="resize:vertical" placeholder="e.g. Here's your login — your temporary password is..."></textarea>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn btn-primary" id="sendLinkEmailBtn">Send email</button>
+            <button type="button" class="btn btn-secondary" id="newUserLinkDoneBtn">Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── SETTINGS ── -->
     <div id="tab-settings" class="tab-panel">
       <div class="section-header"><h2>Settings</h2></div>
@@ -358,10 +419,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="version.js?v=1.0.60"></script>
-<script src="../shared/firebase-config.js?v=1.0.60"></script>
-<script src="../shared/auth.js?v=1.0.60"></script>
-<script src="../shared/suite-nav.js?v=1.0.60"></script>
-<script src="admin.js?v=1.0.60"></script>
+<script src="version.js?v=1.0.61"></script>
+<script src="../shared/firebase-config.js?v=1.0.61"></script>
+<script src="../shared/auth.js?v=1.0.61"></script>
+<script src="../shared/suite-nav.js?v=1.0.61"></script>
+<script src="admin.js?v=1.0.61"></script>
 </body>
 </html>

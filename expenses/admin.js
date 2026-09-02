@@ -756,8 +756,68 @@ document.getElementById('markPaidSubmitBtn').addEventListener('click', async () 
   }
 });
 
-// Users (add/delete, Approved/Manager/app-access toggles, "sync permissions", send-link) are
-// now managed from the showmanager portal's Users screen — see admin.html's Settings tab.
+// ── Users (expenses-only) ────────────────────────────────────────────────
+// A quick way for an expenses admin to onboard a player without going through the portal:
+// creates an access.expenses-only login (createExpensesUser — expensesAdmin-scoped, can't grant
+// anything broader), then offers the entry link to copy or email straight away. Broader access
+// changes (Expenses admin, other apps, Manager) and managing existing accounts still live in
+// the portal's Users screen only.
+
+const ENTRY_URL = new URL('index.html', location.href).href;
+
+document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('addUserError');
+  const btn = document.getElementById('addUserBtn');
+  errorEl.textContent = '';
+  const name = document.getElementById('newUserName').value.trim();
+  const email = document.getElementById('newUserEmail').value.trim();
+  const password = document.getElementById('newUserPassword').value.trim();
+
+  btn.disabled = true;
+  try {
+    await functionsRegion.httpsCallable('createExpensesUser')({ name, email, password });
+    document.getElementById('newUserLinkName').textContent = name;
+    document.getElementById('newUserLinkUrl').value = ENTRY_URL;
+    document.getElementById('newUserLinkMessage').value = '';
+    document.getElementById('newUserLinkCard').dataset.email = email;
+    document.getElementById('newUserLinkCard').style.display = 'block';
+    document.getElementById('addUserForm').reset();
+    showToast(`Account created for ${name} — pass on the temporary password`, 'success');
+  } catch (err) {
+    errorEl.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(document.getElementById('newUserLinkUrl').value);
+    showToast('Link copied', 'success');
+  } catch (err) {
+    showToast('Could not copy — select and copy the link manually', 'error');
+  }
+});
+
+document.getElementById('sendLinkEmailBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('sendLinkEmailBtn');
+  const email = document.getElementById('newUserLinkCard').dataset.email;
+  const message = document.getElementById('newUserLinkMessage').value.trim();
+  btn.disabled = true;
+  try {
+    await functionsRegion.httpsCallable('sendUserLink')({ email, message });
+    showToast('Link sent', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('newUserLinkDoneBtn').addEventListener('click', () => {
+  document.getElementById('newUserLinkCard').style.display = 'none';
+});
 
 // ── Service worker update banner ────────────────────────────────────────
 

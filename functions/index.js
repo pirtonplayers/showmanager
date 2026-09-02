@@ -137,6 +137,41 @@ exports.createUser = onCall({ region: 'europe-west1' }, async (request) => {
   return { ok: true, uid: userRecord.uid };
 });
 
+// Create a player login scoped to expenses only (access.expenses, nothing else — never
+// isManager, never another app) — expensesAdmin-only, not full-Manager-only like createUser.
+// Lets an expenses admin onboard a cast/crew member for expense submission on the spot, from
+// expenses/admin.html's own Users tab, without needing a portal Manager to do it via the
+// portal's Users screen. Same mustChangePassword-on-first-login flow as every other account.
+exports.createExpensesUser = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireAppAccess(request, 'expensesAdmin');
+
+  const { name, email, password } = request.data || {};
+  if (!name || !email || !password) {
+    throw new HttpsError('invalid-argument', 'name, email and password are required.');
+  }
+  if (password.length < 6) {
+    throw new HttpsError('invalid-argument', 'Password must be at least 6 characters.');
+  }
+
+  let userRecord;
+  try {
+    userRecord = await getAuth().createUser({ email, password, displayName: name });
+  } catch (err) {
+    throw new HttpsError('already-exists', err.message);
+  }
+
+  await db.collection('users').doc(userRecord.uid).set({
+    name,
+    email,
+    isManager: false,
+    access: { expenses: true, expensesAdmin: false, showdrinksAdmin: false, budget: false },
+    mustChangePassword: true,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  return { ok: true, uid: userRecord.uid };
+});
+
 // Permanently delete a user — their Firebase Auth login AND their users/{uid} doc. Callable only
 // by a manager; a manager can't delete their own account this way (avoids locking everyone out
 // by accident). Past expenses/orders/tabs store the person's name/email directly, not a
@@ -159,11 +194,12 @@ exports.deleteUser = onCall({ region: 'europe-west1' }, async (request) => {
   return { ok: true };
 });
 
-// Emails a player a link to the expenses entry app plus whatever note the manager typed.
-// Manager-only; doesn't require the target to be an existing users/{uid} doc, just an email
-// address, so it also works for pointing someone brand new at the app.
+// Emails a player a link to the expenses entry app plus whatever note the manager/expenses
+// admin typed. expensesAdmin-only (it only ever sends the fixed expenses entry link, so this
+// doesn't need full Manager); doesn't require the target to be an existing users/{uid} doc,
+// just an email address, so it also works for pointing someone brand new at the app.
 exports.sendUserLink = onCall({ region: 'europe-west1', secrets: SMTP_SECRETS }, async (request) => {
-  await requireManager(request);
+  await requireAppAccess(request, 'expensesAdmin');
   const email = request.data?.email;
   if (!email || typeof email !== 'string') {
     throw new HttpsError('invalid-argument', 'email is required.');
