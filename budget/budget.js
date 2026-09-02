@@ -145,8 +145,10 @@ function renderShowsList() {
   }
   el.innerHTML = allShows.map(s => `
     <div class="item-row">
-      <div class="item-name">${escapeHtml(s.name || '(untitled)')}${s.isTemplate ? ' <span class="badge badge-primary">Template</span>' : ''}</div>
-      <div class="item-sub amount-cell">${s.isTemplate ? 'Used to start new shows' : `Forecast: ${money(forecast(withDefaults(s)))}`}</div>
+      <div class="item-name-col">
+        <div class="item-name">${escapeHtml(s.name || '(untitled)')}${s.isTemplate ? ' <span class="badge badge-primary">Template</span>' : ''}</div>
+        ${s.isTemplate ? '<div class="item-sub">Used to start new shows</div>' : ''}
+      </div>
       <div class="item-actions">
         <button class="btn btn-secondary btn-sm" data-open-show="${s.id}">Open</button>
         <button class="btn btn-secondary btn-sm" data-copy-show="${s.id}">Copy</button>
@@ -397,15 +399,15 @@ function renderLinesTable(kind, formulas) {
     const isFormula = !!item.formula;
     const amount = resolveAmount(item, currentShow.fixedParams, currentShow.income, formulas);
     total += amount;
-    // Bar costs/VH levy carry their own editable percentage inline in the label, instead of a
-    // fixed 40%/10% baked into the formula.
+    // Bar costs/VH levy carry their own editable percentage, instead of a fixed 40%/10% baked
+    // into the formula — right next to the amount it produces rather than inline in the label.
     const pctInput = item.formula in DEFAULT_PCT
-      ? ` (<input type="number" class="form-control pct-input" min="0" max="100" step="1" value="${itemPct(item)}" data-line-pct="${kind}:${i}">%)`
+      ? `<span class="pct-wrap"><input type="number" class="form-control pct-input" min="0" max="100" step="1" value="${itemPct(item)}" data-line-pct="${kind}:${i}"><span class="pct-sign">%</span></span>`
       : '';
     return `
       <tr>
-        <td>${escapeHtml(item.label)}${pctInput}</td>
-        <td class="amount-cell">${isFormula
+        <td>${escapeHtml(item.label)}</td>
+        <td class="amount-cell${pctInput ? ' amount-cell-with-pct' : ''}">${pctInput}${isFormula
           ? `<input type="text" class="form-control num-input" style="text-align:right" value="${money(amount)}" disabled>`
           : `<input type="number" class="form-control num-input" style="text-align:right" min="0" step="1" value="${amount}" data-line-amount="${kind}:${i}">`}</td>
         <td class="no-print">${isFormula ? '' : `<button class="grid-del-btn" data-line-remove="${kind}:${i}" title="Remove">×</button>`}</td>
