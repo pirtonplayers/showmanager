@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Pirton Players — showmanager</title>
-  <link rel="stylesheet" href="style.css?v=1.0.15">
+  <link rel="stylesheet" href="style.css?v=1.0.16">
 </head>
 <body class="theme-portal">
 
@@ -107,11 +107,6 @@
       <div class="card" style="margin-bottom:20px">
         <div class="card-header"><h2>Add a user</h2></div>
         <div class="card-body">
-          <p class="muted" style="margin-bottom:14px">
-            There's no self-registration — set a temporary password here and pass it on to
-            them. They'll be forced to choose their own password the first time they sign in to
-            any app.
-          </p>
           <form id="addUserForm">
             <div class="form-row">
               <div class="form-group">
@@ -137,21 +132,46 @@
         </div>
       </div>
 
+      <div class="card" id="userLinkCard" style="display:none;margin-bottom:20px">
+        <div class="card-header"><h2>Send <span id="userLinkName"></span> their link</h2></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label for="userLinkUrl">Portal link</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="userLinkUrl" class="form-control" readonly>
+              <button type="button" class="btn btn-secondary" id="copyUserLinkBtn" style="flex-shrink:0">Copy link</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="userLinkMessage">Message (optional, included in the email)</label>
+            <textarea id="userLinkMessage" class="form-control" rows="3" style="resize:vertical"></textarea>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn btn-primary" id="sendUserLinkEmailBtn">Send email</button>
+            <button type="button" class="btn btn-secondary" id="userLinkDoneBtn">Done</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Default link message</h2></div>
+        <div class="card-body">
+          <form id="defaultLinkMessageForm">
+            <div class="form-group">
+              <label for="defaultLinkMessageInput">Message</label>
+              <textarea id="defaultLinkMessageInput" class="form-control" rows="3" style="resize:vertical" placeholder="e.g. Here's your login link..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </form>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <h2>All users</h2>
           <button class="btn btn-secondary btn-sm" id="resyncClaimsBtn">Sync permissions</button>
         </div>
         <div class="card-body">
-          <p class="muted" style="margin-bottom:14px">
-            Manager can manage every user and app. Each other switch grants access to one app —
-            <strong>Expenses</strong> is the entry app (submit expenses), <strong>Expenses
-            admin</strong>/<strong>ShowDrinks admin</strong>/<strong>Budget</strong> are the
-            admin screens. <strong>Sync permissions</strong> re-applies each account's actual
-            login claims (needed once after a Manager/Expenses admin toggle if receipt viewing
-            ever says "permission" for someone who should have access — then that person needs
-            to sign out and back in to pick it up).
-          </p>
           <input type="text" id="userSearchInput" class="form-control" placeholder="Search by name or email" style="margin-bottom:14px">
           <div class="item-list" id="userList"></div>
         </div>
@@ -174,10 +194,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="version.js?v=1.0.15"></script>
-<script src="shared/firebase-config.js?v=1.0.15"></script>
-<script src="shared/auth.js?v=1.0.15"></script>
-<script src="shared/suite-nav.js?v=1.0.15"></script>
-<script src="portal.js?v=1.0.15"></script>
+<script src="version.js?v=1.0.16"></script>
+<script src="shared/firebase-config.js?v=1.0.16"></script>
+<script src="shared/auth.js?v=1.0.16"></script>
+<script src="shared/suite-nav.js?v=1.0.16"></script>
+<script src="portal.js?v=1.0.16"></script>
 </body>
 </html>

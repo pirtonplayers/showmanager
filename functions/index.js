@@ -24,6 +24,7 @@ const SMTP_SECRETS = [SMTP_USER, SMTP_PASS, SMTP_FROM];
 
 const EXPENSES_ADMIN_URL = 'https://antonjung.github.io/showmanager/expenses/admin.html';
 const EXPENSES_ENTRY_URL = 'https://antonjung.github.io/showmanager/expenses/index.html';
+const PORTAL_URL = 'https://antonjung.github.io/showmanager/index.html';
 
 function transporter() {
   return nodemailer.createTransport({
@@ -227,6 +228,33 @@ exports.deleteUser = onCall({ region: 'europe-west1' }, async (request) => {
   await db.collection('users').doc(targetUid).delete();
   await getAuth().deleteUser(targetUid).catch((err) => {
     if (err.code !== 'auth/user-not-found') throw err;
+  });
+
+  return { ok: true };
+});
+
+// Emails someone a link to the portal (the one shared login every app sits behind) plus
+// whatever note the manager typed. Manager-only — unlike sendUserLink below, this isn't scoped
+// to one app's admin, since it's the portal's own Users screen sending it. Doesn't require the
+// target to already have a users/{uid} doc, just an email address.
+exports.sendPortalUserLink = onCall({ region: 'europe-west1', secrets: SMTP_SECRETS }, async (request) => {
+  await requireManager(request);
+  const email = request.data?.email;
+  if (!email || typeof email !== 'string') {
+    throw new HttpsError('invalid-argument', 'email is required.');
+  }
+  const message = typeof request.data?.message === 'string' ? request.data.message.trim() : '';
+
+  const settings = await getSettings('portal_config');
+  await transporter().sendMail({
+    from: fromAddress(settings),
+    to: email,
+    subject: 'Pirton Players',
+    ...mailBody([
+      ...(message ? [...message.split('\n'), ''] : []),
+      'Open the app:',
+      PORTAL_URL,
+    ]),
   });
 
   return { ok: true };

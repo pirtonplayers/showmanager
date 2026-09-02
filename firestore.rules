@@ -93,5 +93,10 @@ service cloud.firestore {
     match /budget_shows/{id} {
       allow read, write: if hasAccess('budget');
     }
+
+    // ── Portal ───────────────────────────────────────────────────────────────
+    match /portal_config/{id} {
+      allow read, write: if isManager();
+    }
   }
 }

@@ -246,7 +246,7 @@ firebase.auth().onAuthStateChanged(async user => {
       if (!dashboardInitialized) {
         dashboardInitialized = true;
         document.getElementById('headerVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';
-        if (data.isManager) await loadUsers();
+        if (data.isManager) { await loadPortalSettings(); await loadUsers(); }
       }
     }
   } else {
@@ -335,29 +335,39 @@ function renderUserList() {
   const rows = allUsers.filter(u => !search || u.name?.toLowerCase().includes(search) || u.email?.toLowerCase().includes(search));
 
   document.getElementById('userList').innerHTML = rows.map(u => {
-    const selectedLabels = ACCESS_APPS.filter(a => u.access?.[a.key]).map(a => a.label);
-    const summary = u.isManager ? 'All apps' : (selectedLabels.length ? selectedLabels.join(', ') : 'No apps');
+    // Manager doesn't imply/require every app's access flag — it's just another permission, so
+    // it lives in this same dropdown as a peer checkbox rather than a separate control.
+    const selectedLabels = [
+      ...(u.isManager ? ['Manager'] : []),
+      ...ACCESS_APPS.filter(a => u.access?.[a.key]).map(a => a.label),
+    ];
+    const summary = selectedLabels.length ? selectedLabels.join(', ') : 'No permissions';
+    const isSelf = u.id === currentUid;
     return `
     <div class="item-row" style="flex-wrap:wrap">
       <div style="flex:1;min-width:180px">
-        <div class="item-name">${escapeHtml(u.name || u.email)}</div>
+        <div class="item-name">${escapeHtml(u.name || u.email)}
+          <button type="button" data-edit-name="${u.id}" title="Edit name" style="margin-left:4px;font-size:11px;font-weight:400;color:var(--text-muted);background:none;border:none;cursor:pointer;text-decoration:underline">Edit</button>
+        </div>
         <div class="item-sub">${escapeHtml(u.email)}</div>
       </div>
       <div class="access-flags item-actions">
-        <label style="display:flex;align-items:center;gap:5px;font-size:12px">
-          <input type="checkbox" data-toggle="${u.id}:isManager" ${u.isManager ? 'checked' : ''} ${u.id === currentUid ? 'disabled title="You can\'t change your own Manager status"' : ''}> Manager
-        </label>
         <details class="access-dropdown">
-          <summary title="Apps">${escapeHtml(summary)}</summary>
+          <summary title="Permissions">${escapeHtml(summary)}</summary>
           <div class="access-dropdown-menu">
+            <label>
+              <input type="checkbox" data-toggle="${u.id}:isManager" ${u.isManager ? 'checked' : ''} ${isSelf ? 'disabled title="You can\'t change your own Manager status"' : ''}> Manager
+            </label>
+            <div class="access-dropdown-divider"></div>
             ${ACCESS_APPS.map(a => `
               <label>
-                <input type="checkbox" data-toggle="${u.id}:access.${a.key}" ${u.access?.[a.key] ? 'checked' : ''} ${u.isManager ? 'disabled title="Managers already have every app"' : ''}> ${escapeHtml(a.label)}
+                <input type="checkbox" data-toggle="${u.id}:access.${a.key}" ${u.access?.[a.key] ? 'checked' : ''}> ${escapeHtml(a.label)}
               </label>
             `).join('')}
           </div>
         </details>
-        <button class="btn btn-danger btn-sm" data-delete-user="${u.id}" ${u.id === currentUid ? 'disabled title="You can\'t delete your own account this way"' : ''}>Delete</button>
+        <button class="btn btn-secondary btn-sm" data-send-link="${u.id}">Send link</button>
+        <button class="btn btn-danger btn-sm" data-delete-user="${u.id}" ${isSelf ? 'disabled title="You can\'t delete your own account this way"' : ''}>Delete</button>
       </div>
     </div>
   `;
@@ -429,6 +439,30 @@ document.getElementById('userList').addEventListener('change', async (e) => {
 });
 
 document.getElementById('userList').addEventListener('click', async (e) => {
+  const editId = e.target.getAttribute('data-edit-name');
+  if (editId) {
+    const user = allUsers.find(u => u.id === editId);
+    const name = prompt('New name:', user?.name || '');
+    if (name === null) return;
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === user?.name) return;
+    try {
+      await db.collection('users').doc(editId).update({ name: trimmed });
+      showToast('Updated', 'success');
+      await loadUsers();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+    return;
+  }
+
+  const linkId = e.target.getAttribute('data-send-link');
+  if (linkId) {
+    const user = allUsers.find(u => u.id === linkId);
+    if (user) showUserLinkCard(user.name || user.email, user.email);
+    return;
+  }
+
   if (!e.target.matches('[data-delete-user]')) return;
   const id = e.target.getAttribute('data-delete-user');
   const user = allUsers.find(u => u.id === id);
@@ -440,6 +474,69 @@ document.getElementById('userList').addEventListener('click', async (e) => {
     await loadUsers();
   } catch (err) {
     e.target.disabled = false;
+    showToast(err.message, 'error');
+  }
+});
+
+// ── Send link (portal's own — separate from expenses admin's own Users → Send link) ────────
+
+const PORTAL_ENTRY_URL = new URL('index.html', location.href).href;
+
+function showUserLinkCard(name, email) {
+  document.getElementById('userLinkName').textContent = name;
+  document.getElementById('userLinkUrl').value = PORTAL_ENTRY_URL;
+  document.getElementById('userLinkMessage').value = document.getElementById('defaultLinkMessageInput').value;
+  document.getElementById('userLinkCard').dataset.email = email;
+  document.getElementById('userLinkCard').style.display = 'block';
+  document.getElementById('userLinkCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+document.getElementById('copyUserLinkBtn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(document.getElementById('userLinkUrl').value);
+    showToast('Link copied', 'success');
+  } catch (err) {
+    showToast('Could not copy — select and copy the link manually', 'error');
+  }
+});
+
+document.getElementById('sendUserLinkEmailBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('sendUserLinkEmailBtn');
+  const email = document.getElementById('userLinkCard').dataset.email;
+  const message = document.getElementById('userLinkMessage').value.trim();
+  btn.disabled = true;
+  try {
+    await functionsRegion.httpsCallable('sendPortalUserLink')({ email, message });
+    showToast('Link sent', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('userLinkDoneBtn').addEventListener('click', () => {
+  document.getElementById('userLinkCard').style.display = 'none';
+});
+
+// ── Default link message (portal_config/settings — separate from expenses admin's own) ─────
+
+async function loadPortalSettings() {
+  try {
+    const doc = await db.collection('portal_config').doc('settings').get();
+    document.getElementById('defaultLinkMessageInput').value = doc.exists ? (doc.data().defaultLinkMessage || '') : '';
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+document.getElementById('defaultLinkMessageForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const defaultLinkMessage = document.getElementById('defaultLinkMessageInput').value.trim();
+  try {
+    await db.collection('portal_config').doc('settings').set({ defaultLinkMessage }, { merge: true });
+    showToast('Saved', 'success');
+  } catch (err) {
     showToast(err.message, 'error');
   }
 });
