@@ -24,6 +24,6 @@ async function checkAccess(uid, requiredKey) {
 const ACCESS_APPS = [
   { key: 'expenses',        label: 'Expenses',            href: 'expenses/index.html' },
   { key: 'expensesAdmin',   label: 'Expenses Admin',      href: 'expenses/admin.html' },
-  { key: 'showdrinksAdmin', label: 'Show Drinks',         href: 'showdrinks/admin.html' },
+  { key: 'showdrinksAdmin', label: 'Bar Manager',         href: 'showdrinks/admin.html' },
   { key: 'budget',          label: 'ShowBudget',          href: 'budget/index.html' },
 ];
