@@ -116,7 +116,7 @@ function renderShellNav() {
       `).join('') + '</div>';
     }
   }
-  html += '<div class="dropdown-divider"></div><button class="btn btn-danger btn-sm signout-btn">Sign Out</button>';
+  html += '<div class="dropdown-divider"></div><button class="tab-btn signout-btn">Sign Out</button>';
   document.getElementById('shellNavSidebar').innerHTML = html;
   document.getElementById('shellNavDropdown').innerHTML = html;
 }

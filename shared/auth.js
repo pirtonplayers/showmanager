@@ -22,8 +22,8 @@ async function checkAccess(uid, requiredKey) {
 // The access flags in one place, so the portal's Users screen and every app's own display of
 // "what you can reach" agree on the same list/labels.
 const ACCESS_APPS = [
-  { key: 'expenses',        label: 'Expenses — submit',      href: 'expenses/index.html' },
-  { key: 'expensesAdmin',   label: 'Expenses — admin',        href: 'expenses/admin.html' },
-  { key: 'showdrinksAdmin', label: 'ShowDrinks — admin',      href: 'showdrinks/admin.html' },
-  { key: 'budget',          label: 'ShowBudget',              href: 'budget/index.html' },
+  { key: 'expenses',        label: 'Expenses',            href: 'expenses/index.html' },
+  { key: 'expensesAdmin',   label: 'Expenses Admin',      href: 'expenses/admin.html' },
+  { key: 'showdrinksAdmin', label: 'ShowDrinks Admin',    href: 'showdrinks/admin.html' },
+  { key: 'budget',          label: 'ShowBudget',          href: 'budget/index.html' },
 ];
