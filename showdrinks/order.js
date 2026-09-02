@@ -390,7 +390,7 @@ function renderPosGrid() {
     const style = cell.color
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
     const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
-    return `<button class="pos-btn" style="${style}" onclick="handlePosBtn(${i})">
+    return `<button class="pos-btn" style="${style}" data-idx="${i}">
       <span class="pb-lbl">${escHtml(cell.label || '')}</span>
       ${price ? `<span class="pb-price">${price}</span>` : ''}
     </button>`;
@@ -400,7 +400,33 @@ function renderPosGrid() {
     `<div class="pos-grid-extra">${all.slice(12).map((c,i) => cellBtn(c,12+i)).join('')}</div>`;
 }
 
-window.handlePosBtn = function(idx) {
+function wirePosLongPress(container, onPress) {
+  if (!container) return;
+  const LONG_PRESS_MS = 500;
+  container.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('.pos-btn[data-idx]');
+    if (btn) btn.dataset.pressStart = Date.now();
+  });
+  container.addEventListener('pointerup', (e) => {
+    const btn = e.target.closest('.pos-btn[data-idx]');
+    if (!btn || !btn.dataset.pressStart) return;
+    const isLongPress = (Date.now() - Number(btn.dataset.pressStart)) >= LONG_PRESS_MS;
+    delete btn.dataset.pressStart;
+    onPress(Number(btn.dataset.idx), isLongPress);
+  });
+  // pointerleave doesn't bubble, so capture it at the container to still catch it per-button —
+  // cancels the press if a finger/cursor drags off the button (e.g. scrolling) before release.
+  container.addEventListener('pointerleave', (e) => {
+    const btn = e.target.closest?.('.pos-btn[data-idx]');
+    if (btn) delete btn.dataset.pressStart;
+  }, true);
+  container.addEventListener('pointercancel', (e) => {
+    const btn = e.target.closest?.('.pos-btn[data-idx]');
+    if (btn) delete btn.dataset.pressStart;
+  });
+}
+
+window.handlePosBtn = function(idx, isLongPress) {
   const gridId = state.posGridStack[state.posGridStack.length - 1];
   const grid = state.posGrids[gridId];
   if (!grid) return;
@@ -413,7 +439,9 @@ window.handlePosBtn = function(idx) {
     if (!state.basket[key]) state.basket[key] = { name: menuItem.name, price: menuItem.price, quantity: 0 };
     state.basket[key].quantity += 1;
     state.selectedBasketKey = key;
-    state.posGridStack = ['root'];
+    // Long press: stay on this grid (adding several from the same category in a row). A normal
+    // tap still jumps back to the root menu, same as before.
+    if (!isLongPress) state.posGridStack = ['root'];
     renderPosGrid();
     renderOrderGrid();
     updateBottomBar();
@@ -448,6 +476,10 @@ window.handlePosBtn = function(idx) {
     goTo(2); renderReview();
   }
 };
+
+// #posGrid is a static container (never itself replaced, only its children on each render), so
+// this delegation is wired once here rather than re-attached on every renderPosGrid() call.
+wirePosLongPress(document.getElementById('posGrid'), handlePosBtn);
 
 function renderOrderGrid() {
   const pane  = document.getElementById('orderGridPane');

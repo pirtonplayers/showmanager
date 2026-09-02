@@ -1264,14 +1264,11 @@ window.selectTabMember = function(id) {
 
   const posArea = document.getElementById('tabPosArea');
   const member = _tabMembers.find(m => m.id === _tabSelectedMemberId);
-  if (member) {
-    posArea.style.display = '';
-    renderTabGrid();
-    renderTabBasket();
-    selectTabsSubtab('pos');
-  } else {
-    posArea.style.display = 'none';
-  }
+  posArea.classList.toggle('inactive', !member);
+  document.getElementById('tabPosInactiveHint').style.display = member ? 'none' : '';
+  renderTabGrid();
+  renderTabBasket();
+  if (member) selectTabsSubtab('pos');
   renderTabMembersList();
 };
 
@@ -1354,7 +1351,7 @@ function renderTabGrid() {
     const style = cell.color
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
     const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
-    return `<button class="pos-btn" style="${style}" onclick="handleTabPosBtn(${i})">
+    return `<button class="pos-btn" style="${style}" data-idx="${i}">
       <span class="pb-lbl">${escHtml(cell.label || '')}</span>
       ${price ? `<span class="pb-price">${price}</span>` : ''}
     </button>`;
@@ -1362,6 +1359,37 @@ function renderTabGrid() {
   el.innerHTML =
     `<div class="pos-grid">${cells.slice(0,12).map((c,i) => cellBtn(c,i)).join('')}</div>` +
     `<div class="pos-grid-extra">${cells.slice(12).map((c,i) => cellBtn(c,12+i)).join('')}</div>`;
+}
+
+// Long-press (500ms+) on an item cell adds it without jumping back to the root menu, so several
+// from the same category can be added in a row; a normal tap still returns to the root menu each
+// time (the existing/expected behaviour) — see the isLongPress branch inside handleTabPosBtn.
+// Same helper as the entry app's order.js — kept duplicated rather than shared since these two
+// pages don't otherwise share any script.
+function wirePosLongPress(container, onPress) {
+  if (!container) return;
+  const LONG_PRESS_MS = 500;
+  container.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('.pos-btn[data-idx]');
+    if (btn) btn.dataset.pressStart = Date.now();
+  });
+  container.addEventListener('pointerup', (e) => {
+    const btn = e.target.closest('.pos-btn[data-idx]');
+    if (!btn || !btn.dataset.pressStart) return;
+    const isLongPress = (Date.now() - Number(btn.dataset.pressStart)) >= LONG_PRESS_MS;
+    delete btn.dataset.pressStart;
+    onPress(Number(btn.dataset.idx), isLongPress);
+  });
+  // pointerleave doesn't bubble, so capture it at the container to still catch it per-button —
+  // cancels the press if a finger/cursor drags off the button (e.g. scrolling) before release.
+  container.addEventListener('pointerleave', (e) => {
+    const btn = e.target.closest?.('.pos-btn[data-idx]');
+    if (btn) delete btn.dataset.pressStart;
+  }, true);
+  container.addEventListener('pointercancel', (e) => {
+    const btn = e.target.closest?.('.pos-btn[data-idx]');
+    if (btn) delete btn.dataset.pressStart;
+  });
 }
 
 function renderTabBasket() {
@@ -1380,7 +1408,8 @@ function renderTabBasket() {
      </div>`;
 }
 
-window.handleTabPosBtn = function(idx) {
+window.handleTabPosBtn = function(idx, isLongPress) {
+  if (!_tabSelectedMemberId) return; // grid stays visible but inactive until a member is picked
   const grid = _posGrids[_tabStack[_tabStack.length - 1]];
   if (!grid) return;
   const cell = posNormCells(grid.cells)[idx];
@@ -1390,7 +1419,10 @@ window.handleTabPosBtn = function(idx) {
     if (!_tabBasket[key]) _tabBasket[key] = { name: cell.label, price: cell.menuItemPrice || 0, qty: 0 };
     _tabBasket[key].qty += 1;
     _tabSelectedKey = key;
-    _tabStack = ['root']; renderTabGrid(); renderTabBasket();
+    // Long press: stay on this grid (adding several from the same category in a row). A normal
+    // tap still jumps back to the root menu, same as before.
+    if (!isLongPress) _tabStack = ['root'];
+    renderTabGrid(); renderTabBasket();
   } else if (cell.type === 'clear') {
     _tabBasket = {}; _tabSelectedKey = null; renderTabBasket();
   } else if (cell.type === 'plus') {
@@ -1411,6 +1443,10 @@ window.handleTabPosBtn = function(idx) {
     commitTabOrder();
   }
 };
+
+// #tabPosGrid is a static container (never itself replaced, only its children on each render),
+// so this delegation is wired once here rather than re-attached on every renderTabGrid() call.
+wirePosLongPress(document.getElementById('tabPosGrid'), handleTabPosBtn);
 
 async function commitTabOrder() {
   if (!_tabSelectedMemberId) { toast('Select a member first', 'error'); return; }
