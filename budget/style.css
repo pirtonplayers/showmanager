@@ -56,8 +56,14 @@ body.theme-budget {
 .fp-col-params { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px 12px; }
 .fp-col-params label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
 .fp-col-params input.num-input { text-align: right; font-variant-numeric: tabular-nums; }
+/* Date / count / Generate button on the Parameters card — was an inline style, which (being
+   higher specificity than any stylesheet rule) silently defeated any mobile stacking below and
+   left this row a fixed 1fr-120px-auto no matter how narrow the screen, overflowing (a mobile
+   date input's own minimum width doesn't shrink to fit a grid track). */
+.perf-gen-row { display: grid; grid-template-columns: 1fr 120px auto; gap: 12px; align-items: end; margin-bottom: 12px; }
 @media (max-width: 700px) {
   .fixed-params-grid { grid-template-columns: 1fr; }
+  .perf-gen-row { grid-template-columns: 1fr; }
 }
 
 /* ── Print / PDF ──────────────────────────────────────────────────────────
