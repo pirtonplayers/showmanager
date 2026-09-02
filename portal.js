@@ -292,19 +292,31 @@ document.getElementById('tileGrid').addEventListener('click', (e) => {
 
 let allUsers = [];
 
-function accessCheckboxesHtml(idPrefix, access = {}) {
+// Manager stays its own checkbox (a different kind of thing — portal-level, manages every app
+// and every user — not just "another app to pick"); the apps themselves are a multi-select
+// dropdown instead of one checkbox per app.
+function accessPickerHtml(idPrefix, access = {}) {
+  const selected = new Set(ACCESS_APPS.filter(a => access[a.key]).map(a => a.key));
   return `
-    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:6px">
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:10px">
       <input type="checkbox" id="${idPrefix}-isManager"> Manager (all apps, manages users)
     </label>
-    ${ACCESS_APPS.map(a => `
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:6px">
-        <input type="checkbox" id="${idPrefix}-${a.key}" ${access[a.key] ? 'checked' : ''}> ${escapeHtml(a.label)}
-      </label>
-    `).join('')}`;
+    <label for="${idPrefix}-appsSelect" style="display:block;font-size:13px;font-weight:500;color:var(--text-muted);margin-bottom:6px">
+      Apps (Ctrl/Cmd-click, or drag, to pick more than one)
+    </label>
+    <select id="${idPrefix}-appsSelect" class="form-control" multiple size="4">
+      ${ACCESS_APPS.map(a => `<option value="${a.key}"${selected.has(a.key) ? ' selected' : ''}>${escapeHtml(a.label)}</option>`).join('')}
+    </select>`;
 }
 
-document.getElementById('newUserAccessList').innerHTML = accessCheckboxesHtml('newUser');
+function readAccessPicker(idPrefix) {
+  const chosen = new Set([...document.getElementById(`${idPrefix}-appsSelect`).selectedOptions].map(o => o.value));
+  const access = {};
+  ACCESS_APPS.forEach(a => { access[a.key] = chosen.has(a.key); });
+  return access;
+}
+
+document.getElementById('newUserAccessList').innerHTML = accessPickerHtml('newUser');
 
 async function loadUsers() {
   try {
@@ -353,14 +365,13 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   const email = document.getElementById('newUserEmail').value.trim();
   const password = document.getElementById('newUserPassword').value.trim();
   const isManager = document.getElementById('newUser-isManager').checked;
-  const access = {};
-  ACCESS_APPS.forEach(a => { access[a.key] = document.getElementById(`newUser-${a.key}`).checked; });
+  const access = readAccessPicker('newUser');
 
   btn.disabled = true;
   try {
     await functionsRegion.httpsCallable('createUser')({ name, email, password, isManager, access });
     document.getElementById('addUserForm').reset();
-    document.getElementById('newUserAccessList').innerHTML = accessCheckboxesHtml('newUser');
+    document.getElementById('newUserAccessList').innerHTML = accessPickerHtml('newUser');
     showToast(`Account created for ${name} — pass on the temporary password`, 'success');
     await loadUsers();
   } catch (err) {
