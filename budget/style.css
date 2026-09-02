@@ -133,6 +133,17 @@ body.theme-budget {
 
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
 
+/* Mobile: no pinch/double-tap zoom (belt-and-braces alongside the viewport meta tag's own
+   maximum-scale/user-scalable, which iOS Safari doesn't always fully honour on its own), and no
+   OS text-selection callout (the Copy/Paste/Look Up bubble on long-press) — this is a touch-app
+   suite, not a document to select text out of. Inputs/textareas opt back in below, since typing
+   and selecting your own entry still has to work normally. */
+html, body { touch-action: manipulation; }
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, select, [contenteditable] {
+  -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
+}
+
 /* ── Buttons ── */
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; transition: all .15s; text-decoration: none; }
 .btn-primary { background: var(--primary); color: #fff; }
