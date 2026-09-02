@@ -2,11 +2,15 @@
 
 // ── localStorage ───────────────────────────────────────────────────────────
 
-const LS_NAME   = 'showdrinks_name';
-const LS_ORDERS = 'showdrinks_orders';
+const LS_NAME           = 'showdrinks_name';
+const LS_ORDERS         = 'showdrinks_orders';
+const LS_SHOW_ALL_ORDERS = 'showdrinks_showAllOrders';
 
 function getSavedName()  { return localStorage.getItem(LS_NAME) || ''; }
 function saveName(n)     { localStorage.setItem(LS_NAME, n); }
+
+function getShowAllOrders()   { return localStorage.getItem(LS_SHOW_ALL_ORDERS) === '1'; }
+function saveShowAllOrders(v) { localStorage.setItem(LS_SHOW_ALL_ORDERS, v ? '1' : '0'); }
 
 function getSavedOrders() {
   try { return JSON.parse(localStorage.getItem(LS_ORDERS) || '[]'); } catch { return []; }
@@ -199,6 +203,15 @@ async function renderHomeScreen() {
   homeContent.innerHTML = buildWelcomeCard(savedName) + sessionBtnsHtml +
     '<div id="ordersListSection" style="text-align:center;padding:12px 0;color:var(--text-muted);font-size:13px">Loading orders…</div>';
 
+  // Attached once, to this render's own #ordersListSection element — renderOrdersList() below
+  // only ever replaces that element's children, never the element itself, so this keeps working
+  // across every re-render it triggers (a fresh listener on a fresh element next visit here).
+  document.getElementById('ordersListSection').addEventListener('change', (e) => {
+    if (e.target.id !== 'showAllOrdersToggle') return;
+    saveShowAllOrders(e.target.checked);
+    renderOrdersList();
+  });
+
   // Keyed by order id so each onSnapshot below can update just its own order in place, then
   // re-render the whole (short) list — simplest way to keep it sorted/consistent.
   const byId = {};
@@ -206,11 +219,25 @@ async function renderHomeScreen() {
   function renderOrdersList() {
     const section = document.getElementById('ordersListSection');
     if (!section) return; // navigated off the home screen since this fired
+    if (!allSaved.length) {
+      section.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">No orders yet.</p>';
+      return;
+    }
+    const showAll = getShowAllOrders();
     const enriched = allSaved.map(o => byId[o.id]).filter(Boolean)
+      .filter(o => showAll || o.prepStatus !== 'collected')
       .sort((a, b) => (b.orderNumber || 0) - (a.orderNumber || 0));
-    section.innerHTML = enriched.length
-      ? `<div class="section-label" style="margin-bottom:6px">Your orders</div>${enriched.map(orderCard).join('')}`
-      : '<p style="font-size:13px;color:var(--text-muted)">No orders yet.</p>';
+    const header = `<div class="section-label" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <span>Your orders</span>
+      <label class="switch-label">
+        <input type="checkbox" id="showAllOrdersToggle" ${showAll ? 'checked' : ''}>
+        <span class="switch"></span>
+        <span>All</span>
+      </label>
+    </div>`;
+    section.innerHTML = header + (enriched.length
+      ? enriched.map(orderCard).join('')
+      : `<p style="font-size:13px;color:var(--text-muted)">${showAll ? 'No orders yet.' : 'Nothing pending right now.'}</p>`);
   }
 
   const docs = await Promise.all(
