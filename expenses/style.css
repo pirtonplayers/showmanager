@@ -103,7 +103,16 @@ input[type="file"].form-control { padding: 7px 10px; }
 /* ── Suite nav (shared/suite-nav.js) — switch between showmanager's apps from anywhere ── */
 .suite-app-link { font-weight: 600; }
 .suite-app-link.current { color: var(--primary); cursor: default; }
-.suite-current-section { border-left: 2px solid var(--primary-light); margin: 2px 0 2px 10px; padding-left: 10px; display: flex; flex-direction: column; gap: 4px; }
+/* The nested section itself stays full width (indent lives on the buttons' own padding, not
+   the wrapper's box model) so an active sub-tab's highlight spans the whole strip, same as a
+   top-level app button's does — only the text sits indented, showing it's "under" that app. */
+.suite-current-section { display: flex; flex-direction: column; gap: 4px; }
+.suite-current-section .tab-btn { padding-left: 28px; }
+
+/* Sidebar/dropdown content re-rendering fades + slides each button in, instead of the new set
+   just appearing instantly. */
+@keyframes navItemIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
+.admin-sidebar .tab-btn, .dropdown-menu .tab-btn { animation: navItemIn .18s ease; }
 
 /* ── Auth gate — covers the page until the first onAuthStateChanged fires, so neither the
    login screen nor the signed-in app ever flashes on a page that's actually already signed in
