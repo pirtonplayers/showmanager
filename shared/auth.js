@@ -23,7 +23,7 @@ async function checkAccess(uid, requiredKey) {
 // "what you can reach" agree on the same list/labels.
 const ACCESS_APPS = [
   { key: 'expenses',        label: 'Expenses',            href: 'expenses/index.html' },
-  { key: 'expensesAdmin',   label: 'Expenses Admin',      href: 'expenses/admin.html' },
+  { key: 'expensesAdmin',   label: 'Expenses Manager',    href: 'expenses/admin.html' },
   { key: 'showdrinksAdmin', label: 'Bar Manager',         href: 'showdrinks/admin.html' },
   { key: 'budget',          label: 'ShowBudget',          href: 'budget/index.html' },
 ];

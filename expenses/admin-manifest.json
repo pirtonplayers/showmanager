@@ -1,6 +1,6 @@
 {
-  "name": "Pirton Players Expenses — Admin",
-  "short_name": "PP Admin",
+  "name": "Pirton Players Expenses — Manager",
+  "short_name": "PP Manager",
   "description": "Manage expenses for Pirton Players",
   "start_url": "./admin.html",
   "display": "standalone",

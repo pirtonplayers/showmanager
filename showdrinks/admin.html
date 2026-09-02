@@ -536,6 +536,44 @@
   </div>
 </div>
 
+<!-- Add tab member modal (also opened from the "+ Add a member…" option in the Show Tabs
+     member picker, so a new member can be created — with a duplicate-name check — without
+     leaving Point of Sale) -->
+<div id="addTabMemberModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:400px;margin:20px">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+      <h2>Add Member</h2>
+      <button onclick="closeAddTabMemberModal()" style="background:none;border:none;font-size:20px;cursor:pointer">×</button>
+    </div>
+    <div class="card-body">
+      <div class="form-group">
+        <label for="newMemberModalName">Name</label>
+        <input type="text" id="newMemberModalName" class="form-control" placeholder="Cast/crew member name">
+      </div>
+      <div class="form-group">
+        <label for="newMemberModalEmail">Email (optional)</label>
+        <input type="email" id="newMemberModalEmail" class="form-control" placeholder="Email (optional)">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="closeAddTabMemberModal()">Cancel</button>
+        <button class="btn btn-primary" id="addTabMemberModalSaveBtn">Add</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Order-added confirmation (Show Tabs "Finish") — shows the total added to the member's tab,
+     then clears the member picker back to blank so the next customer can be selected. -->
+<div id="tabFinishModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:340px;margin:20px;text-align:center">
+    <div class="card-body">
+      <div id="tabFinishAmount" style="font-size:40px;font-weight:800;margin-bottom:8px">£0.00</div>
+      <div id="tabFinishMessage" style="font-size:15px;color:var(--text-muted);margin-bottom:20px"></div>
+      <button class="btn btn-primary btn-full" id="tabFinishOkBtn">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- POS Test Modal -->
 <div id="posTestModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:360px;margin:20px">

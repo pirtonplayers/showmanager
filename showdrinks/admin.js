@@ -1247,11 +1247,17 @@ async function loadTabMembers() {
 function renderTabMemberSelect() {
   const sel = document.getElementById('tabMemberSelect');
   sel.innerHTML = '<option value="">— choose a member —</option>' +
-    _tabMembers.map(m => `<option value="${m.id}">${escHtml(m.name)}</option>`).join('');
+    _tabMembers.map(m => `<option value="${m.id}">${escHtml(m.name)}</option>`).join('') +
+    '<option value="__add__">+ Add a member…</option>';
   sel.value = _tabSelectedMemberId || '';
 }
 
 window.selectTabMember = function(id) {
+  if (id === '__add__') {
+    document.getElementById('tabMemberSelect').value = _tabSelectedMemberId || '';
+    openAddTabMemberModal();
+    return;
+  }
   _tabSelectedMemberId = id || null;
   _tabStack = ['root']; _tabBasket = {}; _tabSelectedKey = null;
   document.getElementById('tabMemberSelect').value = id || '';
@@ -1269,27 +1275,71 @@ window.selectTabMember = function(id) {
   renderTabMembersList();
 };
 
+// Shared by the "Add Member" form (Members & Totals) and the "+ Add a member…" modal opened
+// from the Show Tabs member picker — checks for a duplicate name first (case-insensitive) and
+// just selects the existing member instead of creating a second one, otherwise creates the
+// member, refreshes the dropdown/list, and selects the new member. Returns true once the caller
+// can safely clear its inputs / close its modal.
+async function addOrSelectTabMember(rawName, rawEmail) {
+  const name = rawName.trim();
+  const email = rawEmail.trim();
+  if (!name) { toast('Enter a member name', 'error'); return false; }
+  const dupe = _tabMembers.find(m => m.name.toLowerCase() === name.toLowerCase());
+  if (dupe) {
+    selectTabMember(dupe.id);
+    toast(`"${dupe.name}" already exists — selected instead`, 'info');
+    return true;
+  }
+  const ref = await db.collection('showdrinks_tabMembers').add({
+    name, email, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+  _tabMembers.push({ id: ref.id, name, email });
+  _tabMembers.sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
+  renderTabMemberSelect();
+  selectTabMember(ref.id);
+  toast('Member added', 'success');
+  return true;
+}
+
 document.getElementById('addTabMemberBtn').addEventListener('click', async () => {
   const input = document.getElementById('newTabMemberName');
   const emailInput = document.getElementById('newTabMemberEmail');
-  const name = input.value.trim();
-  const email = emailInput.value.trim();
-  if (!name) { toast('Enter a member name', 'error'); return; }
-  const dupe = _tabMembers.find(m => m.name.toLowerCase() === name.toLowerCase());
-  if (dupe) { selectTabMember(dupe.id); input.value = ''; emailInput.value = ''; return; }
   try {
-    const ref = await db.collection('showdrinks_tabMembers').add({
-      name, email, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-    _tabMembers.push({ id: ref.id, name, email });
-    _tabMembers.sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
-    renderTabMemberSelect();
-    selectTabMember(ref.id);
-    input.value = ''; emailInput.value = '';
-    toast('Member added', 'success');
+    if (await addOrSelectTabMember(input.value, emailInput.value)) {
+      input.value = ''; emailInput.value = '';
+    }
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
   }
+});
+
+// ── Add-member modal (Show Tabs member picker → "+ Add a member…") ─────────
+
+window.openAddTabMemberModal = function() {
+  document.getElementById('newMemberModalName').value = '';
+  document.getElementById('newMemberModalEmail').value = '';
+  document.getElementById('addTabMemberModal').style.display = 'flex';
+  document.getElementById('newMemberModalName').focus();
+};
+
+window.closeAddTabMemberModal = function() {
+  document.getElementById('addTabMemberModal').style.display = 'none';
+};
+
+document.getElementById('addTabMemberModalSaveBtn').addEventListener('click', async () => {
+  const nameInput = document.getElementById('newMemberModalName');
+  const emailInput = document.getElementById('newMemberModalEmail');
+  try {
+    if (await addOrSelectTabMember(nameInput.value, emailInput.value)) {
+      closeAddTabMemberModal();
+    }
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+  }
+});
+
+document.getElementById('addTabMemberModal').addEventListener('click', function(e) {
+  if (e.target === this) closeAddTabMemberModal();
 });
 
 function renderTabGrid() {
@@ -1377,11 +1427,31 @@ async function commitTabOrder() {
     });
     _tabBasket = {}; _tabSelectedKey = null; _tabStack = ['root'];
     renderTabGrid(); renderTabBasket();
-    toast('Added to tab', 'success');
+    openTabFinishModal(totalAmount, member?.name || '');
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
   }
 }
+
+// ── Order-added confirmation modal ──────────────────────────────────────────
+
+function openTabFinishModal(totalAmount, memberName) {
+  document.getElementById('tabFinishAmount').textContent = fmtCurrency(totalAmount);
+  document.getElementById('tabFinishMessage').textContent = `Added to ${memberName}'s tab`;
+  document.getElementById('tabFinishModal').style.display = 'flex';
+}
+
+// Clearing back to blank (rather than just hiding the modal) is the point — it's what lets
+// the next customer be picked from a clean dropdown without an extra manual step.
+window.closeTabFinishModal = function() {
+  document.getElementById('tabFinishModal').style.display = 'none';
+  selectTabMember(null);
+};
+
+document.getElementById('tabFinishOkBtn').addEventListener('click', closeTabFinishModal);
+document.getElementById('tabFinishModal').addEventListener('click', function(e) {
+  if (e.target === this) closeTabFinishModal();
+});
 
 let _tabExpandedMemberId = null;
 
