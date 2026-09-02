@@ -353,7 +353,7 @@ function renderUserList() {
       </div>
       <div class="access-flags item-actions">
         <details class="access-dropdown">
-          <summary title="Permissions">${escapeHtml(summary)}</summary>
+          <summary title="${escapeHtml(summary)}">Permissions</summary>
           <div class="access-dropdown-menu">
             <label>
               <input type="checkbox" data-toggle="${u.id}:isManager" ${u.isManager ? 'checked' : ''} ${isSelf ? 'disabled title="You can\'t change your own Manager status"' : ''}> Manager
@@ -374,6 +374,15 @@ function renderUserList() {
   }).join('') || '<p class="empty-state">No registered users yet.</p>';
 }
 document.getElementById('userSearchInput').addEventListener('input', renderUserList);
+
+// Only one row's Permissions dropdown open at a time. 'toggle' doesn't bubble, so this has to
+// be a capture-phase listener to catch it via delegation from a single spot on the container.
+document.getElementById('userList').addEventListener('toggle', (e) => {
+  if (!e.target.matches?.('.access-dropdown') || !e.target.open) return;
+  document.querySelectorAll('#userList .access-dropdown[open]').forEach(d => {
+    if (d !== e.target) d.removeAttribute('open');
+  });
+}, true);
 
 document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   e.preventDefault();

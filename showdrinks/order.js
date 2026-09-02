@@ -31,6 +31,7 @@ const state = {
   currentStatusOrderId: null,
   showConfig: null, sessions: null, menuItems: [], settings: null,
   statusUnsubscribe: null,
+  homeOrderUnsubscribes: [],
   posGrids: {}, posGridStack: [],
   selectedBasketKey: null,
 };
@@ -182,6 +183,12 @@ async function renderHomeScreen() {
   const homeContent = document.getElementById('homeContent');
   const savedName   = getSavedName();
 
+  // Stop watching whatever orders a previous render was subscribed to — renderHomeScreen() runs
+  // again every time you land back here, so without this each visit would pile up another set
+  // of listeners on top of the last.
+  state.homeOrderUnsubscribes.forEach(unsub => unsub());
+  state.homeOrderUnsubscribes = [];
+
   if (!savedName) { renderNameForm(homeContent); return; }
 
   state.customerName = savedName;
@@ -190,21 +197,40 @@ async function renderHomeScreen() {
   const sessionBtnsHtml = sessionButtonsHtml();
 
   homeContent.innerHTML = buildWelcomeCard(savedName) + sessionBtnsHtml +
-    '<div style="text-align:center;padding:12px 0;color:var(--text-muted);font-size:13px">Loading orders…</div>';
+    '<div id="ordersListSection" style="text-align:center;padding:12px 0;color:var(--text-muted);font-size:13px">Loading orders…</div>';
+
+  // Keyed by order id so each onSnapshot below can update just its own order in place, then
+  // re-render the whole (short) list — simplest way to keep it sorted/consistent.
+  const byId = {};
+
+  function renderOrdersList() {
+    const section = document.getElementById('ordersListSection');
+    if (!section) return; // navigated off the home screen since this fired
+    const enriched = allSaved.map(o => byId[o.id]).filter(Boolean)
+      .sort((a, b) => (b.orderNumber || 0) - (a.orderNumber || 0));
+    section.innerHTML = enriched.length
+      ? `<div class="section-label" style="margin-bottom:6px">Your orders</div>${enriched.map(orderCard).join('')}`
+      : '<p style="font-size:13px;color:var(--text-muted)">No orders yet.</p>';
+  }
 
   const docs = await Promise.all(
     allSaved.map(o => db.collection('showdrinks_orders').doc(o.id).get().catch(() => null))
   );
-  const enriched = docs.map((doc, i) => {
-    if (!doc || !doc.exists) return null;
-    return { ...allSaved[i], ...doc.data(), id: doc.id };
-  }).filter(Boolean).sort((a, b) => (b.orderNumber || 0) - (a.orderNumber || 0));
+  docs.forEach((doc, i) => {
+    if (doc && doc.exists) byId[doc.id] = { ...allSaved[i], ...doc.data(), id: doc.id };
+  });
+  renderOrdersList();
 
-  const ordersSection = enriched.length
-    ? `<div class="section-label" style="margin-bottom:6px">Your orders</div>${enriched.map(orderCard).join('')}`
-    : '<p style="font-size:13px;color:var(--text-muted)">No orders yet.</p>';
-
-  homeContent.innerHTML = buildWelcomeCard(savedName) + sessionBtnsHtml + ordersSection;
+  // Live-update from here on — e.g. when the bar marks an order ready — without needing a
+  // manual page refresh. This is exactly the screen someone waiting on a drink is looking at.
+  allSaved.forEach(o => {
+    const unsub = db.collection('showdrinks_orders').doc(o.id).onSnapshot(snap => {
+      if (!snap.exists) return;
+      byId[o.id] = { ...o, ...snap.data(), id: o.id };
+      renderOrdersList();
+    }, () => {}); // permission/offline errors here just mean this one order stops updating live
+    state.homeOrderUnsubscribes.push(unsub);
+  });
 }
 
 function buildWelcomeCard(name) {
