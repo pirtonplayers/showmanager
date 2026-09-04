@@ -167,6 +167,11 @@ input[type="file"].form-control { padding: 7px 10px; }
 .footer-version { position: fixed; left: 0; right: 0; bottom: 0; height: 28px; line-height: 28px; text-align: center; color: var(--text-muted); font-size: 11px; background: var(--bg); border-top: 1px solid var(--border); z-index: 90; }
 .hamburger-btn { background: none; border: none; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; }
 .hamburger-btn:hover { opacity: .8; }
+/* Same look as .hamburger-btn but visible on desktop too (unlike .hamburger-btn, which the
+   min-width:900px block below hides in favour of the desktop sidebar) — the change-login icon
+   belongs in the header at every width. */
+.header-icon-btn { background: none; border: none; color: #fff; line-height: 1; cursor: pointer; padding: 4px 6px; display: flex; }
+.header-icon-btn:hover { opacity: .8; }
 
 /* Animated open/close (slide + fade) instead of an instant display:none/flex swap — toggle the
    .open class, not inline style.display. The delayed visibility keeps it non-interactive once

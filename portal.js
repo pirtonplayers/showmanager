@@ -154,6 +154,10 @@ function handleNavClick(e) {
 document.getElementById('shellNavSidebar').addEventListener('click', handleNavClick);
 document.getElementById('shellNavDropdown').addEventListener('click', handleNavClick);
 
+document.getElementById('changeLoginBtn').addEventListener('click', () => {
+  if (confirm('Sign out and switch to a different login?')) firebase.auth().signOut();
+});
+
 document.getElementById('menuBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   document.getElementById('shellNavDropdown').classList.toggle('open');

@@ -10,7 +10,7 @@
   <title>Pirton Players</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=1.0.36">
+  <link rel="stylesheet" href="style.css?v=1.0.37">
 </head>
 <body class="theme-portal">
 
@@ -78,9 +78,14 @@
       <img src="icons/icon-192.png" alt="Pirton Players" width="32" height="32" style="border-radius:7px">
     </a>
     <div class="header-title">Pirton Players</div>
-    <div style="position:relative;margin-left:auto">
-      <button class="hamburger-btn" id="menuBtn">☰</button>
-      <div id="shellNavDropdown" class="dropdown-menu"></div>
+    <div style="display:flex;align-items:center;gap:4px;margin-left:auto">
+      <button class="header-icon-btn" id="changeLoginBtn" title="Change login" aria-label="Change login">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      </button>
+      <div style="position:relative">
+        <button class="hamburger-btn" id="menuBtn">☰</button>
+        <div id="shellNavDropdown" class="dropdown-menu"></div>
+      </div>
     </div>
   </header>
 
@@ -223,11 +228,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="version.js?v=1.0.36"></script>
-<script src="shared/firebase-config.js?v=1.0.36"></script>
-<script src="shared/auth.js?v=1.0.36"></script>
-<script src="shared/suite-nav.js?v=1.0.36"></script>
-<script src="shared/a2hs.js?v=1.0.36"></script>
-<script src="portal.js?v=1.0.36"></script>
+<script src="version.js?v=1.0.37"></script>
+<script src="shared/firebase-config.js?v=1.0.37"></script>
+<script src="shared/auth.js?v=1.0.37"></script>
+<script src="shared/suite-nav.js?v=1.0.37"></script>
+<script src="shared/a2hs.js?v=1.0.37"></script>
+<script src="portal.js?v=1.0.37"></script>
 </body>
 </html>
