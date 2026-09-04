@@ -373,16 +373,18 @@ let pendingExpenses = [];
 let editingPendingId = null; // id of the pending item currently loaded into the form, or null
 let editingRemovedReceiptPaths = []; // its receipts marked for removal, not yet actually deleted
 
-// Fetches each path's download URL and opens it in its own tab — shared by the pending list's
-// own "view" button and the editing view's per-receipt badges below.
-async function viewReceipts(paths) {
-  for (const path of paths) {
-    try {
-      const url = await storage.ref(path).getDownloadURL();
-      window.open(url, '_blank');
-    } catch (err) {
-      showToast('Could not load that receipt: ' + err.message, 'error');
-    }
+// Fetches path's download URL and swaps it into an already-on-screen <img> (which starts with
+// no src — see callers) — the actual clickable "picture" a receipt is viewed through, both in
+// the pending list and the editing view's own thumbnails below. Not fetched inline into the
+// list's own template string: getDownloadURL() is a network round-trip, and building the whole
+// list's HTML can't wait on every receipt's URL before showing anything.
+async function loadReceiptThumb(img, path) {
+  try {
+    const url = await storage.ref(path).getDownloadURL();
+    img.src = url;
+    img.addEventListener('click', () => window.open(url, '_blank'));
+  } catch (err) {
+    img.replaceWith(Object.assign(document.createElement('span'), { className: 'muted', style: 'font-size:12px', textContent: 'Receipt unavailable' }));
   }
 }
 
@@ -399,15 +401,12 @@ function renderPendingList() {
     <div class="pending-item">
       <div class="pec-info">
         <div class="pec-desc">${escapeHtml(p.description)}</div>
-        <div class="pec-detail">${escapeHtml(p.showName)}${p.receiptPaths.length ? ` · ${p.receiptPaths.length} receipt${p.receiptPaths.length === 1 ? '' : 's'}` : ''}</div>
+        <div class="pec-detail">${escapeHtml(p.showName)}</div>
+        ${p.receiptPaths.length ? `<div class="receipt-thumbs" data-pending-thumbs="${p.id}"></div>` : ''}
       </div>
       <div class="pec-right">
         <div class="pec-amount">${money(p.amount)}</div>
         <div style="display:flex;gap:6px">
-          ${p.receiptPaths.length ? `
-          <button type="button" class="icon-btn" data-view-pending="${p.id}" title="View receipt${p.receiptPaths.length === 1 ? '' : 's'}" aria-label="View receipt">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>` : ''}
           <button type="button" class="icon-btn" data-edit-pending="${p.id}" title="Edit" aria-label="Edit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
           </button>
@@ -418,6 +417,18 @@ function renderPendingList() {
       </div>
     </div>
   `).join('');
+
+  pendingExpenses.forEach(p => {
+    if (!p.receiptPaths.length) return;
+    const container = list.querySelector(`[data-pending-thumbs="${p.id}"]`);
+    p.receiptPaths.forEach(path => {
+      const img = document.createElement('img');
+      img.className = 'receipt-thumb-sm';
+      img.alt = 'Receipt photo';
+      container.appendChild(img);
+      loadReceiptThumb(img, path);
+    });
+  });
 }
 
 // Loads a staged item back into the form — its fields, plus its already-uploaded receipts
@@ -439,24 +450,22 @@ function startEditPending(id) {
 
 function renderEditingExistingReceipts() {
   const el = document.getElementById('editingExistingReceipts');
-  const p = pendingExpenses.find(x => x.id === editingPendingId);
-  const remaining = p ? p.receiptPaths.filter(rp => !editingRemovedReceiptPaths.includes(rp)) : [];
+  const remaining = pendingExpenses.find(x => x.id === editingPendingId)?.receiptPaths.filter(rp => !editingRemovedReceiptPaths.includes(rp)) || [];
   if (!remaining.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = 'flex';
   el.innerHTML = remaining
-    .map((rp, i) => `<span class="badge badge-warning">
-        <span data-view-existing-receipt="${escapeHtml(rp)}" style="cursor:pointer">Receipt ${i + 1}</span>
-        <span data-existing-receipt="${escapeHtml(rp)}" style="cursor:pointer;margin-left:2px" title="Remove">×</span>
+    .map(rp => `<span class="receipt-thumb-wrap">
+        <img class="receipt-thumb-sm" alt="Receipt photo" data-existing-thumb="${escapeHtml(rp)}">
+        <button type="button" class="receipt-thumb-remove" data-existing-receipt="${escapeHtml(rp)}" title="Remove" aria-label="Remove">×</button>
       </span>`)
     .join('');
+  el.querySelectorAll('[data-existing-thumb]').forEach(img => loadReceiptThumb(img, img.getAttribute('data-existing-thumb')));
 }
 
 document.getElementById('editingExistingReceipts').addEventListener('click', (e) => {
-  const viewPath = e.target.getAttribute('data-view-existing-receipt');
-  if (viewPath) { viewReceipts([viewPath]); return; }
-  const path = e.target.getAttribute('data-existing-receipt');
-  if (!path) return;
-  editingRemovedReceiptPaths.push(path);
+  const removeBtn = e.target.closest('[data-existing-receipt]');
+  if (!removeBtn) return;
+  editingRemovedReceiptPaths.push(removeBtn.getAttribute('data-existing-receipt'));
   renderEditingExistingReceipts();
 });
 
@@ -473,12 +482,8 @@ document.getElementById('cancelEditBtn').addEventListener('click', (e) => { e.pr
 
 document.getElementById('pendingList').addEventListener('click', (e) => {
   // .closest(), not .matches() — each icon-btn's actual click target is often its inner <svg>.
-  const viewBtn = e.target.closest('[data-view-pending]');
-  if (viewBtn) {
-    const p = pendingExpenses.find(x => x.id === viewBtn.getAttribute('data-view-pending'));
-    if (p) viewReceipts(p.receiptPaths);
-    return;
-  }
+  // The receipt thumbnails themselves (data-pending-thumbs) have their own click handler wired
+  // in loadReceiptThumb() as each one loads, not delegated here.
   const editBtn = e.target.closest('[data-edit-pending]');
   if (editBtn) {
     startEditPending(editBtn.getAttribute('data-edit-pending'));
