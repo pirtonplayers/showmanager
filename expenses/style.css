@@ -271,7 +271,7 @@ input[type="file"].form-control { padding: 7px 10px; }
 .expense-table .amount-cell.unpaid { color: var(--danger); }
 
 /* ════════════════════════ PWA (index.html) ════════════════════════ */
-.pwa-body { min-height: 100vh; background: var(--primary); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); }
+.pwa-body { min-height: 100vh; background: var(--bg); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); }
 .pwa-hero { position: relative; background: var(--primary); text-align: center; padding: 32px 20px 16px; color: #fff; }
 .pwa-hero #heroMenuWrap { position: absolute; top: 14px; left: 14px; }
 
@@ -291,7 +291,7 @@ input[type="file"].form-control { padding: 7px 10px; }
    wrong, so it's capped and centered — a no-op until the viewport is actually wide enough to
    matter. .with-sidebar's fixed-width nav (desktop only, see below) needs it left-aligned
    instead of centered, so the sidebar doesn't overlap it. */
-.pwa-content { flex: 1; width: 100%; max-width: 560px; margin: 8px auto 0; background: var(--bg); border-radius: 24px 24px 0 0; padding: 24px 20px 40px; overflow-y: auto; }
+.pwa-content { flex: 1; width: 100%; max-width: 560px; margin: 0 auto; background: transparent; padding: 24px 20px 40px; overflow-y: auto; }
 
 .screen { display: none; }
 .screen.active { display: block; }
@@ -301,13 +301,6 @@ input[type="file"].form-control { padding: 7px 10px; }
    display since, unlike admin.html, the login screens share this same layout). ── */
 @media (min-width: 900px) {
   .pwa-hero.compact #heroMenuWrap { display: none; }
-
-  /* Past this width the app reads as a desktop app, not a phone screen glued to the middle of
-     the window — drop the "rounded sheet floating on a colour" phone framing (the curved top
-     corners, the gap under the hero) for a flat page matching admin.html's own layout: a flush
-     content area directly under a plain header bar, square corners throughout. */
-  .pwa-body { background: var(--bg); }
-  .pwa-content { margin-top: 0; border-radius: 0; background: transparent; }
 
   /* #pwaSidebar/#pwaSidebarToggleBtn reuse .admin-sidebar/.sidebar-toggle's styling as-is —
      same 60px header height, same 220px width, nothing page-specific needed here. */
