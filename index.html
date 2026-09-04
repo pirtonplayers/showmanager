@@ -10,7 +10,7 @@
   <title>Pirton Players</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=1.0.35">
+  <link rel="stylesheet" href="style.css?v=1.0.36">
 </head>
 <body class="theme-portal">
 
@@ -106,31 +106,56 @@
     <div id="pane-users" class="work-pane">
       <div class="section-header"><h2>Users</h2></div>
 
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-header"><h2>Add a user</h2></div>
-        <div class="card-body">
-          <form id="addUserForm">
-            <div class="form-row">
-              <div class="form-group">
-                <label for="newUserName">Name</label>
-                <input type="text" id="newUserName" class="form-control" required autocomplete="off">
+      <!-- #openAddUserBtn (in the All users card header below) opens this. -->
+      <div id="addUserModal" class="modal-backdrop" style="display:none">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>Add a user</h3>
+            <button class="modal-close-btn" id="addUserModalCloseBtn" aria-label="Close">×</button>
+          </div>
+          <div class="modal-body">
+            <form id="addUserForm">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="newUserName">Name</label>
+                  <input type="text" id="newUserName" class="form-control" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                  <label for="newUserEmail">Email</label>
+                  <input type="email" id="newUserEmail" class="form-control" required autocomplete="off">
+                </div>
               </div>
               <div class="form-group">
-                <label for="newUserEmail">Email</label>
-                <input type="email" id="newUserEmail" class="form-control" required autocomplete="off">
+                <label for="newUserPassword">Temporary password</label>
+                <input type="text" id="newUserPassword" class="form-control" required minlength="6" autocomplete="off">
               </div>
-            </div>
-            <div class="form-group">
-              <label for="newUserPassword">Temporary password</label>
-              <input type="text" id="newUserPassword" class="form-control" required minlength="6" autocomplete="off">
-            </div>
-            <div class="form-group">
-              <label>Access</label>
-              <div class="item-list" id="newUserAccessList"></div>
-            </div>
-            <p id="addUserError" class="muted" style="color:var(--danger);margin-bottom:12px"></p>
-            <button type="submit" class="btn btn-primary" id="addUserBtn">+ Add user</button>
-          </form>
+              <div class="form-group">
+                <label>Access</label>
+                <div class="item-list" id="newUserAccessList"></div>
+              </div>
+              <p id="addUserError" class="muted" style="color:var(--danger);margin-bottom:12px"></p>
+              <button type="submit" class="btn btn-primary btn-full" id="addUserBtn">+ Add user</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- #openDefaultLinkMessageBtn (in the All users card header below) opens this. -->
+      <div id="defaultLinkMessageModal" class="modal-backdrop" style="display:none">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>Default link message</h3>
+            <button class="modal-close-btn" id="defaultLinkMessageCloseBtn" aria-label="Close">×</button>
+          </div>
+          <div class="modal-body">
+            <form id="defaultLinkMessageForm">
+              <div class="form-group">
+                <label for="defaultLinkMessageInput">Message</label>
+                <textarea id="defaultLinkMessageInput" class="form-control" rows="4" style="resize:vertical" placeholder="e.g. Here's your login link..."></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-full">Save</button>
+            </form>
+          </div>
         </div>
       </div>
 
@@ -162,23 +187,14 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-header"><h2>Default link message</h2></div>
-        <div class="card-body">
-          <form id="defaultLinkMessageForm">
-            <div class="form-group">
-              <label for="defaultLinkMessageInput">Message</label>
-              <textarea id="defaultLinkMessageInput" class="form-control" rows="3" style="resize:vertical" placeholder="e.g. Here's your login link..."></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary">Save</button>
-          </form>
-        </div>
-      </div>
-
       <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="flex-wrap:wrap">
           <h2>All users</h2>
-          <button class="btn btn-secondary btn-sm" id="resyncClaimsBtn">Sync permissions</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" id="openAddUserBtn">+ Add user</button>
+            <button class="btn btn-secondary btn-sm" id="openDefaultLinkMessageBtn">Default link message</button>
+            <button class="btn btn-secondary btn-sm" id="resyncClaimsBtn">Sync permissions</button>
+          </div>
         </div>
         <div class="card-body">
           <input type="text" id="userSearchInput" class="form-control" placeholder="Search by name or email" style="margin-bottom:14px">
@@ -207,11 +223,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="version.js?v=1.0.35"></script>
-<script src="shared/firebase-config.js?v=1.0.35"></script>
-<script src="shared/auth.js?v=1.0.35"></script>
-<script src="shared/suite-nav.js?v=1.0.35"></script>
-<script src="shared/a2hs.js?v=1.0.35"></script>
-<script src="portal.js?v=1.0.35"></script>
+<script src="version.js?v=1.0.36"></script>
+<script src="shared/firebase-config.js?v=1.0.36"></script>
+<script src="shared/auth.js?v=1.0.36"></script>
+<script src="shared/suite-nav.js?v=1.0.36"></script>
+<script src="shared/a2hs.js?v=1.0.36"></script>
+<script src="portal.js?v=1.0.36"></script>
 </body>
 </html>

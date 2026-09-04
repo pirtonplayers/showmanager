@@ -429,6 +429,7 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
     await functionsRegion.httpsCallable('createUser')({ name, email, password, isManager, access });
     document.getElementById('addUserForm').reset();
     document.getElementById('newUserAccessList').innerHTML = accessPickerHtml('newUser');
+    document.getElementById('addUserModal').style.display = 'none';
     showToast(`Account created for ${name} — pass on the temporary password`, 'success');
     await loadUsers();
   } catch (err) {
@@ -436,6 +437,26 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   } finally {
     btn.disabled = false;
   }
+});
+
+document.getElementById('openAddUserBtn').addEventListener('click', () => {
+  document.getElementById('addUserModal').style.display = 'flex';
+});
+document.getElementById('addUserModalCloseBtn').addEventListener('click', () => {
+  document.getElementById('addUserModal').style.display = 'none';
+});
+document.getElementById('addUserModal').addEventListener('click', (e) => {
+  if (e.target.id === 'addUserModal') document.getElementById('addUserModal').style.display = 'none';
+});
+
+document.getElementById('openDefaultLinkMessageBtn').addEventListener('click', () => {
+  document.getElementById('defaultLinkMessageModal').style.display = 'flex';
+});
+document.getElementById('defaultLinkMessageCloseBtn').addEventListener('click', () => {
+  document.getElementById('defaultLinkMessageModal').style.display = 'none';
+});
+document.getElementById('defaultLinkMessageModal').addEventListener('click', (e) => {
+  if (e.target.id === 'defaultLinkMessageModal') document.getElementById('defaultLinkMessageModal').style.display = 'none';
 });
 
 document.getElementById('resyncClaimsBtn').addEventListener('click', async () => {
@@ -580,6 +601,7 @@ document.getElementById('defaultLinkMessageForm').addEventListener('submit', asy
   const defaultLinkMessage = document.getElementById('defaultLinkMessageInput').value.trim();
   try {
     await db.collection('portal_config').doc('settings').set({ defaultLinkMessage }, { merge: true });
+    document.getElementById('defaultLinkMessageModal').style.display = 'none';
     showToast('Saved', 'success');
   } catch (err) {
     showToast(err.message, 'error');
