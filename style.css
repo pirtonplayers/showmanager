@@ -160,7 +160,11 @@ input[type="file"].form-control { padding: 7px 10px; }
 /* Absolutely centered regardless of how wide the icon (left) and hamburger (right) each are —
    plain flex centering would drift off-true since those two aren't the same width. */
 .header-title { position: absolute; left: 0; right: 0; text-align: center; font-size: 14px; opacity: .85; pointer-events: none; }
-.footer-version { text-align: center; color: var(--text-muted); font-size: 12px; padding: 20px 0; }
+/* Fixed to the actual bottom of the viewport, not just the end of the page's content — a
+   native pane with little content, or an app iframe sized to fill the screen below the header
+   (see .shell-frame), would otherwise leave it well below the fold instead of visible at the
+   bottom of the screen. .shell-frame/.admin-content both leave room for its height below. */
+.footer-version { position: fixed; left: 0; right: 0; bottom: 0; height: 28px; line-height: 28px; text-align: center; color: var(--text-muted); font-size: 11px; background: var(--bg); border-top: 1px solid var(--border); z-index: 90; }
 .hamburger-btn { background: none; border: none; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; }
 .hamburger-btn:hover { opacity: .8; }
 
@@ -186,7 +190,7 @@ input[type="file"].form-control { padding: 7px 10px; }
 .dropdown-menu .tab-btn.active { color: var(--primary); background: var(--primary-light); }
 .dropdown-divider { height: 1px; background: var(--border); margin: 6px 2px; }
 
-.admin-content { padding: 24px; max-width: 1300px; margin: 0 auto; }
+.admin-content { padding: 24px 24px calc(24px + 28px); max-width: 1300px; margin: 0 auto; }
 
 /* ── Desktop sidebar nav (hidden on mobile — the header hamburger/dropdown covers that) ── */
 .admin-sidebar { display: none; }
@@ -202,7 +206,7 @@ input[type="file"].form-control { padding: 7px 10px; }
     position: fixed;
     top: 60px; /* below .admin-header */
     left: 0;
-    bottom: 0;
+    bottom: 28px; /* above .footer-version, so the two don't overlap */
     width: 220px;
     padding: 20px 14px;
     background: var(--surface);
@@ -255,7 +259,7 @@ input[type="file"].form-control { padding: 7px 10px; }
    outside <main class="admin-content">'s padding/max-width so an app's own content can use the
    full work area, not a second layer of centring on top of its own. ── */
 #workAreaFrames { position: relative; }
-.shell-frame { display: none; width: 100%; height: calc(100vh - 60px); border: none; }
+.shell-frame { display: none; width: 100%; height: calc(100vh - 60px - 28px); border: none; }
 .shell-frame.active { display: block; }
 
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
@@ -394,7 +398,7 @@ input[type="file"].form-control { padding: 7px 10px; }
 
 /* ── Responsive ── */
 @media (max-width: 600px) {
-  .admin-content { padding: 16px; }
+  .admin-content { padding: 16px 16px calc(16px + 28px); }
   .form-row { grid-template-columns: 1fr; }
   .filters-toolbar { flex-direction: column; align-items: stretch; }
   .filters-toolbar .form-control { width: 100%; }

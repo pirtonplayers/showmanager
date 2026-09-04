@@ -10,7 +10,7 @@
   <title>Pirton Players</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=1.0.29">
+  <link rel="stylesheet" href="style.css?v=1.0.31">
 </head>
 <body class="theme-portal">
 
@@ -26,7 +26,6 @@
   <div class="card" style="width:100%;max-width:360px;margin:20px">
     <div class="card-header"><h2>Pirton Players</h2></div>
     <div class="card-body">
-      <p class="muted" style="margin-bottom:14px">Sign in once for expenses, ShowDrinks admin and ShowBudget.</p>
       <div class="form-group">
         <label for="loginEmail">Email</label>
         <input type="email" id="loginEmail" class="form-control" autocomplete="username">
@@ -196,9 +195,9 @@
        keep their own centred/padded layout — see #workAreaFrames in style.css. ── -->
   <div id="workAreaFrames"></div>
 
-  <div class="admin-content" style="padding-top:0">
-    <p class="footer-version" id="headerVersion"></p>
-  </div>
+  <!-- Fixed to the bottom of the viewport (see .footer-version) — not inside the flow of
+       <main>/#workAreaFrames above, since position:fixed ignores that anyway. -->
+  <p class="footer-version" id="headerVersion"></p>
 
 </div>
 
@@ -208,11 +207,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="version.js?v=1.0.29"></script>
-<script src="shared/firebase-config.js?v=1.0.29"></script>
-<script src="shared/auth.js?v=1.0.29"></script>
-<script src="shared/suite-nav.js?v=1.0.29"></script>
-<script src="shared/a2hs.js?v=1.0.29"></script>
-<script src="portal.js?v=1.0.29"></script>
+<script src="version.js?v=1.0.31"></script>
+<script src="shared/firebase-config.js?v=1.0.31"></script>
+<script src="shared/auth.js?v=1.0.31"></script>
+<script src="shared/suite-nav.js?v=1.0.31"></script>
+<script src="shared/a2hs.js?v=1.0.31"></script>
+<script src="portal.js?v=1.0.31"></script>
 </body>
 </html>
