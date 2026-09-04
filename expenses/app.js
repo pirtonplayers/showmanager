@@ -562,6 +562,7 @@ document.getElementById('pendingList').addEventListener('click', (e) => {
   const id = removeBtn.getAttribute('data-remove-pending');
   const idx = pendingExpenses.findIndex(p => p.id === id);
   if (idx === -1) return;
+  if (!confirm(`Remove "${pendingExpenses[idx].description}" from the list?`)) return;
   const [removed] = pendingExpenses.splice(idx, 1);
   removed.receiptPaths.forEach(p => storage.ref(p).delete().catch(() => {}));
   if (editingPendingId === id) resetExpenseForm();
