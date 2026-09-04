@@ -47,10 +47,10 @@
       <div id="suiteNavDropdown"></div>
       <div class="dropdown-divider"></div>
       <div class="suite-current-section">
-        <button class="tab-btn active" data-tab="show">Show &amp; Sessions</button>
+        <button class="tab-btn active" data-tab="orders">Orders</button>
+        <button class="tab-btn" data-tab="show">Show &amp; Sessions</button>
         <button class="tab-btn" data-tab="menu">Menu Items</button>
         <button class="tab-btn" data-tab="locations">Locations</button>
-        <button class="tab-btn" data-tab="orders">Orders</button>
         <button class="tab-btn" data-tab="tabs">Show Tabs</button>
         <button class="tab-btn" data-tab="pos">POS Layout</button>
         <button class="tab-btn" data-tab="settings">Settings &amp; QR</button>
@@ -88,7 +88,7 @@
 <main class="admin-content">
 
   <!-- ── SHOW & SESSIONS ── -->
-  <div id="tab-show" class="tab-panel active">
+  <div id="tab-show" class="tab-panel">
     <div class="section-header">
       <h2>Show &amp; Sessions</h2>
       <button class="btn btn-primary" id="saveShowBtn">Save Changes</button>
@@ -113,7 +113,7 @@
           <h2>Show Details</h2>
           <div style="display:flex;gap:8px">
             <button class="btn btn-primary btn-sm" id="setCurrentShowBtn">Set as Current</button>
-            <button class="btn btn-danger btn-sm" id="deleteShowBtn">Delete Show</button>
+            <button class="btn btn-danger btn-sm" id="deleteShowBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete Show</button>
           </div>
         </div>
         <div class="card-body">
@@ -278,7 +278,7 @@
   </div>
 
   <!-- ── ORDERS ── -->
-  <div id="tab-orders" class="tab-panel">
+  <div id="tab-orders" class="tab-panel active">
     <div class="section-header">
       <h2>Orders</h2>
       <button class="btn btn-secondary btn-sm" id="refreshOrdersBtn">⟳ Refresh</button>

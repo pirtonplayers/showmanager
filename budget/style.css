@@ -53,7 +53,12 @@ body.theme-budget {
    the left, Performances on the right. Label and input are direct grid children (no per-field
    wrapper) — that's what lets a shared grid line up every value regardless of label length. ── */
 .fixed-params-grid { display: grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start; }
-.fp-col-params { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px 12px; }
+/* Grid items default to min-width:auto (their content's own natural width) — without
+   overriding that, .fp-col-perf's 4-column performances table (esp. once it has a Type
+   dropdown too) can refuse to shrink to its 1fr track on a narrow phone and push the whole
+   page wider than the screen instead of scrolling inside its own .expense-table-wrap. */
+.fp-col-perf { min-width: 0; }
+.fp-col-params { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px 12px; min-width: 0; }
 .fp-col-params label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
 .fp-col-params input.num-input { text-align: right; font-variant-numeric: tabular-nums; }
 /* Date / count / Generate button on the Parameters card — was an inline style, which (being

@@ -7,6 +7,11 @@ const functionsRegion = firebase.app().functions('europe-west1');
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
+// Shared .icon-btn glyph (Feather-style, matching the outline icons used elsewhere in the
+// suite) — used in place of a text label for the row Delete action. (Copy link's icon is
+// inlined directly in index.html's static markup, not rendered from here.)
+const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 function showToast(message, type = 'info') {
   const toast = document.getElementById('toast');
   const el = document.createElement('div');
@@ -367,7 +372,7 @@ function renderUserList() {
           </div>
         </details>
         <button class="btn btn-secondary btn-sm" data-send-link="${u.id}">Send link</button>
-        <button class="btn btn-danger btn-sm" data-delete-user="${u.id}" ${isSelf ? 'disabled title="You can\'t delete your own account this way"' : ''}>Delete</button>
+        <button class="icon-btn icon-btn-danger" data-delete-user="${u.id}" ${isSelf ? 'disabled title="You can\'t delete your own account this way"' : 'title="Delete" aria-label="Delete"'}>${ICON_TRASH}</button>
       </div>
     </div>
   `;
@@ -472,17 +477,18 @@ document.getElementById('userList').addEventListener('click', async (e) => {
     return;
   }
 
-  if (!e.target.matches('[data-delete-user]')) return;
-  const id = e.target.getAttribute('data-delete-user');
+  const deleteBtn = e.target.closest('[data-delete-user]'); // icon-btn's <svg> is the actual click target
+  if (!deleteBtn) return;
+  const id = deleteBtn.getAttribute('data-delete-user');
   const user = allUsers.find(u => u.id === id);
   if (!confirm(`Permanently delete ${user?.name || user?.email}? They'll lose their login to every app. Their past expenses/orders are kept.`)) return;
-  e.target.disabled = true;
+  deleteBtn.disabled = true;
   try {
     await functionsRegion.httpsCallable('deleteUser')({ uid: id });
     showToast('User deleted', 'success');
     await loadUsers();
   } catch (err) {
-    e.target.disabled = false;
+    deleteBtn.disabled = false;
     showToast(err.message, 'error');
   }
 });

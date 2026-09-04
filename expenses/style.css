@@ -82,6 +82,12 @@ input, textarea, select, [contenteditable] {
 .icon-btn.icon-btn-danger:hover { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
 .password-toggle-btn:hover { color: var(--text); }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* Add a show / Add a user — every field plus the submit button on one row on desktop; each
+   stacks to its own full-width row on mobile (see the 600px breakpoint below), same as
+   .form-row itself. A dedicated class rather than an inline style, since inline styles beat
+   any stylesheet rule (including that mobile breakpoint) regardless of screen width. */
+.add-show-row { grid-template-columns: 1fr 200px auto; align-items: end; }
+.add-user-row { grid-template-columns: 1fr 1fr 1fr auto; align-items: end; }
 input[type="file"].form-control { padding: 7px 10px; }
 
 /* ── Badges ── */
@@ -261,9 +267,11 @@ input[type="file"].form-control { padding: 7px 10px; }
 .expense-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .expense-table tr:hover td { background: var(--bg); }
 .expense-table .amount-cell { font-weight: 600; text-align: right; white-space: nowrap; }
+.expense-table th.amount-cell { color: var(--text-muted); } /* stays a header, not bold/dark like a data cell */
+.expense-table .amount-cell.unpaid { color: var(--danger); }
 
 /* ════════════════════════ PWA (index.html) ════════════════════════ */
-.pwa-body { min-height: 100vh; background: var(--primary); display: flex; flex-direction: column; }
+.pwa-body { min-height: 100vh; background: var(--primary); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); }
 .pwa-hero { position: relative; background: var(--primary); text-align: center; padding: 32px 20px 16px; color: #fff; }
 .pwa-hero #heroMenuWrap { position: absolute; top: 14px; left: 14px; }
 

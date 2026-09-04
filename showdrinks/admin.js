@@ -1,5 +1,9 @@
 'use strict';
 
+// Shared .icon-btn glyph (Feather-style, matching the outline icons used elsewhere in the
+// suite) — used in place of a text label for the common Delete row action.
+const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
 // ── Utilities ──────────────────────────────────────────────────────────────
 
 window.togglePasswordVisibility = function(inputId, btn) {
@@ -107,8 +111,9 @@ function renderShowsList() {
     <div class="item-row">
       <span class="item-name">${escHtml(s.name || '(untitled show)')}${s.isCurrent ? ' <span class="badge badge-success">Current</span>' : ''}</span>
       <div class="item-actions">
+        ${s.isCurrent ? '' : `<button class="btn btn-secondary btn-sm" onclick="setCurrentShow('${s.id}')">Set as current</button>`}
         <button class="btn btn-secondary btn-sm" onclick="selectShow('${s.id}')">${s.id === _selectedShowId ? 'Editing' : 'Edit'}</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteShow('${s.id}')">Delete</button>
+        <button class="icon-btn icon-btn-danger" onclick="deleteShow('${s.id}')" title="Delete" aria-label="Delete">${ICON_TRASH}</button>
       </div>
     </div>`).join('') : '<p style="color:var(--text-muted);font-size:14px">No shows yet — add one to get started.</p>';
 }
@@ -119,13 +124,17 @@ window.selectShow = function(id) {
   renderShowEditor();
 };
 
-window.setCurrentShow = async function() {
-  if (!_selectedShowId) return;
+// id defaults to whichever show is open in the editor (the editor's own "Set as Current"
+// button), but also takes an explicit id so the shows list's own per-row "Set as current"
+// button can do this without first having to open that show in the editor.
+window.setCurrentShow = async function(id) {
+  const targetId = id || _selectedShowId;
+  if (!targetId) return;
   try {
     const batch = db.batch();
-    _shows.forEach(s => batch.update(db.collection('showdrinks_shows').doc(s.id), { isCurrent: s.id === _selectedShowId }));
+    _shows.forEach(s => batch.update(db.collection('showdrinks_shows').doc(s.id), { isCurrent: s.id === targetId }));
     await batch.commit();
-    _shows.forEach(s => { s.isCurrent = s.id === _selectedShowId; });
+    _shows.forEach(s => { s.isCurrent = s.id === targetId; });
     renderShowsList();
     renderShowEditor();
     updateHeaderShowName();
@@ -151,12 +160,14 @@ window.deleteShow = async function(id) {
   }
 };
 
+// Just adds a row — every other detail (name, dates, sessions, payment) is already editable
+// right below in the same table/editor once it's selected, so there's nothing worth a prompt()
+// interrupting for first. Opens straight into the editor with the name field selected, ready to
+// type over "New show".
 document.getElementById('addShowBtn').addEventListener('click', async () => {
-  const name = prompt('New show name:');
-  if (!name || !name.trim()) return;
   try {
     const doc = {
-      name: name.trim(),
+      name: 'New show',
       dates: [],
       isCurrent: _shows.length === 0,
       sessions: DEFAULT_SESSIONS,
@@ -168,13 +179,15 @@ document.getElementById('addShowBtn').addEventListener('click', async () => {
     renderShowsList();
     renderShowEditor();
     updateHeaderShowName();
-    toast('Show added', 'success');
+    const nameInput = document.getElementById('showName');
+    nameInput.focus();
+    nameInput.select();
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
   }
 });
 
-document.getElementById('setCurrentShowBtn').addEventListener('click', setCurrentShow);
+document.getElementById('setCurrentShowBtn').addEventListener('click', () => setCurrentShow());
 document.getElementById('deleteShowBtn').addEventListener('click', () => { if (_selectedShowId) deleteShow(_selectedShowId); });
 
 function renderShowEditor() {
@@ -453,7 +466,7 @@ async function loadLocations() {
         <span class="item-name">${escHtml(loc.name)}</span>
         <div class="item-actions">
           <button class="btn btn-secondary btn-sm" onclick="editLocation('${d.id}','${escHtml(loc.name)}')">Edit</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteLocation('${d.id}')">Delete</button>
+          <button class="icon-btn icon-btn-danger" onclick="deleteLocation('${d.id}')" title="Delete" aria-label="Delete">${ICON_TRASH}</button>
         </div>
       </div>`;
   }).join('');
@@ -1847,7 +1860,9 @@ async function init() {
     document.getElementById('headerVersion').textContent = 'v' + APP_VERSION;
   }
   try {
-    await Promise.all([loadShows(), loadMenuItems(), loadLocations(), loadSettings()]);
+    // loadOrders() included since Orders is the default tab now — otherwise it'd sit empty
+    // until the user clicked away and back (every other tab's own data only loads on click).
+    await Promise.all([loadShows(), loadMenuItems(), loadLocations(), loadSettings(), loadOrders()]);
   } catch(e) {
     document.getElementById('headerShowName').textContent = 'Firebase not configured';
     toast('Firebase not configured – edit firebase-config.js', 'error');

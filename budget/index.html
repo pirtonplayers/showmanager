@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.33"></script>
+  <script src="../shared/embed.js?v=1.0.34"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#6d28d9">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Budget</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=1.0.33">
+  <link rel="stylesheet" href="style.css?v=1.0.34">
 </head>
 <body class="theme-budget">
 
@@ -126,7 +126,7 @@
           <button class="btn btn-secondary btn-sm" id="setTemplateBtn">Make this the template</button>
           <button class="btn btn-secondary btn-sm" id="exportExcelBtn">⬇ Export to Excel</button>
           <button class="btn btn-secondary btn-sm" id="printBtn">🖨 Print / PDF</button>
-          <button class="btn btn-danger btn-sm" id="deleteShowBtn">Delete</button>
+          <button class="btn btn-danger btn-sm" id="deleteShowBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>
         </div>
       </div>
 
@@ -165,7 +165,7 @@
             </div>
 
             <div class="fp-col-perf">
-              <div class="perf-gen-row no-print">
+              <div class="perf-gen-row no-print" id="perfGenRow">
                 <div class="form-group" style="margin-bottom:0">
                   <label for="genPerfDate">First performance date</label>
                   <input type="date" id="genPerfDate" class="form-control">
@@ -178,11 +178,11 @@
               </div>
               <div class="expense-table-wrap">
                 <table class="expense-table" id="perfTable">
-                  <thead><tr><th>Date</th><th style="width:140px">Ticket price</th><th class="no-print" style="width:44px"></th></tr></thead>
+                  <thead><tr><th>Date</th><th style="width:130px">Type</th><th style="width:140px">Ticket price</th><th class="no-print" style="width:44px"></th></tr></thead>
                   <tbody id="perfTableBody"></tbody>
                 </table>
               </div>
-              <button class="btn btn-secondary btn-sm no-print" id="addPerfBtn" style="margin-top:8px">+ Add one more performance</button>
+              <button class="btn btn-secondary btn-sm no-print" id="addPerfBtn" style="margin-top:8px">+ Add performance</button>
             </div>
           </div>
         </div>
@@ -286,10 +286,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="version.js?v=1.0.33"></script>
-<script src="../shared/firebase-config.js?v=1.0.33"></script>
-<script src="../shared/auth.js?v=1.0.33"></script>
-<script src="../shared/suite-nav.js?v=1.0.33"></script>
-<script src="budget.js?v=1.0.33"></script>
+<script src="version.js?v=1.0.34"></script>
+<script src="../shared/firebase-config.js?v=1.0.34"></script>
+<script src="../shared/auth.js?v=1.0.34"></script>
+<script src="../shared/suite-nav.js?v=1.0.34"></script>
+<script src="budget.js?v=1.0.34"></script>
 </body>
 </html>

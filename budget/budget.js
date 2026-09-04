@@ -8,6 +8,12 @@ function escapeHtml(str) {
 function money(n) { return Math.round(Number(n) || 0).toLocaleString('en-GB'); }
 function uid() { return crypto.randomUUID(); }
 
+// Shared .icon-btn glyphs (Feather-style, matching the outline icons used elsewhere in the
+// suite) — used in place of text labels for the common Open/Copy/Delete row actions.
+const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>';
+const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
 function showToast(message, type = 'info') {
   const toast = document.getElementById('toast');
   const el = document.createElement('div');
@@ -144,25 +150,29 @@ function renderShowsList() {
     return;
   }
   el.innerHTML = allShows.map(s => `
-    <div class="item-row">
+    <div class="item-row" data-open-show="${s.id}" style="cursor:pointer">
       <div class="item-name-col">
         <div class="item-name">${escapeHtml(s.name || '(untitled)')}${s.isTemplate ? ' <span class="badge badge-primary">Template</span>' : ''}</div>
         ${s.isTemplate ? '<div class="item-sub">Used to start new shows</div>' : ''}
       </div>
       <div class="item-actions">
-        <button class="btn btn-secondary btn-sm" data-open-show="${s.id}">Open</button>
-        <button class="btn btn-secondary btn-sm" data-copy-show="${s.id}">Copy</button>
-        <button class="btn btn-danger btn-sm" data-delete-show="${s.id}" ${s.isTemplate ? 'disabled title="Make another show the template first"' : ''}>Delete</button>
+        <button class="icon-btn" data-open-show="${s.id}" title="Open" aria-label="Open">${ICON_EDIT}</button>
+        <button class="icon-btn" data-copy-show="${s.id}" title="Copy" aria-label="Copy">${ICON_COPY}</button>
+        <button class="icon-btn icon-btn-danger" data-delete-show="${s.id}" ${s.isTemplate ? 'disabled title="Make another show the template first"' : 'title="Delete" aria-label="Delete"'}>${ICON_TRASH}</button>
       </div>
     </div>
   `).join('');
 }
 
+// The row itself also carries data-open-show (see above) so clicking anywhere on a row opens it,
+// same as the Open button — Copy/Delete are checked first so they keep doing their own thing.
 document.getElementById('showsList').addEventListener('click', async (e) => {
-  if (e.target.matches('[data-open-show]')) { openShow(e.target.getAttribute('data-open-show')); return; }
-  if (e.target.matches('[data-copy-show]')) { openNewShowModal(e.target.getAttribute('data-copy-show')); return; }
-  if (e.target.matches('[data-delete-show]')) {
-    const id = e.target.getAttribute('data-delete-show');
+  const copyBtn = e.target.closest('[data-copy-show]');
+  if (copyBtn) { openNewShowModal(copyBtn.getAttribute('data-copy-show')); return; }
+
+  const deleteBtn = e.target.closest('[data-delete-show]');
+  if (deleteBtn) {
+    const id = deleteBtn.getAttribute('data-delete-show');
     const show = allShows.find(s => s.id === id);
     if (!show || show.isTemplate) return;
     if (!confirm(`Delete "${show.name}"? This cannot be undone.`)) return;
@@ -174,7 +184,11 @@ document.getElementById('showsList').addEventListener('click', async (e) => {
     } catch (err) {
       showToast(err.message, 'error');
     }
+    return;
   }
+
+  const openTarget = e.target.closest('[data-open-show]');
+  if (openTarget) openShow(openTarget.getAttribute('data-open-show'));
 });
 
 // costumes/scripts used to be cost-per-cast formula lines; hall hire used to be two separate
@@ -305,16 +319,23 @@ function refreshAfterPerfChange() {
   renderForecast();
 }
 
+const PERF_TYPES = ['Matinee', 'Evening', 'Other'];
+
 function renderPerfTable() {
   const perfs = currentShow.fixedParams.performances;
   const tbody = document.getElementById('perfTableBody');
   tbody.innerHTML = perfs.length ? perfs.map((p, i) => `
     <tr>
       <td><input type="date" class="form-control" value="${p.date || ''}" data-perf-field="${i}:date"></td>
+      <td><select class="form-control" data-perf-field="${i}:type">${PERF_TYPES.map(t => `<option value="${t}"${(p.type || 'Evening') === t ? ' selected' : ''}>${t}</option>`).join('')}</select></td>
       <td><input type="number" class="form-control num-input" min="0" step="1" value="${p.price ?? currentShow.fixedParams.ticketPrice ?? 0}" data-perf-field="${i}:price"></td>
       <td class="no-print"><button class="grid-del-btn" data-perf-remove="${i}" title="Remove">×</button></td>
     </tr>
-  `).join('') : '<tr><td colspan="3" class="empty-state">No performances yet — generate some above.</td></tr>';
+  `).join('') : '<tr><td colspan="4" class="empty-state">No performances yet — generate some above.</td></tr>';
+  // The date/count/Generate row is only useful before there are any performances (Generate
+  // replaces the lot, with a confirm() guard) — once rows exist, editing/adding/removing them
+  // below is how you manage the list; it comes back automatically if they're all removed.
+  document.getElementById('perfGenRow').style.display = perfs.length ? 'none' : '';
 }
 
 document.getElementById('generatePerfsBtn').addEventListener('click', () => {
@@ -329,7 +350,7 @@ document.getElementById('generatePerfsBtn').addEventListener('click', () => {
   for (let i = 0; i < count; i++) {
     const dt = new Date(y, m - 1, d + i);
     const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-    perfs.push({ date: iso, price: currentShow.fixedParams.ticketPrice || 0 });
+    perfs.push({ date: iso, type: 'Evening', price: currentShow.fixedParams.ticketPrice || 0 });
   }
   currentShow.fixedParams.performances = perfs;
   renderPerfTable();
@@ -337,19 +358,23 @@ document.getElementById('generatePerfsBtn').addEventListener('click', () => {
 });
 
 document.getElementById('addPerfBtn').addEventListener('click', () => {
-  currentShow.fixedParams.performances.push({ date: '', price: currentShow.fixedParams.ticketPrice || 0 });
+  currentShow.fixedParams.performances.push({ date: '', type: 'Evening', price: currentShow.fixedParams.ticketPrice || 0 });
   renderPerfTable();
   refreshAfterPerfChange();
 });
 
-document.getElementById('perfTableBody').addEventListener('input', (e) => {
+function handlePerfFieldChange(e) {
   const key = e.target.getAttribute('data-perf-field');
   if (!key) return;
   const [idx, field] = key.split(':');
   const p = currentShow.fixedParams.performances[Number(idx)];
   p[field] = field === 'price' ? (Math.round(Number(e.target.value) || 0)) : e.target.value;
   refreshAfterPerfChange();
-});
+}
+// 'change' too, not just 'input' — <select> (the Type column) doesn't reliably fire 'input' in
+// every browser the way date/number inputs do.
+document.getElementById('perfTableBody').addEventListener('input', handlePerfFieldChange);
+document.getElementById('perfTableBody').addEventListener('change', handlePerfFieldChange);
 
 document.getElementById('perfTableBody').addEventListener('click', (e) => {
   const i = e.target.getAttribute('data-perf-remove');
@@ -575,7 +600,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
 
   const salesPct = (fp.expectedSalesPct ?? 100) / 100;
   const perfRows = fp.performances.map(p => ({
-    Date: fmtPerfDate(p), 'Ticket price': p.price ?? fp.ticketPrice ?? 0,
+    Date: fmtPerfDate(p), Type: p.type || 'Evening', 'Ticket price': p.price ?? fp.ticketPrice ?? 0,
     Seats: fp.seatsPerPerformance, 'Expected sales %': fp.expectedSalesPct ?? 100,
     'Expected income': (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0) * salesPct,
   }));

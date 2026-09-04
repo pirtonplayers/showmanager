@@ -268,7 +268,7 @@ function renderMyExpenses() {
   const rows = showAll ? myExpensesCache : myExpensesCache.filter(r => !r.paid);
 
   if (!rows.length) {
-    list.innerHTML = `<p class="empty-state">${showAll ? 'No expenses submitted yet.' : 'No unpaid expenses — nice.'}</p>`;
+    list.innerHTML = `<p class="empty-state">${showAll ? 'No expenses submitted yet.' : 'No unpaid expenses.'}</p>`;
     return;
   }
   list.innerHTML = rows.map(r => `

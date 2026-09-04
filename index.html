@@ -8,7 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Pirton Players — showmanager</title>
-  <link rel="stylesheet" href="style.css?v=1.0.24">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css?v=1.0.25">
 </head>
 <body class="theme-portal">
 
@@ -143,7 +145,9 @@
               <label for="userLinkUrl">Portal link</label>
               <div style="display:flex;gap:8px">
                 <input type="text" id="userLinkUrl" class="form-control" readonly>
-                <button type="button" class="btn btn-secondary" id="copyUserLinkBtn" style="flex-shrink:0">Copy link</button>
+                <button type="button" class="icon-btn" id="copyUserLinkBtn" title="Copy link" aria-label="Copy link" style="flex-shrink:0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </button>
               </div>
             </div>
             <div class="form-group">
@@ -199,10 +203,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="version.js?v=1.0.24"></script>
-<script src="shared/firebase-config.js?v=1.0.24"></script>
-<script src="shared/auth.js?v=1.0.24"></script>
-<script src="shared/suite-nav.js?v=1.0.24"></script>
-<script src="portal.js?v=1.0.24"></script>
+<script src="version.js?v=1.0.25"></script>
+<script src="shared/firebase-config.js?v=1.0.25"></script>
+<script src="shared/auth.js?v=1.0.25"></script>
+<script src="shared/suite-nav.js?v=1.0.25"></script>
+<script src="portal.js?v=1.0.25"></script>
 </body>
 </html>

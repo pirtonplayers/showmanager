@@ -9,6 +9,11 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Shared .icon-btn glyph (Feather-style, matching the outline icons used elsewhere in the
+// suite) — used in place of a text label for the common Delete/Remove row actions. (Copy link's
+// icon is inlined directly in admin.html's static markup, not rendered from here.)
+const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
 function money(n) {
   return `£${Number(n).toFixed(2)}`;
 }
@@ -184,16 +189,18 @@ document.getElementById('menuBtn').addEventListener('click', (e) => {
 document.addEventListener('click', () => { document.getElementById('mainMenuDropdown').classList.remove('open'); });
 
 // The nav buttons exist twice — once in the mobile dropdown, once in the desktop sidebar —
-// sharing the same data-tab values, so switching via either keeps both in sync.
+// sharing the same data-tab values, so switching via either keeps both in sync. Pulled out into
+// its own function so the show/user "View expenses" links (below) can jump to the Expenses tab
+// the same way a nav click does, not just the nav buttons themselves.
+function activateTab(tab) {
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  document.getElementById('mainMenuDropdown').classList.remove('open');
+  if (tab === 'users') loadExpensesUsers();
+}
 document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const tab = btn.dataset.tab;
-    document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.getElementById(`tab-${tab}`).classList.add('active');
-    document.getElementById('mainMenuDropdown').classList.remove('open');
-    if (tab === 'users') loadExpensesUsers();
-  });
+  btn.addEventListener('click', () => activateTab(btn.dataset.tab));
 });
 
 document.getElementById('sidebarSignOutBtn').addEventListener('click', () => firebase.auth().signOut());
@@ -258,7 +265,8 @@ function renderShowList() {
         <label style="display:flex;align-items:center;gap:6px;font-size:13px">
           <input type="checkbox" data-toggle-show="${s.id}" ${s.active ? 'checked' : ''}> Active
         </label>
-        <button class="btn btn-danger btn-sm" data-delete-show="${s.id}">Remove</button>
+        <button class="btn btn-secondary btn-sm" data-view-show-expenses="${s.id}">View expenses</button>
+        <button class="icon-btn icon-btn-danger" data-delete-show="${s.id}" title="Remove" aria-label="Remove">${ICON_TRASH}</button>
       </div>
     </div>
   `).join('') || '<p class="empty-state">No shows yet — add one above.</p>';
@@ -295,15 +303,105 @@ document.getElementById('showList').addEventListener('change', async (e) => {
   }
 });
 
-document.getElementById('showList').addEventListener('click', async (e) => {
-  if (!e.target.matches('[data-delete-show]')) return;
-  // Expenses keep their own copy of the show's name, so removing a show never
-  // breaks how past expenses display — it just drops out of the entry form.
-  if (!confirm('Remove this show? Expenses already recorded against it are unaffected.')) return;
-  const id = e.target.getAttribute('data-delete-show');
+// Expenses keep their own copy of the show's name, so a show going away never breaks how a past
+// expense displays — it just drops out of the entry form's show picker. But an UNPAID one still
+// needs that show around (it's how it gets found/paid), so removal is blocked outright while any
+// exist; a show with only paid expenses offers removing them alongside it instead of a bare
+// confirm(), since that's a real choice (they're not otherwise cleaned up by removing the show).
+let deleteShowId = null;
+
+function openDeleteShowModal(id) {
+  const show = shows.find(s => s.id === id);
+  if (!show) return;
+  deleteShowId = id;
+  const showExpenses = allExpenses.filter(e => e.showId === id);
+  const unpaidCount = showExpenses.filter(e => !e.paid).length;
+  const paidCount = showExpenses.length - unpaidCount;
+
+  document.getElementById('deleteShowName').textContent = show.name;
+  const msgEl = document.getElementById('deleteShowMessage');
+  const confirmBtn = document.getElementById('deleteShowConfirmBtn');
+  const withExpensesBtn = document.getElementById('deleteShowWithExpensesBtn');
+
+  if (unpaidCount > 0) {
+    const plural = unpaidCount === 1 ? '' : 's';
+    msgEl.textContent = `Can't remove — ${unpaidCount} unpaid expense${plural} ${unpaidCount === 1 ? 'is' : 'are'} still recorded against this show. Mark ${unpaidCount === 1 ? 'it' : 'them'} paid, or delete ${unpaidCount === 1 ? 'it' : 'them'}, first.`;
+    confirmBtn.style.display = 'none';
+    withExpensesBtn.style.display = 'none';
+  } else if (paidCount > 0) {
+    const plural = paidCount === 1 ? '' : 's';
+    msgEl.textContent = `This show has ${paidCount} paid expense${plural} recorded against it. Removing just the show leaves ${paidCount === 1 ? 'it' : 'them'} in place — or remove both together.`;
+    confirmBtn.style.display = '';
+    confirmBtn.textContent = 'Remove show only';
+    withExpensesBtn.style.display = '';
+    withExpensesBtn.textContent = `Remove show + ${paidCount} expense${plural}`;
+  } else {
+    msgEl.textContent = 'No expenses are recorded against it.';
+    confirmBtn.style.display = '';
+    confirmBtn.textContent = 'Remove show';
+    withExpensesBtn.style.display = 'none';
+  }
+
+  document.getElementById('deleteShowModal').style.display = 'flex';
+}
+
+function closeDeleteShowModal() {
+  document.getElementById('deleteShowModal').style.display = 'none';
+  deleteShowId = null;
+}
+document.getElementById('deleteShowCloseBtn').addEventListener('click', closeDeleteShowModal);
+document.getElementById('deleteShowCancelBtn').addEventListener('click', closeDeleteShowModal);
+document.getElementById('deleteShowModal').addEventListener('click', (e) => {
+  if (e.target.id === 'deleteShowModal') closeDeleteShowModal();
+});
+
+document.getElementById('showList').addEventListener('click', (e) => {
+  // .closest(), not .matches() — the delete button's icon is an inline <svg>, so a click can
+  // land on that (or its child path) rather than the <button> itself.
+  const deleteBtn = e.target.closest('[data-delete-show]');
+  if (deleteBtn) {
+    openDeleteShowModal(deleteBtn.getAttribute('data-delete-show'));
+    return;
+  }
+  if (e.target.matches('[data-view-show-expenses]')) {
+    openShowExpenses(e.target.getAttribute('data-view-show-expenses'));
+  }
+});
+
+// Jumps to the Expenses tab pre-filtered to just this show (every status, not just Unpaid, so
+// "view this show's expenses" actually shows all of them).
+function openShowExpenses(showId) {
+  document.getElementById('filterShow').value = showId;
+  document.getElementById('filterUser').value = '';
+  document.getElementById('filterPaid').value = '';
+  renderExpenseTable();
+  activateTab('dashboard');
+}
+
+document.getElementById('deleteShowConfirmBtn').addEventListener('click', async () => {
+  if (!deleteShowId) return;
   try {
-    await db.collection('expenses_shows').doc(id).delete();
+    await db.collection('expenses_shows').doc(deleteShowId).delete();
     showToast('Show removed', 'success');
+    closeDeleteShowModal();
+    await loadShows();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+document.getElementById('deleteShowWithExpensesBtn').addEventListener('click', async () => {
+  if (!deleteShowId) return;
+  const id = deleteShowId;
+  try {
+    const showExpenses = allExpenses.filter(e => e.showId === id);
+    await Promise.all(showExpenses.map(async (row) => {
+      await db.collection('expenses').doc(row.id).delete();
+      receiptPathsOf(row).forEach(p => storage.ref(p).delete().catch(() => {}));
+    }));
+    await db.collection('expenses_shows').doc(id).delete();
+    showToast('Show and its expenses removed', 'success');
+    closeDeleteShowModal();
     await loadShows();
   } catch (err) {
     showToast(err.message, 'error');
@@ -361,9 +459,9 @@ function renderExpenseTable() {
       <td>${escapeHtml(r.userName)}<br><span class="muted">${escapeHtml(r.userEmail)}</span></td>
       <td>${receiptLinksHtml(r)}</td>
       <td>${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : ''}</td>
-      <td class="amount-cell">${money(r.amount)}</td>
+      <td class="amount-cell${r.paid ? '' : ' unpaid'}">${money(r.amount)}</td>
       <td><span class="badge ${r.paid ? 'badge-success' : 'badge-warning'}">${r.paid ? 'Paid' : 'Unpaid'}</span></td>
-      <td><button class="btn btn-danger btn-sm" data-delete-expense="${r.id}">Delete</button></td>
+      <td><button class="icon-btn icon-btn-danger" data-delete-expense="${r.id}" title="Delete" aria-label="Delete">${ICON_TRASH}</button></td>
     </tr>
   `).join('') || `<tr><td colspan="8" class="empty-state">No expenses match these filters.</td></tr>`;
 }
@@ -381,9 +479,10 @@ document.getElementById('expenseTableBody').addEventListener('change', (e) => {
 });
 
 document.getElementById('expenseTableBody').addEventListener('click', async (e) => {
-  if (e.target.matches('[data-delete-expense]')) {
+  const deleteBtn = e.target.closest('[data-delete-expense]'); // icon-btn's <svg> is the actual click target
+  if (deleteBtn) {
     if (!confirm('Delete this expense? This cannot be undone.')) return;
-    const id = e.target.getAttribute('data-delete-expense');
+    const id = deleteBtn.getAttribute('data-delete-expense');
     const row = allExpenses.find(r => r.id === id);
     try {
       await db.collection('expenses').doc(id).delete();
@@ -469,9 +568,9 @@ function renderReports() {
   document.getElementById('reportByShowBody').innerHTML = byShowReport(rows).map(r => `
     <tr>
       <td>${escapeHtml(r.name)}</td>
-      <td>${r.count}</td>
+      <td class="amount-cell">${r.count}</td>
       <td class="amount-cell">${money(r.total)}</td>
-      <td class="amount-cell">${money(r.unpaid)}</td>
+      <td class="amount-cell${r.unpaid ? ' unpaid' : ''}">${money(r.unpaid)}</td>
       <td class="amount-cell">${money(r.paid)}</td>
     </tr>
   `).join('') || `<tr><td colspan="5" class="empty-state">No expenses match these filters.</td></tr>`;
@@ -480,9 +579,9 @@ function renderReports() {
     <tr>
       <td>${escapeHtml(r.name)}</td>
       <td>${escapeHtml(r.email)}</td>
-      <td>${r.count}</td>
+      <td class="amount-cell">${r.count}</td>
       <td class="amount-cell">${money(r.total)}</td>
-      <td class="amount-cell">${money(r.unpaid)}</td>
+      <td class="amount-cell${r.unpaid ? ' unpaid' : ''}">${money(r.unpaid)}</td>
       <td class="amount-cell">${money(r.paid)}</td>
     </tr>
   `).join('') || `<tr><td colspan="6" class="empty-state">No expenses match these filters.</td></tr>`;
@@ -494,7 +593,7 @@ function renderReports() {
       <td>${escapeHtml(r.userName)}<br><span class="muted">${escapeHtml(r.userEmail)}</span></td>
       <td>${receiptLinksHtml(r)}</td>
       <td>${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : ''}</td>
-      <td class="amount-cell">${money(r.amount)}</td>
+      <td class="amount-cell${r.paid ? '' : ' unpaid'}">${money(r.amount)}</td>
       <td><span class="badge ${r.paid ? 'badge-success' : 'badge-warning'}">${r.paid ? 'Paid' : 'Unpaid'}</span></td>
     </tr>
   `).join('') || `<tr><td colspan="7" class="empty-state">No expenses match these filters.</td></tr>`;
@@ -626,7 +725,7 @@ function renderNotifyEmailList() {
     <div class="item-row">
       <div class="item-name">${escapeHtml(email)}</div>
       <div class="item-actions">
-        <button class="btn btn-danger btn-sm" data-remove-notify-email="${escapeHtml(email)}">Remove</button>
+        <button class="icon-btn icon-btn-danger" data-remove-notify-email="${escapeHtml(email)}" title="Remove" aria-label="Remove">${ICON_TRASH}</button>
       </div>
     </div>
   `).join('') || '<p class="empty-state">No notification emails yet — add one above.</p>';
@@ -650,8 +749,9 @@ document.getElementById('addNotifyEmailForm').addEventListener('submit', async (
 });
 
 document.getElementById('notifyEmailList').addEventListener('click', async (e) => {
-  if (!e.target.matches('[data-remove-notify-email]')) return;
-  const email = e.target.getAttribute('data-remove-notify-email');
+  const btn = e.target.closest('[data-remove-notify-email]'); // icon-btn's <svg> is the actual click target
+  if (!btn) return;
+  const email = btn.getAttribute('data-remove-notify-email');
   try {
     await db.collection('expenses_config').doc('settings').set({
       notifyEmails: firebase.firestore.FieldValue.arrayRemove(email),
@@ -836,6 +936,7 @@ function renderExpensesUserList() {
         <label style="display:flex;align-items:center;gap:5px;font-size:12px">
           <input type="checkbox" data-toggle-expenses="${u.id}" ${u.access.expenses ? 'checked' : ''}> Expenses access
         </label>
+        <button type="button" class="btn btn-secondary btn-sm" data-view-user-expenses="${escapeHtml(u.email)}">View expenses</button>
         <button type="button" class="btn btn-secondary btn-sm" data-send-link="${u.id}">Send link</button>
       </div>
     </div>
@@ -859,10 +960,25 @@ document.getElementById('expensesUserList').addEventListener('change', async (e)
 
 document.getElementById('expensesUserList').addEventListener('click', (e) => {
   const uid = e.target.getAttribute('data-send-link');
-  if (!uid) return;
-  const user = expensesUsers.find(u => u.id === uid);
-  if (user) showSendLinkModal(user.name, user.email);
+  if (uid) {
+    const user = expensesUsers.find(u => u.id === uid);
+    if (user) showSendLinkModal(user.name, user.email);
+    return;
+  }
+  const email = e.target.getAttribute('data-view-user-expenses');
+  if (email) openUserExpenses(email);
 });
+
+// Jumps to the Expenses tab pre-filtered to just this person (every status, not just Unpaid,
+// same reasoning as openShowExpenses above). filterUser matches name-or-email substring, and an
+// email is always unique, so it's the safer of the two to filter on here.
+function openUserExpenses(email) {
+  document.getElementById('filterShow').value = '';
+  document.getElementById('filterUser').value = email;
+  document.getElementById('filterPaid').value = '';
+  renderExpenseTable();
+  activateTab('dashboard');
+}
 
 document.getElementById('newUserLinkCloseBtn').addEventListener('click', closeSendLinkModal);
 document.getElementById('newUserLinkDoneBtn').addEventListener('click', closeSendLinkModal);
