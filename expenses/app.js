@@ -79,19 +79,11 @@ document.querySelectorAll('.tab-btn[data-screen]').forEach(btn => {
 // This is the personal, install-it-on-your-phone entry app — someone re-opening it to submit
 // another expense shouldn't have to sign back in every time, so "leave the app" no longer signs
 // out (that stays on the change-password screen's own Sign out button, which is a genuine
-// escape hatch, not this). window.close() is a no-op in most contexts a PWA actually runs in
-// (launched from the home screen, not window.open()'d by script) — it works on some platforms
-// (notably installed Android PWAs) but not others (iOS Safari standalone never allows it), so
-// the fallback for "nothing visibly happened" is a plain "you're done" screen either way.
+// escape hatch, not this). window.close() only actually works in some contexts a PWA runs in
+// (notably installed Android PWAs) — launched from the home screen rather than window.open()'d
+// by script, most others (iOS Safari standalone included) just ignore it.
 function closeApp() {
   window.close();
-  document.body.innerHTML = `
-    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;background:var(--bg)">
-      <div>
-        <h2 style="margin-bottom:8px">All done</h2>
-        <p class="muted">You can close this now — you'll stay signed in for next time.</p>
-      </div>
-    </div>`;
 }
 document.getElementById('menuSignOutBtn').addEventListener('click', closeApp);
 document.getElementById('pwaSidebarSignOutBtn').addEventListener('click', closeApp);
