@@ -449,11 +449,21 @@ function filteredExpenses() {
   });
 }
 
+// Which rows' own checkbox is ticked, for the bulk Delete selected button — a Set rather than
+// tracking it on each row's own data, since filtering/live updates rebuild the table constantly
+// and this needs to survive that. Pruned to whatever still exists in allExpenses on every
+// render, so ticking a row then deleting it via its own icon-btn doesn't leave a stale id
+// sitting around forever (harmless — Firestore's delete() on an already-gone doc is a silent
+// no-op — but there's no reason to let it accumulate).
+let selectedExpenseIds = new Set();
+
 function renderExpenseTable() {
+  selectedExpenseIds = new Set([...selectedExpenseIds].filter(id => allExpenses.some(r => r.id === id)));
   const rows = filteredExpenses();
   const tbody = document.getElementById('expenseTableBody');
   tbody.innerHTML = rows.map(r => `
     <tr>
+      <td><input type="checkbox" data-select-expense="${r.id}" ${selectedExpenseIds.has(r.id) ? 'checked' : ''}></td>
       <td>${escapeHtml(r.showName || '—')}</td>
       <td>${escapeHtml(r.description)}</td>
       <td>${escapeHtml(r.userName)}<br><span class="muted">${escapeHtml(r.userEmail)}</span></td>
@@ -463,8 +473,45 @@ function renderExpenseTable() {
       <td><span class="badge ${r.paid ? 'badge-success' : 'badge-warning'}">${r.paid ? 'Paid' : 'Unpaid'}</span></td>
       <td><button class="icon-btn icon-btn-danger" data-delete-expense="${r.id}" title="Delete" aria-label="Delete">${ICON_TRASH}</button></td>
     </tr>
-  `).join('') || `<tr><td colspan="8" class="empty-state">No expenses match these filters.</td></tr>`;
+  `).join('') || `<tr><td colspan="9" class="empty-state">No expenses match these filters.</td></tr>`;
+
+  document.getElementById('expenseSelectAll').checked = rows.length > 0 && rows.every(r => selectedExpenseIds.has(r.id));
+  updateDeleteSelectedBtn();
 }
+
+function updateDeleteSelectedBtn() {
+  const btn = document.getElementById('deleteSelectedBtn');
+  btn.style.display = selectedExpenseIds.size ? '' : 'none';
+  btn.textContent = `Delete selected (${selectedExpenseIds.size})`;
+}
+
+document.getElementById('expenseSelectAll').addEventListener('change', (e) => {
+  const rows = filteredExpenses();
+  rows.forEach(r => { if (e.target.checked) selectedExpenseIds.add(r.id); else selectedExpenseIds.delete(r.id); });
+  renderExpenseTable();
+});
+
+document.getElementById('deleteSelectedBtn').addEventListener('click', async () => {
+  const ids = [...selectedExpenseIds];
+  if (!ids.length) return;
+  if (!confirm(`Delete ${ids.length} selected expense${ids.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+  const btn = document.getElementById('deleteSelectedBtn');
+  btn.disabled = true;
+  try {
+    for (const id of ids) {
+      const row = allExpenses.find(r => r.id === id);
+      await db.collection('expenses').doc(id).delete();
+      if (row) receiptPathsOf(row).forEach(p => storage.ref(p).delete().catch(() => {}));
+    }
+    selectedExpenseIds.clear();
+    showToast(`${ids.length} expense${ids.length === 1 ? '' : 's'} deleted`, 'success');
+    // The live listener in subscribeExpenses re-renders as soon as the writes land.
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 ['filterShow', 'filterUser', 'filterPaid'].forEach(id => {
   document.getElementById(id).addEventListener('input', renderExpenseTable);
@@ -472,6 +519,16 @@ function renderExpenseTable() {
 });
 
 document.getElementById('expenseTableBody').addEventListener('change', (e) => {
+  if (e.target.matches('[data-select-expense]')) {
+    const id = e.target.getAttribute('data-select-expense');
+    if (e.target.checked) selectedExpenseIds.add(id); else selectedExpenseIds.delete(id);
+    // Just the select-all checkbox + button, not a full re-render — that'd rebuild every row's
+    // own checkbox mid-click, right under the one just ticked.
+    const rows = filteredExpenses();
+    document.getElementById('expenseSelectAll').checked = rows.length > 0 && rows.every(r => selectedExpenseIds.has(r.id));
+    updateDeleteSelectedBtn();
+    return;
+  }
   if (!e.target.matches('[data-view-receipt-select]')) return;
   const path = e.target.value;
   e.target.value = '';
