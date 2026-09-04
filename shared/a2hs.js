@@ -13,6 +13,9 @@
 (function () {
   if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) return;
   if (window.self !== window.top) return; // never inside the showmanager shell's iframe
+  // Desktop Chrome/Edge support installing a PWA too (beforeinstallprompt fires there as well),
+  // but "add to home screen" only really means anything on a phone — skip it entirely on a PC.
+  if (!/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return;
   const KEY = 'a2hs_dismissed_' + location.pathname.replace(/\W+/g, '_');
   if (localStorage.getItem(KEY)) return;
 
