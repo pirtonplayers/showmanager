@@ -458,12 +458,14 @@ function filteredExpenses() {
 let selectedExpenseIds = new Set();
 
 function renderExpenseTable() {
-  selectedExpenseIds = new Set([...selectedExpenseIds].filter(id => allExpenses.some(r => r.id === id)));
+  // Bulk delete is for cleaning up old paid records — an unpaid expense doesn't even get a
+  // checkbox, so there's no way to select (and so no risk of bulk-deleting) one by mistake.
+  selectedExpenseIds = new Set([...selectedExpenseIds].filter(id => allExpenses.some(r => r.id === id && r.paid)));
   const rows = filteredExpenses();
   const tbody = document.getElementById('expenseTableBody');
   tbody.innerHTML = rows.map(r => `
     <tr>
-      <td><input type="checkbox" data-select-expense="${r.id}" ${selectedExpenseIds.has(r.id) ? 'checked' : ''}></td>
+      <td>${r.paid ? `<input type="checkbox" data-select-expense="${r.id}" ${selectedExpenseIds.has(r.id) ? 'checked' : ''}>` : ''}</td>
       <td>${escapeHtml(r.showName || '—')}</td>
       <td>${escapeHtml(r.description)}</td>
       <td>${escapeHtml(r.userName)}<br><span class="muted">${escapeHtml(r.userEmail)}</span></td>
@@ -475,7 +477,10 @@ function renderExpenseTable() {
     </tr>
   `).join('') || `<tr><td colspan="9" class="empty-state">No expenses match these filters.</td></tr>`;
 
-  document.getElementById('expenseSelectAll').checked = rows.length > 0 && rows.every(r => selectedExpenseIds.has(r.id));
+  const paidRows = rows.filter(r => r.paid);
+  const selectAll = document.getElementById('expenseSelectAll');
+  selectAll.style.visibility = paidRows.length ? '' : 'hidden'; // nothing to select against the default Unpaid-only filter
+  selectAll.checked = paidRows.length > 0 && paidRows.every(r => selectedExpenseIds.has(r.id));
   updateDeleteSelectedBtn();
 }
 
@@ -486,8 +491,9 @@ function updateDeleteSelectedBtn() {
 }
 
 document.getElementById('expenseSelectAll').addEventListener('change', (e) => {
-  const rows = filteredExpenses();
-  rows.forEach(r => { if (e.target.checked) selectedExpenseIds.add(r.id); else selectedExpenseIds.delete(r.id); });
+  filteredExpenses().filter(r => r.paid).forEach(r => {
+    if (e.target.checked) selectedExpenseIds.add(r.id); else selectedExpenseIds.delete(r.id);
+  });
   renderExpenseTable();
 });
 
@@ -524,8 +530,8 @@ document.getElementById('expenseTableBody').addEventListener('change', (e) => {
     if (e.target.checked) selectedExpenseIds.add(id); else selectedExpenseIds.delete(id);
     // Just the select-all checkbox + button, not a full re-render — that'd rebuild every row's
     // own checkbox mid-click, right under the one just ticked.
-    const rows = filteredExpenses();
-    document.getElementById('expenseSelectAll').checked = rows.length > 0 && rows.every(r => selectedExpenseIds.has(r.id));
+    const paidRows = filteredExpenses().filter(r => r.paid);
+    document.getElementById('expenseSelectAll').checked = paidRows.length > 0 && paidRows.every(r => selectedExpenseIds.has(r.id));
     updateDeleteSelectedBtn();
     return;
   }
