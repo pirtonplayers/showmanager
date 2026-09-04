@@ -373,6 +373,19 @@ let pendingExpenses = [];
 let editingPendingId = null; // id of the pending item currently loaded into the form, or null
 let editingRemovedReceiptPaths = []; // its receipts marked for removal, not yet actually deleted
 
+// Fetches each path's download URL and opens it in its own tab — shared by the pending list's
+// own "view" button and the editing view's per-receipt badges below.
+async function viewReceipts(paths) {
+  for (const path of paths) {
+    try {
+      const url = await storage.ref(path).getDownloadURL();
+      window.open(url, '_blank');
+    } catch (err) {
+      showToast('Could not load that receipt: ' + err.message, 'error');
+    }
+  }
+}
+
 function renderPendingList() {
   const section = document.getElementById('pendingSection');
   const list = document.getElementById('pendingList');
@@ -391,6 +404,10 @@ function renderPendingList() {
       <div class="pec-right">
         <div class="pec-amount">${money(p.amount)}</div>
         <div style="display:flex;gap:6px">
+          ${p.receiptPaths.length ? `
+          <button type="button" class="icon-btn" data-view-pending="${p.id}" title="View receipt${p.receiptPaths.length === 1 ? '' : 's'}" aria-label="View receipt">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>` : ''}
           <button type="button" class="icon-btn" data-edit-pending="${p.id}" title="Edit" aria-label="Edit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
           </button>
@@ -427,11 +444,16 @@ function renderEditingExistingReceipts() {
   if (!remaining.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = 'flex';
   el.innerHTML = remaining
-    .map((rp, i) => `<span class="badge badge-warning" data-existing-receipt="${escapeHtml(rp)}" style="cursor:pointer">Receipt ${i + 1} ×</span>`)
+    .map((rp, i) => `<span class="badge badge-warning">
+        <span data-view-existing-receipt="${escapeHtml(rp)}" style="cursor:pointer">Receipt ${i + 1}</span>
+        <span data-existing-receipt="${escapeHtml(rp)}" style="cursor:pointer;margin-left:2px" title="Remove">×</span>
+      </span>`)
     .join('');
 }
 
 document.getElementById('editingExistingReceipts').addEventListener('click', (e) => {
+  const viewPath = e.target.getAttribute('data-view-existing-receipt');
+  if (viewPath) { viewReceipts([viewPath]); return; }
   const path = e.target.getAttribute('data-existing-receipt');
   if (!path) return;
   editingRemovedReceiptPaths.push(path);
@@ -450,12 +472,21 @@ function resetExpenseForm() {
 document.getElementById('cancelEditBtn').addEventListener('click', (e) => { e.preventDefault(); resetExpenseForm(); });
 
 document.getElementById('pendingList').addEventListener('click', (e) => {
-  if (e.target.matches('[data-edit-pending]')) {
-    startEditPending(e.target.getAttribute('data-edit-pending'));
+  // .closest(), not .matches() — each icon-btn's actual click target is often its inner <svg>.
+  const viewBtn = e.target.closest('[data-view-pending]');
+  if (viewBtn) {
+    const p = pendingExpenses.find(x => x.id === viewBtn.getAttribute('data-view-pending'));
+    if (p) viewReceipts(p.receiptPaths);
     return;
   }
-  if (!e.target.matches('[data-remove-pending]')) return;
-  const id = e.target.getAttribute('data-remove-pending');
+  const editBtn = e.target.closest('[data-edit-pending]');
+  if (editBtn) {
+    startEditPending(editBtn.getAttribute('data-edit-pending'));
+    return;
+  }
+  const removeBtn = e.target.closest('[data-remove-pending]');
+  if (!removeBtn) return;
+  const id = removeBtn.getAttribute('data-remove-pending');
   const idx = pendingExpenses.findIndex(p => p.id === id);
   if (idx === -1) return;
   const [removed] = pendingExpenses.splice(idx, 1);
