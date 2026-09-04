@@ -10,7 +10,7 @@
   <title>Pirton Players</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=1.0.26">
+  <link rel="stylesheet" href="style.css?v=1.0.27">
 </head>
 <body class="theme-portal">
 
@@ -75,13 +75,12 @@
 <div id="adminApp" style="display:none">
 
   <header class="admin-header">
-    <div style="position:relative">
+    <img src="icons/icon-192.png" alt="" width="32" height="32" style="border-radius:7px;flex-shrink:0">
+    <div class="header-title">Pirton Players</div>
+    <div style="position:relative;margin-left:auto">
       <button class="hamburger-btn" id="menuBtn">☰</button>
       <div id="shellNavDropdown" class="dropdown-menu"></div>
     </div>
-    <img src="icons/icon-192.png" alt="" width="32" height="32" style="border-radius:7px;flex-shrink:0">
-    <div class="header-title">Pirton Players</div>
-    <div style="font-size:11px;opacity:.55;margin-left:auto" id="headerVersion"></div>
   </header>
 
   <!-- The one generalised menu for the whole suite — rendered by renderShellNav() in portal.js.
@@ -195,6 +194,10 @@
        keep their own centred/padded layout — see #workAreaFrames in style.css. ── -->
   <div id="workAreaFrames"></div>
 
+  <div class="admin-content" style="padding-top:0">
+    <p class="footer-version" id="headerVersion"></p>
+  </div>
+
 </div>
 
 <div id="toast"></div>
@@ -203,11 +206,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="version.js?v=1.0.26"></script>
-<script src="shared/firebase-config.js?v=1.0.26"></script>
-<script src="shared/auth.js?v=1.0.26"></script>
-<script src="shared/suite-nav.js?v=1.0.26"></script>
-<script src="shared/a2hs.js?v=1.0.26"></script>
-<script src="portal.js?v=1.0.26"></script>
+<script src="version.js?v=1.0.27"></script>
+<script src="shared/firebase-config.js?v=1.0.27"></script>
+<script src="shared/auth.js?v=1.0.27"></script>
+<script src="shared/suite-nav.js?v=1.0.27"></script>
+<script src="shared/a2hs.js?v=1.0.27"></script>
+<script src="portal.js?v=1.0.27"></script>
 </body>
 </html>

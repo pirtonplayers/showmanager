@@ -48,6 +48,10 @@ const lastTab = {};          // ACCESS_APPS[].key -> last APP_SUBNAV tab id chos
 const frames = {};           // ACCESS_APPS[].key -> its <iframe>, created lazily
 
 function activatePane(key) {
+  // <main> itself (not just which .work-pane is active inside it) has to hide when an app
+  // iframe is showing instead — its own padding stuck around empty otherwise, a blank white
+  // strip between the header and the iframe below it even with every pane inactive.
+  document.getElementById('workArea').style.display = key ? '' : 'none';
   document.querySelectorAll('.work-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + key));
   Object.entries(frames).forEach(([k, frame]) => frame.classList.toggle('active', k === key));
 }
@@ -128,8 +132,24 @@ function renderShellNav() {
   document.getElementById('shellNavDropdown').innerHTML = html;
 }
 
+// window.close() is a no-op in most contexts a PWA actually runs in (launched from the home
+// screen, not window.open()'d by script) — works on some platforms (notably installed Android
+// PWAs), not others (iOS Safari standalone never allows it) — so the fallback for "nothing
+// visibly happened" is a plain "you're signed out" screen either way.
+async function signOutAndClose() {
+  await firebase.auth().signOut();
+  window.close();
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;background:var(--bg)">
+      <div>
+        <h2 style="margin-bottom:8px">Signed out</h2>
+        <p class="muted">You can close this now.</p>
+      </div>
+    </div>`;
+}
+
 function handleNavClick(e) {
-  if (e.target.closest('.signout-btn')) { firebase.auth().signOut(); return; }
+  if (e.target.closest('.signout-btn')) { signOutAndClose(); return; }
   const btn = e.target.closest('[data-pane],[data-app]');
   if (!btn) return;
   if (btn.dataset.pane) {

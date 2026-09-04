@@ -157,7 +157,10 @@ input[type="file"].form-control { padding: 7px 10px; }
 
 /* ════════════════════════ ADMIN LAYOUT ════════════════════════ */
 .admin-header { background: var(--primary); color: #fff; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 16px; box-shadow: var(--shadow-md); position: sticky; top: 0; z-index: 100; }
-.header-title { font-size: 14px; opacity: .85; }
+/* Absolutely centered regardless of how wide the icon (left) and hamburger (right) each are —
+   plain flex centering would drift off-true since those two aren't the same width. */
+.header-title { position: absolute; left: 0; right: 0; text-align: center; font-size: 14px; opacity: .85; pointer-events: none; }
+.footer-version { text-align: center; color: var(--text-muted); font-size: 12px; padding: 20px 0; }
 .hamburger-btn { background: none; border: none; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; }
 .hamburger-btn:hover { opacity: .8; }
 
@@ -165,8 +168,10 @@ input[type="file"].form-control { padding: 7px 10px; }
    .open class, not inline style.display. The delayed visibility keeps it non-interactive once
    closed without cutting the closing animation short. */
 .dropdown-menu {
-  position: absolute; left: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 6px; display: flex; flex-direction: column; gap: 4px; z-index: 50; min-width: 200px;
-  opacity: 0; visibility: hidden; transform: translateY(-8px) scale(.98); transform-origin: top left;
+  /* Anchored to the right, not left — the hamburger that opens this now sits at the far right
+     of the header, so a left-anchored menu (min-width 200px) would run off the viewport edge. */
+  position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 6px; display: flex; flex-direction: column; gap: 4px; z-index: 50; min-width: 200px;
+  opacity: 0; visibility: hidden; transform: translateY(-8px) scale(.98); transform-origin: top right;
   transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s;
 }
 .dropdown-menu.open {
