@@ -515,10 +515,20 @@ function renderNewReceiptPreview() {
     img.addEventListener('click', () => openReceiptModal(url, () => {
       URL.revokeObjectURL(url);
       newReceiptFiles = newReceiptFiles.filter(f => f !== file);
+      syncReceiptInput();
       renderNewReceiptPreview();
     }));
     el.appendChild(img);
   });
+}
+// The native <input type="file"> itself keeps whatever was last actually chosen through its own
+// picker — deleting one via the thumbnail above only ever touched newReceiptFiles, so the input
+// (and whatever text a browser shows next to it, e.g. "3 files") never noticed. DataTransfer is
+// the only way to hand a file input a FileList it didn't get from the OS picker.
+function syncReceiptInput() {
+  const dt = new DataTransfer();
+  newReceiptFiles.forEach(f => dt.items.add(f));
+  document.getElementById('receiptInput').files = dt.files;
 }
 document.getElementById('receiptInput').addEventListener('change', (e) => {
   newReceiptFiles = Array.from(e.target.files || []);
