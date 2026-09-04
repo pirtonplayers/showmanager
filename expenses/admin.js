@@ -688,6 +688,21 @@ document.getElementById('reportDetailBody').addEventListener('change', (e) => {
   if (path) viewReceipt(path);
 });
 
+// window.print() + a print-only stylesheet (see @media print in style.css) — same approach as
+// budget's own Print/PDF, rather than a separate PDF-generating library: the browser's own
+// "Save as PDF" print destination already covers that.
+document.getElementById('printReportBtn').addEventListener('click', () => {
+  const showName = document.getElementById('reportFilterShow').selectedOptions[0]?.textContent || 'All shows';
+  const from = document.getElementById('reportFilterFrom').value;
+  const to = document.getElementById('reportFilterTo').value;
+  const dateRange = (from || to) ? `${from ? formatDate(new Date(from)) : 'the start'} – ${to ? formatDate(new Date(to)) : 'now'}` : 'All dates';
+  const paid = document.getElementById('reportFilterPaid').value;
+  const paidLabel = paid === '1' ? 'Paid only' : paid === '0' ? 'Unpaid only' : 'Paid + Unpaid';
+  document.getElementById('printReportMeta').textContent =
+    `${showName} · ${dateRange} · ${paidLabel} · Generated ${formatDate(new Date())}`;
+  window.print();
+});
+
 document.getElementById('exportReportBtn').addEventListener('click', () => {
   const rows = reportFilteredExpenses();
   if (!rows.length) { showToast('Nothing to export with the current filters', 'info'); return; }

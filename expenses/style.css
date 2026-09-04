@@ -380,3 +380,31 @@ input[type="file"].form-control { padding: 7px 10px; }
   .filters-toolbar { flex-direction: column; align-items: stretch; }
   .filters-toolbar .form-control { width: 100%; }
 }
+
+/* ── Print / PDF ──────────────────────────────────────────────────────────
+   window.print() on the Reports tab (printReportBtn in admin.js): hide the app chrome and this
+   tab's own filters/buttons, show .print-header instead, and print the three report tables —
+   same approach as budget's own Print/PDF (a browser's "Save as PDF" destination already covers
+   what a PDF export needs, no separate library). Every other tab is already display:none
+   whenever it's not the active one (see .tab-panel), so there's nothing extra to hide there. */
+@media print {
+  @page { size: A4 portrait; margin: 12mm; }
+  body { font-size: 11px; }
+  .admin-content, .admin-content * { font-family: Arial, Helvetica, sans-serif !important; font-weight: 400 !important; }
+
+  .admin-header, .admin-sidebar, .sidebar-toggle, #updateBanner, .no-print {
+    display: none !important;
+  }
+  .admin-content { margin: 0 !important; padding: 0 !important; max-width: none; }
+
+  .print-header { display: block !important; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid #000; text-align: center; }
+  .print-header h1 { font-size: 20px; margin-bottom: 2px; }
+  .print-header p { font-size: 11px; }
+
+  .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; margin-bottom: 8px !important; }
+  .card-header { padding: 5px 10px; }
+  .card-header h2 { font-size: 12px; }
+  .card-body { padding: 6px 10px; }
+  .expense-table th { font-size: 9px; padding: 3px 8px; }
+  .expense-table td { padding: 3px 8px !important; font-size: 10px; }
+}

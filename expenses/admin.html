@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.87"></script>
+  <script src="../shared/embed.js?v=1.0.88"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#92400e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Pirton Players Expenses — Manager</title>
   <link rel="manifest" href="admin-manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-admin.png">
-  <link rel="stylesheet" href="style.css?v=1.0.87">
+  <link rel="stylesheet" href="style.css?v=1.0.88">
 </head>
 <body class="theme-admin">
 
@@ -192,12 +192,22 @@
 
     <!-- ── REPORTS ── -->
     <div id="tab-reports" class="tab-panel">
-      <div class="section-header">
+      <div class="section-header no-print">
         <h2>Reports</h2>
-        <button class="btn btn-secondary btn-sm" id="exportReportBtn">⬇ Export report</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" id="exportReportBtn">⬇ Export report</button>
+          <button class="btn btn-secondary btn-sm" id="printReportBtn">🖨 Export to PDF</button>
+        </div>
       </div>
 
-      <div class="filters-toolbar">
+      <!-- Shown only when printing (window.print(), triggered by printReportBtn) — see @media
+           print in style.css, which hides the app chrome/filters/buttons above and below instead. -->
+      <div class="print-header" style="display:none">
+        <h1>Pirton Players Expenses — Report</h1>
+        <p class="muted" id="printReportMeta"></p>
+      </div>
+
+      <div class="filters-toolbar no-print">
         <select id="reportFilterShow" class="form-control"><option value="">All shows</option></select>
         <input type="date" id="reportFilterFrom" class="form-control" title="From date">
         <input type="date" id="reportFilterTo" class="form-control" title="To date">
@@ -433,10 +443,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="version.js?v=1.0.87"></script>
-<script src="../shared/firebase-config.js?v=1.0.87"></script>
-<script src="../shared/auth.js?v=1.0.87"></script>
-<script src="../shared/suite-nav.js?v=1.0.87"></script>
-<script src="admin.js?v=1.0.87"></script>
+<script src="version.js?v=1.0.88"></script>
+<script src="../shared/firebase-config.js?v=1.0.88"></script>
+<script src="../shared/auth.js?v=1.0.88"></script>
+<script src="../shared/suite-nav.js?v=1.0.88"></script>
+<script src="admin.js?v=1.0.88"></script>
 </body>
 </html>
