@@ -864,7 +864,9 @@ document.getElementById('markPaidSubmitBtn').addEventListener('click', async () 
 // changes (Expenses admin, other apps, Manager) and managing existing accounts still live in
 // the portal's Users screen only.
 
-const ENTRY_URL = new URL('index.html', location.href).href;
+// Points at the portal root, not this app's own entry page — sign-in is unified there now, and
+// it's what shows someone whatever tiles they actually have (just Expenses, for most of these).
+const ENTRY_URL = new URL('../index.html', location.href).href;
 
 // Shared by both "just created" (addUserForm submit) and "send an existing user their link
 // again" (the All users list's per-row Send link button) — same modal, same fields either way.

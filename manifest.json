@@ -1,6 +1,6 @@
 {
-  "name": "Pirton Players — showmanager",
-  "short_name": "showmanager",
+  "name": "Pirton Players",
+  "short_name": "Pirton Players",
   "description": "Shared login and dashboard for Pirton Players' apps",
   "start_url": "./index.html",
   "display": "standalone",

@@ -20,7 +20,7 @@ fs.writeFileSync(file, content.replace(/APP_VERSION = '[\d.]+'/, `APP_VERSION = 
 // nothing stale to serve, because nothing has ever been requested at that exact URL before.
 const ASSETS = [
   'style.css', 'app.js', 'admin.js', 'version.js',
-  '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js',
+  '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/a2hs.js',
 ];
 
 function restamp(text) {

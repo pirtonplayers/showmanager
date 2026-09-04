@@ -23,7 +23,6 @@ const SMTP_FROM = defineSecret('SMTP_FROM');
 const SMTP_SECRETS = [SMTP_USER, SMTP_PASS, SMTP_FROM];
 
 const EXPENSES_ADMIN_URL = 'https://antonjung.github.io/showmanager/expenses/admin.html';
-const EXPENSES_ENTRY_URL = 'https://antonjung.github.io/showmanager/expenses/index.html';
 const PORTAL_URL = 'https://antonjung.github.io/showmanager/index.html';
 
 function transporter() {
@@ -260,10 +259,11 @@ exports.sendPortalUserLink = onCall({ region: 'europe-west1', secrets: SMTP_SECR
   return { ok: true };
 });
 
-// Emails a player a link to the expenses entry app plus whatever note the manager/expenses
-// admin typed. expensesAdmin-only (it only ever sends the fixed expenses entry link, so this
-// doesn't need full Manager); doesn't require the target to be an existing users/{uid} doc,
-// just an email address, so it also works for pointing someone brand new at the app.
+// Emails a player a link to the portal (not the expenses entry app directly — sign-in is
+// unified there now, and it's what shows them whatever tiles they actually have) plus whatever
+// note the manager/expenses admin typed. expensesAdmin-only (it's the expenses Users tab's own
+// send-link action); doesn't require the target to be an existing users/{uid} doc, just an
+// email address, so it also works for pointing someone brand new at the app.
 exports.sendUserLink = onCall({ region: 'europe-west1', secrets: SMTP_SECRETS }, async (request) => {
   await requireAppAccess(request, 'expensesAdmin');
   const email = request.data?.email;
@@ -280,7 +280,7 @@ exports.sendUserLink = onCall({ region: 'europe-west1', secrets: SMTP_SECRETS },
     ...mailBody([
       ...(message ? [...message.split('\n'), ''] : []),
       'Open the app:',
-      EXPENSES_ENTRY_URL,
+      PORTAL_URL,
     ]),
   });
 

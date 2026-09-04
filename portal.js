@@ -334,6 +334,12 @@ async function loadUsers() {
   renderUserList();
 }
 
+// Which row's Permissions dropdown is open — tracked separately from the <details> elements
+// themselves because renderUserList() below rebuilds the whole list (including on every
+// checkbox change inside that same dropdown, since toggling one re-saves and reloads), which
+// would otherwise silently collapse it back to closed on every single selection.
+let openPermissionsUid = null;
+
 function renderUserList() {
   const currentUid = firebase.auth().currentUser?.uid;
   const search = document.getElementById('userSearchInput').value.trim().toLowerCase();
@@ -357,7 +363,7 @@ function renderUserList() {
         <div class="item-sub">${escapeHtml(u.email)}</div>
       </div>
       <div class="access-flags item-actions">
-        <details class="access-dropdown">
+        <details class="access-dropdown" data-uid="${u.id}" ${openPermissionsUid === u.id ? 'open' : ''}>
           <summary title="${escapeHtml(summary)}">Permissions</summary>
           <div class="access-dropdown-menu">
             <label>
@@ -383,11 +389,27 @@ document.getElementById('userSearchInput').addEventListener('input', renderUserL
 // Only one row's Permissions dropdown open at a time. 'toggle' doesn't bubble, so this has to
 // be a capture-phase listener to catch it via delegation from a single spot on the container.
 document.getElementById('userList').addEventListener('toggle', (e) => {
-  if (!e.target.matches?.('.access-dropdown') || !e.target.open) return;
-  document.querySelectorAll('#userList .access-dropdown[open]').forEach(d => {
-    if (d !== e.target) d.removeAttribute('open');
-  });
+  if (!e.target.matches?.('.access-dropdown')) return;
+  const uid = e.target.getAttribute('data-uid');
+  if (e.target.open) {
+    openPermissionsUid = uid;
+    document.querySelectorAll('#userList .access-dropdown[open]').forEach(d => {
+      if (d !== e.target) d.removeAttribute('open');
+    });
+  } else if (openPermissionsUid === uid) {
+    openPermissionsUid = null;
+  }
 }, true);
+
+// Closes it on a click anywhere outside — <details> has no such behaviour natively (only
+// clicking its own <summary> again toggles it), and toggling a checkbox inside it re-renders
+// the whole list (see openPermissionsUid above), which would otherwise leave nothing to close
+// it except that same summary click.
+document.addEventListener('click', (e) => {
+  if (!openPermissionsUid || e.target.closest('.access-dropdown')) return;
+  document.querySelectorAll('#userList .access-dropdown[open]').forEach(d => d.removeAttribute('open'));
+  openPermissionsUid = null;
+});
 
 document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   e.preventDefault();

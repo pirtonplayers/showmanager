@@ -12,7 +12,7 @@ const next    = parseInt(m[2], 10) + 1;
 const version = `${m[1]}${next}`;
 fs.writeFileSync(file, content.replace(/APP_VERSION = '[\d.]+'/, `APP_VERSION = '${version}'`));
 
-const ASSETS = ['style.css', 'portal.js', 'version.js', 'shared/firebase-config.js', 'shared/auth.js', 'shared/suite-nav.js'];
+const ASSETS = ['style.css', 'portal.js', 'version.js', 'shared/firebase-config.js', 'shared/auth.js', 'shared/suite-nav.js', 'shared/a2hs.js'];
 
 function restamp(text) {
   for (const asset of ASSETS) {

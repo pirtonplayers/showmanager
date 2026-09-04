@@ -53,6 +53,15 @@ input, textarea, select, [contenteditable] {
 .icon-btn:hover { background: var(--bg); color: var(--text); border-color: var(--text-muted); }
 .icon-btn.icon-btn-danger:hover { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
 
+/* ── Modals ── */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 200; }
+.modal-card { background: var(--surface); border-radius: 14px; max-width: 480px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow-md); }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+.modal-header h3 { font-size: 16px; font-weight: 700; }
+.modal-close-btn { background: none; border: none; font-size: 22px; line-height: 1; color: var(--text-muted); cursor: pointer; padding: 4px; }
+.modal-close-btn:hover { color: var(--text); }
+.modal-body { padding: 18px; }
+
 /* ── Cards ── */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); }
