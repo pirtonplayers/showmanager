@@ -132,24 +132,25 @@ function renderShellNav() {
   document.getElementById('shellNavDropdown').innerHTML = html;
 }
 
-// window.close() is a no-op in most contexts a PWA actually runs in (launched from the home
-// screen, not window.open()'d by script) — works on some platforms (notably installed Android
-// PWAs), not others (iOS Safari standalone never allows it) — so the fallback for "nothing
-// visibly happened" is a plain "you're signed out" screen either way.
-async function signOutAndClose() {
-  await firebase.auth().signOut();
+// Doesn't actually sign out any more — same as the expenses entry app's own Close app, staying
+// signed in is the point, this is just "I'm done for now". window.close() is a no-op in most
+// contexts a PWA actually runs in (launched from the home screen, not window.open()'d by
+// script) — works on some platforms (notably installed Android PWAs), not others (iOS Safari
+// standalone never allows it) — so the fallback for "nothing visibly happened" is a plain
+// "you're done" screen either way.
+function closeApp() {
   window.close();
   document.body.innerHTML = `
     <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;background:var(--bg)">
       <div>
-        <h2 style="margin-bottom:8px">Signed out</h2>
-        <p class="muted">You can close this now.</p>
+        <h2 style="margin-bottom:8px">All done</h2>
+        <p class="muted">You can close this now — you'll stay signed in for next time.</p>
       </div>
     </div>`;
 }
 
 function handleNavClick(e) {
-  if (e.target.closest('.signout-btn')) { signOutAndClose(); return; }
+  if (e.target.closest('.signout-btn')) { closeApp(); return; }
   const btn = e.target.closest('[data-pane],[data-app]');
   if (!btn) return;
   if (btn.dataset.pane) {
