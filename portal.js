@@ -127,27 +127,11 @@ function renderShellNav() {
       `).join('') + '</div>';
     }
   }
-  html += '<div class="dropdown-divider"></div><button class="tab-btn signout-btn">Close app</button>';
   document.getElementById('shellNavSidebar').innerHTML = html;
   document.getElementById('shellNavDropdown').innerHTML = html;
 }
 
-// Doesn't sign out — same as the expenses entry app's own Close app, staying signed in is the
-// point, this is just "I'm done for now". window.close() only actually works in some contexts a
-// PWA runs in (notably installed Android PWAs) — launched from the home screen rather than
-// window.open()'d by script, most others (iOS Safari standalone included) just ignore it.
-function closeApp() {
-  window.close();
-  // Browsers block a page closing a window it didn't itself open — installed PWAs are a partial
-  // exception (Android Chrome allows it for a fresh, single-entry session) but plenty of real
-  // devices still refuse it outright, with no way to detect that in advance. If window.close()
-  // above didn't take effect, this is the fallback: not really "closing" the app, but wiping the
-  // screen blank reads the same to whoever's holding the phone.
-  window.location.href = 'about:blank';
-}
-
 function handleNavClick(e) {
-  if (e.target.closest('.signout-btn')) { closeApp(); return; }
   const btn = e.target.closest('[data-pane],[data-app]');
   if (!btn) return;
   if (btn.dataset.pane) {

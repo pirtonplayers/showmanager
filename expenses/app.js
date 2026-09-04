@@ -76,23 +76,6 @@ document.querySelectorAll('.tab-btn[data-screen]').forEach(btn => {
     goTo(btn.dataset.screen);
   });
 });
-// This is the personal, install-it-on-your-phone entry app — someone re-opening it to submit
-// another expense shouldn't have to sign back in every time, so "leave the app" no longer signs
-// out (that stays on the change-password screen's own Sign out button, which is a genuine
-// escape hatch, not this). window.close() only actually works in some contexts a PWA runs in
-// (notably installed Android PWAs) — launched from the home screen rather than window.open()'d
-// by script, most others (iOS Safari standalone included) just ignore it.
-function closeApp() {
-  window.close();
-  // Browsers block a page closing a window it didn't itself open — installed PWAs are a partial
-  // exception (Android Chrome allows it for a fresh, single-entry session) but plenty of real
-  // devices still refuse it outright, with no way to detect that in advance. If window.close()
-  // above didn't take effect, this is the fallback: not really "closing" the app, but wiping the
-  // screen blank reads the same to whoever's holding the phone.
-  window.location.href = 'about:blank';
-}
-document.getElementById('menuSignOutBtn').addEventListener('click', closeApp);
-document.getElementById('pwaSidebarSignOutBtn').addEventListener('click', closeApp);
 
 // Desktop sidebar collapse — same mechanism as admin.html's, own localStorage key so the two
 // apps' collapsed/expanded state don't affect each other.
