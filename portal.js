@@ -138,6 +138,12 @@ function renderShellNav() {
 // window.open()'d by script, most others (iOS Safari standalone included) just ignore it.
 function closeApp() {
   window.close();
+  // Browsers block a page closing a window it didn't itself open — installed PWAs are a partial
+  // exception (Android Chrome allows it for a fresh, single-entry session) but plenty of real
+  // devices still refuse it outright, with no way to detect that in advance. If window.close()
+  // above didn't take effect, this is the fallback: not really "closing" the app, but wiping the
+  // screen blank reads the same to whoever's holding the phone.
+  window.location.href = 'about:blank';
 }
 
 function handleNavClick(e) {
