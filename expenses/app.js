@@ -372,17 +372,40 @@ function compressReceiptImage(file) {
 let pendingExpenses = [];
 let editingPendingId = null; // id of the pending item currently loaded into the form, or null
 let editingRemovedReceiptPaths = []; // its receipts marked for removal, not yet actually deleted
+let newReceiptFiles = []; // File objects picked in receiptInput but not yet uploaded/submitted
+
+// Shared full-size view every receipt thumbnail opens into (new-file preview, pending list,
+// editing view) — same modal, each just brings its own onDelete for what "delete" actually
+// means in that context (splice a not-yet-uploaded file / delete from Storage right away /
+// defer the delete until Update item is clicked).
+function openReceiptModal(src, onDelete) {
+  document.getElementById('receiptViewImg').src = src;
+  document.getElementById('receiptViewModal').style.display = 'flex';
+  document.getElementById('receiptViewDeleteBtn').onclick = () => {
+    if (!confirm('Delete this receipt photo?')) return;
+    onDelete();
+    closeReceiptModal();
+  };
+}
+function closeReceiptModal() {
+  document.getElementById('receiptViewModal').style.display = 'none';
+  document.getElementById('receiptViewImg').src = '';
+}
+document.getElementById('receiptViewCloseBtn').addEventListener('click', closeReceiptModal);
+document.getElementById('receiptViewModal').addEventListener('click', (e) => {
+  if (e.target.id === 'receiptViewModal') closeReceiptModal();
+});
 
 // Fetches path's download URL and swaps it into an already-on-screen <img> (which starts with
 // no src — see callers) — the actual clickable "picture" a receipt is viewed through, both in
 // the pending list and the editing view's own thumbnails below. Not fetched inline into the
 // list's own template string: getDownloadURL() is a network round-trip, and building the whole
 // list's HTML can't wait on every receipt's URL before showing anything.
-async function loadReceiptThumb(img, path) {
+async function loadReceiptThumb(img, path, onDelete) {
   try {
     const url = await storage.ref(path).getDownloadURL();
     img.src = url;
-    img.addEventListener('click', () => window.open(url, '_blank'));
+    img.addEventListener('click', () => openReceiptModal(url, onDelete));
   } catch (err) {
     img.replaceWith(Object.assign(document.createElement('span'), { className: 'muted', style: 'font-size:12px', textContent: 'Receipt unavailable' }));
   }
@@ -426,7 +449,13 @@ function renderPendingList() {
       img.className = 'receipt-thumb-sm';
       img.alt = 'Receipt photo';
       container.appendChild(img);
-      loadReceiptThumb(img, path);
+      // Deletes for real, right away — this item isn't open for editing, there's no "Update
+      // item"/Cancel step here to defer it to.
+      loadReceiptThumb(img, path, async () => {
+        try { await storage.ref(path).delete(); } catch (err) { /* already gone, fine */ }
+        p.receiptPaths = p.receiptPaths.filter(rp => rp !== path);
+        renderPendingList();
+      });
     });
   });
 }
@@ -443,6 +472,8 @@ function startEditPending(id) {
   document.getElementById('descInput').value = p.description;
   document.getElementById('amountInput').value = p.amount;
   document.getElementById('receiptInput').value = '';
+  newReceiptFiles = [];
+  renderNewReceiptPreview();
   renderEditingExistingReceipts();
   document.getElementById('editingNotice').style.display = 'block';
   document.getElementById('submitBtn').textContent = 'Update item';
@@ -454,29 +485,56 @@ function renderEditingExistingReceipts() {
   if (!remaining.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = 'flex';
   el.innerHTML = remaining
-    .map(rp => `<span class="receipt-thumb-wrap">
-        <img class="receipt-thumb-sm" alt="Receipt photo" data-existing-thumb="${escapeHtml(rp)}">
-        <button type="button" class="receipt-thumb-remove" data-existing-receipt="${escapeHtml(rp)}" title="Remove" aria-label="Remove">×</button>
-      </span>`)
+    .map(rp => `<img class="receipt-thumb-sm" alt="Receipt photo" data-existing-thumb="${escapeHtml(rp)}">`)
     .join('');
-  el.querySelectorAll('[data-existing-thumb]').forEach(img => loadReceiptThumb(img, img.getAttribute('data-existing-thumb')));
+  el.querySelectorAll('[data-existing-thumb]').forEach(img => {
+    const rp = img.getAttribute('data-existing-thumb');
+    // Deferred, not deleted from Storage here — the same as the old text-badge version, just
+    // recorded so the eventual Update item / Cancel decides whether it actually happens.
+    loadReceiptThumb(img, rp, () => {
+      editingRemovedReceiptPaths.push(rp);
+      renderEditingExistingReceipts();
+    });
+  });
 }
 
-document.getElementById('editingExistingReceipts').addEventListener('click', (e) => {
-  const removeBtn = e.target.closest('[data-existing-receipt]');
-  if (!removeBtn) return;
-  editingRemovedReceiptPaths.push(removeBtn.getAttribute('data-existing-receipt'));
-  renderEditingExistingReceipts();
+// Local-only preview of files just picked, before they're uploaded anywhere — object URLs
+// rather than a Storage round-trip, since there's nothing to fetch yet. Deleting one here just
+// drops it from newReceiptFiles; nothing's been written anywhere for it to undo.
+function renderNewReceiptPreview() {
+  const el = document.getElementById('newReceiptPreview');
+  el.innerHTML = '';
+  newReceiptFiles.forEach((file) => {
+    const url = URL.createObjectURL(file);
+    const img = document.createElement('img');
+    img.className = 'receipt-thumb-sm';
+    img.alt = 'Receipt photo';
+    img.src = url;
+    // Filtered out by reference, not index — an index captured here would go stale for every
+    // thumbnail after whichever one actually gets deleted.
+    img.addEventListener('click', () => openReceiptModal(url, () => {
+      URL.revokeObjectURL(url);
+      newReceiptFiles = newReceiptFiles.filter(f => f !== file);
+      renderNewReceiptPreview();
+    }));
+    el.appendChild(img);
+  });
+}
+document.getElementById('receiptInput').addEventListener('change', (e) => {
+  newReceiptFiles = Array.from(e.target.files || []);
+  renderNewReceiptPreview();
 });
 
 function resetExpenseForm() {
   editingPendingId = null;
   editingRemovedReceiptPaths = [];
+  newReceiptFiles = [];
   document.getElementById('editingNotice').style.display = 'none';
   document.getElementById('editingExistingReceipts').style.display = 'none';
   document.getElementById('editingExistingReceipts').innerHTML = '';
   document.getElementById('submitBtn').textContent = '+ Add to list';
-  document.getElementById('expenseForm').reset();
+  document.getElementById('expenseForm').reset(); // clears receiptInput, but doesn't fire 'change' — renderNewReceiptPreview() below has to be called explicitly
+  renderNewReceiptPreview();
 }
 document.getElementById('cancelEditBtn').addEventListener('click', (e) => { e.preventDefault(); resetExpenseForm(); });
 
@@ -509,7 +567,7 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
   const showName = showSelect.selectedOptions[0]?.dataset.name || '';
   const description = document.getElementById('descInput').value.trim();
   const amount = Number(document.getElementById('amountInput').value);
-  const files = Array.from(document.getElementById('receiptInput').files || []);
+  const files = newReceiptFiles;
 
   if (!showId) { statusEl.textContent = 'Please select a show.'; return; }
   if (!description) { statusEl.textContent = 'Please describe the expense.'; return; }

@@ -371,9 +371,7 @@ input[type="file"].form-control { padding: 7px 10px; }
    the pending list itself and the edit-pending view, where .receipt-thumb's full-width treatment
    would be too big. */
 .receipt-thumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.receipt-thumb-sm { position: relative; width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; }
-.receipt-thumb-wrap { position: relative; }
-.receipt-thumb-remove { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; background: var(--danger); color: #fff; border: none; font-size: 12px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.receipt-thumb-sm { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; }
 
 /* ── Responsive ── */
 @media (max-width: 600px) {
