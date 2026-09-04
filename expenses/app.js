@@ -460,24 +460,35 @@ function renderPendingList() {
   });
 }
 
-// Loads a staged item back into the form — its fields, plus its already-uploaded receipts
-// (removable individually) with the file picker free to add more on top, rather than the only
-// way to fix a mistake being to remove the whole item and start over.
-function startEditPending(id) {
-  const p = pendingExpenses.find(x => x.id === id);
-  if (!p) return;
-  editingPendingId = id;
+// The one form, in a modal, for both adding a new expense (id omitted — #addExpenseBtn) and
+// editing an already-staged one (id given — a pending item's own Edit): empty vs. pre-filled is
+// the only difference, same fields, same submit handler either way.
+function openExpenseModal(id) {
+  const p = id ? pendingExpenses.find(x => x.id === id) : null;
+  editingPendingId = p ? id : null;
   editingRemovedReceiptPaths = [];
-  document.getElementById('showSelect').value = p.showId;
-  document.getElementById('descInput').value = p.description;
-  document.getElementById('amountInput').value = p.amount;
-  document.getElementById('receiptInput').value = '';
   newReceiptFiles = [];
+  document.getElementById('expenseForm').reset();
+  document.getElementById('formStatus').textContent = '';
+  document.getElementById('expenseModalTitle').textContent = p ? 'Edit expense' : 'Add expense';
+  document.getElementById('submitBtn').textContent = p ? 'Save changes' : '+ Add to list';
+  if (p) {
+    document.getElementById('showSelect').value = p.showId;
+    document.getElementById('descInput').value = p.description;
+    document.getElementById('amountInput').value = p.amount;
+  }
   renderNewReceiptPreview();
   renderEditingExistingReceipts();
-  document.getElementById('editingNotice').style.display = 'block';
-  document.getElementById('submitBtn').textContent = 'Update item';
+  document.getElementById('expenseModal').style.display = 'flex';
 }
+function closeExpenseModal() {
+  document.getElementById('expenseModal').style.display = 'none';
+}
+document.getElementById('addExpenseBtn').addEventListener('click', () => openExpenseModal());
+document.getElementById('expenseModalCloseBtn').addEventListener('click', closeExpenseModal);
+document.getElementById('expenseModal').addEventListener('click', (e) => {
+  if (e.target.id === 'expenseModal') closeExpenseModal();
+});
 
 function renderEditingExistingReceipts() {
   const el = document.getElementById('editingExistingReceipts');
@@ -535,18 +546,16 @@ document.getElementById('receiptInput').addEventListener('change', (e) => {
   renderNewReceiptPreview();
 });
 
+// Just clears the form's own fields/state — closing the modal (or not) is up to the caller.
 function resetExpenseForm() {
   editingPendingId = null;
   editingRemovedReceiptPaths = [];
   newReceiptFiles = [];
-  document.getElementById('editingNotice').style.display = 'none';
   document.getElementById('editingExistingReceipts').style.display = 'none';
   document.getElementById('editingExistingReceipts').innerHTML = '';
-  document.getElementById('submitBtn').textContent = '+ Add to list';
   document.getElementById('expenseForm').reset(); // clears receiptInput, but doesn't fire 'change' — renderNewReceiptPreview() below has to be called explicitly
   renderNewReceiptPreview();
 }
-document.getElementById('cancelEditBtn').addEventListener('click', (e) => { e.preventDefault(); resetExpenseForm(); });
 
 document.getElementById('pendingList').addEventListener('click', (e) => {
   // .closest(), not .matches() — each icon-btn's actual click target is often its inner <svg>.
@@ -554,7 +563,7 @@ document.getElementById('pendingList').addEventListener('click', (e) => {
   // in loadReceiptThumb() as each one loads, not delegated here.
   const editBtn = e.target.closest('[data-edit-pending]');
   if (editBtn) {
-    startEditPending(editBtn.getAttribute('data-edit-pending'));
+    openExpenseModal(editBtn.getAttribute('data-edit-pending'));
     return;
   }
   const removeBtn = e.target.closest('[data-remove-pending]');
@@ -565,7 +574,7 @@ document.getElementById('pendingList').addEventListener('click', (e) => {
   if (!confirm(`Remove "${pendingExpenses[idx].description}" from the list?`)) return;
   const [removed] = pendingExpenses.splice(idx, 1);
   removed.receiptPaths.forEach(p => storage.ref(p).delete().catch(() => {}));
-  if (editingPendingId === id) resetExpenseForm();
+  if (editingPendingId === id) closeExpenseModal();
   renderPendingList();
 });
 
@@ -618,6 +627,7 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
       pendingExpenses.push({ id: crypto.randomUUID(), showId, showName, description, amount, receiptPaths: newReceiptPaths });
     }
     resetExpenseForm();
+    closeExpenseModal();
     renderPendingList();
 
     statusEl.textContent = '';

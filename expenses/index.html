@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own hero/sidebar
        never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.83"></script>
+  <script src="../shared/embed.js?v=1.0.84"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0f766e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Pirton Players Expenses</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=1.0.83">
+  <link rel="stylesheet" href="style.css?v=1.0.84">
 </head>
 <body class="pwa-body">
 
@@ -134,39 +134,11 @@
     <div class="summary-grid" style="margin-bottom:16px">
       <div class="summary-card"><div class="snum" id="myUnpaidTotalText">£0.00</div><div class="slabel">Your unpaid total</div></div>
     </div>
-    <div class="section-label">New expense</div>
-    <div class="card" style="margin-bottom:8px">
-      <div class="card-body">
-        <form id="expenseForm">
-          <p id="editingNotice" class="muted" style="display:none;margin-bottom:12px">
-            Editing an item on the list below — <a href="#" id="cancelEditBtn">cancel</a>
-          </p>
-          <div class="form-group">
-            <label for="showSelect">Show</label>
-            <select id="showSelect" class="form-control" required></select>
-          </div>
-          <div class="form-group">
-            <label for="descInput">What was it for?</label>
-            <input type="text" id="descInput" class="form-control" placeholder="e.g. Programme printing" required>
-          </div>
-          <div class="form-group">
-            <label for="amountInput">Amount paid (£)</label>
-            <input type="number" id="amountInput" class="form-control" placeholder="0.00" step="0.01" min="0.01" required>
-          </div>
-          <div class="form-group">
-            <label for="receiptInput">Receipt photo(s) (optional)</label>
-            <div id="editingExistingReceipts" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
-            <input type="file" id="receiptInput" class="form-control" accept="image/*" multiple>
-            <div id="newReceiptPreview" class="receipt-thumbs"></div>
-          </div>
-          <p id="formStatus" class="muted" style="margin-bottom:12px"></p>
-          <button type="submit" class="btn btn-primary btn-full btn-lg" id="submitBtn">+ Add to list</button>
-        </form>
-      </div>
-    </div>
+    <button type="button" class="btn btn-primary btn-full btn-lg" id="addExpenseBtn" style="margin-bottom:16px">+ Add expense</button>
 
     <!-- Staged locally, uploaded already, but not written as real expenses until Submit all —
-         lets several be built up and sent together instead of one at a time. -->
+         lets several be built up and sent together instead of one at a time. Add expense and
+         each item's own Edit both open #expenseModal below — same form either way. -->
     <div id="pendingSection" style="display:none">
       <div class="section-label" style="display:flex;align-items:center;justify-content:space-between">
         <span>Ready to submit</span>
@@ -190,6 +162,41 @@
     <div id="myExpenses"></div>
   </div>
 
+</div>
+
+<!-- Add/edit an expense — #addExpenseBtn and each pending item's own Edit both open this, empty
+     or pre-filled respectively (see openExpenseModal in app.js). -->
+<div id="expenseModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="expenseModalTitle">Add expense</h3>
+      <button class="modal-close-btn" id="expenseModalCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="expenseForm">
+        <div class="form-group">
+          <label for="showSelect">Show</label>
+          <select id="showSelect" class="form-control" required></select>
+        </div>
+        <div class="form-group">
+          <label for="descInput">What was it for?</label>
+          <input type="text" id="descInput" class="form-control" placeholder="e.g. Programme printing" required>
+        </div>
+        <div class="form-group">
+          <label for="amountInput">Amount paid (£)</label>
+          <input type="number" id="amountInput" class="form-control" placeholder="0.00" step="0.01" min="0.01" required>
+        </div>
+        <div class="form-group">
+          <label for="receiptInput">Receipt photo(s) (optional)</label>
+          <div id="editingExistingReceipts" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
+          <input type="file" id="receiptInput" class="form-control" accept="image/*" multiple>
+          <div id="newReceiptPreview" class="receipt-thumbs"></div>
+        </div>
+        <p id="formStatus" class="muted" style="margin-bottom:12px"></p>
+        <button type="submit" class="btn btn-primary btn-full btn-lg" id="submitBtn">+ Add to list</button>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- Expense detail modal (screenExpenses -> tap a card) -->
@@ -225,10 +232,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="version.js?v=1.0.83"></script>
-<script src="../shared/firebase-config.js?v=1.0.83"></script>
-<script src="../shared/auth.js?v=1.0.83"></script>
-<script src="../shared/a2hs.js?v=1.0.83"></script>
-<script src="app.js?v=1.0.83"></script>
+<script src="version.js?v=1.0.84"></script>
+<script src="../shared/firebase-config.js?v=1.0.84"></script>
+<script src="../shared/auth.js?v=1.0.84"></script>
+<script src="../shared/a2hs.js?v=1.0.84"></script>
+<script src="app.js?v=1.0.84"></script>
 </body>
 </html>
