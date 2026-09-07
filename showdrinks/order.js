@@ -352,6 +352,7 @@ window.changeName = function() {
 window.startSessionOrder = function(id, name) {
   state.showDate = today(); state.sessionId = id; state.sessionName = name; state.basket = {};
   state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null;
+  state.selectedCategory = null;
   goTo(1); renderMenu();
 };
 
@@ -575,59 +576,28 @@ function renderListMenu() {
       groups[cat].push(item);
     });
 
-  // Sticky category slider along the top — tap a chip to jump to that category; the active chip
-  // then tracks whichever section is actually in view as the list scrolls underneath it.
+  // Sticky category slider along the top — "All" (default) shows every category in one list, as
+  // before; tapping a specific category filters the list down to just that category's items.
+  const selected = state.selectedCategory && catOrder.includes(state.selectedCategory)
+    ? state.selectedCategory : 'all';
+  state.selectedCategory = selected;
+
   barEl.style.display = catOrder.length > 1 ? 'flex' : 'none';
-  barEl.innerHTML = catOrder.map((cat, i) => `
-    <button type="button" class="cat-btn" data-cat-idx="${i}" onclick="scrollToListCat(${i})">${escHtml(cat)}</button>`).join('');
+  barEl.innerHTML = ['all', ...catOrder].map(cat => `
+    <button type="button" class="cat-btn ${cat === selected ? 'active' : ''}"
+            onclick="selectListCat('${encodeURIComponent(cat)}')">${cat === 'all' ? 'All' : escHtml(cat)}</button>`).join('');
 
-  el.innerHTML = catOrder.map((cat, i) => `
-    <div class="section-label" id="list-cat-${i}">${escHtml(cat)}</div>
+  const shownCats = selected === 'all' ? catOrder : [selected];
+  el.innerHTML = shownCats.map(cat => `
+    <div class="section-label">${escHtml(cat)}</div>
     <div class="menu-grid">${groups[cat].map(listMenuItemHtml).join('')}</div>`).join('');
-
-  setupListCatScrollSpy(catOrder.length);
 }
 
-let _listCatObserver = null;
-
-// Tapping a chip in the slider scrolls its category heading just under the (sticky) slider bar.
-window.scrollToListCat = function(idx) {
-  const target = document.getElementById('list-cat-' + idx);
-  const container = document.querySelector('.pwa-content');
-  if (!target || !container) return;
-  const barEl = document.getElementById('listCatBar');
-  const barH = barEl ? barEl.offsetHeight : 0;
-  container.scrollTo({ top: target.offsetTop - barH - 8, behavior: 'smooth' });
-  highlightListCat(idx); // instant feedback — the observer below will confirm/correct once it settles
+window.selectListCat = function(encodedCat) {
+  state.selectedCategory = decodeURIComponent(encodedCat);
+  renderListMenu();
+  document.querySelector('.pwa-content')?.scrollTo({ top: 0, behavior: 'smooth' });
 };
-
-function highlightListCat(idx) {
-  document.querySelectorAll('#listCatBar .cat-btn').forEach(b => {
-    const active = b.dataset.catIdx === String(idx);
-    b.classList.toggle('active', active);
-    if (active) b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  });
-}
-
-// Highlights whichever category heading is currently at the top of the scrolled list, so the
-// slider tracks manual scrolling too, not just its own tap-to-jump.
-function setupListCatScrollSpy(count) {
-  if (_listCatObserver) { _listCatObserver.disconnect(); _listCatObserver = null; }
-  if (!count || typeof IntersectionObserver === 'undefined') return;
-  const container = document.querySelector('.pwa-content');
-  const barEl = document.getElementById('listCatBar');
-  if (!container) return;
-  const barH = barEl ? barEl.offsetHeight : 0;
-  _listCatObserver = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) highlightListCat(entry.target.id.replace('list-cat-', ''));
-    });
-  }, { root: container, rootMargin: `-${barH + 4}px 0px -70% 0px`, threshold: 0 });
-  for (let i = 0; i < count; i++) {
-    const heading = document.getElementById('list-cat-' + i);
-    if (heading) _listCatObserver.observe(heading);
-  }
-}
 
 function listMenuItemHtml(item) {
   const qty = state.basket[item.name]?.quantity || 0;
