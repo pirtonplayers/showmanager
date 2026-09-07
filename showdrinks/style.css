@@ -71,7 +71,10 @@ input, textarea, select, [contenteditable] {
 /* ── Forms ── */
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; font-size: 13px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
-.form-control { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; color: var(--text); background: var(--surface); transition: border-color .15s; }
+/* 16px, not 14px: iOS Safari auto-zooms the whole page in on focus for any text input/select/
+   textarea with a computed font-size under 16px, regardless of the viewport meta tag — this is
+   the one zoom path that isn't a gesture and so can't be caught by a touch/gesture handler. */
+.form-control { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 16px; color: var(--text); background: var(--surface); transition: border-color .15s; }
 .form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
 .form-control::placeholder { color: var(--text-muted); }
 .password-field { position: relative; }
@@ -309,7 +312,7 @@ input, textarea, select, [contenteditable] {
 .menu-grid-table td { padding: 4px 4px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .menu-grid-table tr:last-child td { border-bottom: none; }
 .menu-grid-table tr:hover td { background: var(--bg); }
-.grid-input { width: 100%; border: 1px solid transparent; border-radius: 6px; padding: 7px 10px; font-size: 14px; background: transparent; color: var(--text); transition: border-color .15s, background .15s; }
+.grid-input { width: 100%; border: 1px solid transparent; border-radius: 6px; padding: 7px 10px; font-size: 16px; background: transparent; color: var(--text); transition: border-color .15s, background .15s; }
 .grid-input:hover { border-color: var(--border); background: var(--surface); }
 .grid-input:focus { outline: none; border-color: var(--primary); background: var(--surface); box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
 .price-input { text-align: right; }
