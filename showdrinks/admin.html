@@ -443,6 +443,24 @@
     </div>
 
     <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><h2>Ordering Method</h2></div>
+      <div class="card-body">
+        <div class="form-group">
+          <label for="orderingMode">Customer ordering screen</label>
+          <select id="orderingMode" class="form-control">
+            <option value="pos">POS Grid (buttons laid out in POS Layout)</option>
+            <option value="list">Category List (every item, grouped by category, with +/− quantity)</option>
+          </select>
+        </div>
+        <p style="font-size:13px;color:var(--text-muted)">
+          POS Grid uses the custom button layout from the <strong>POS Layout</strong> tab. Category
+          List needs no layout work — it lists every menu item under its category heading with a
+          price and a quantity stepper, in the order set on the <strong>Menu Items</strong> tab.
+        </p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
       <div class="card-header"><h2>SumUp Payment Settings (system default)</h2></div>
       <div class="card-body">
         <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">

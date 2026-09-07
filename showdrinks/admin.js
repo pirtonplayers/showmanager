@@ -761,6 +761,7 @@ async function loadSettings() {
     document.getElementById('sumupMerchantCode').value = d.sumupMerchantCode || '';
     document.getElementById('sumupApiKey').value = d.sumupApiKey || '';
     document.getElementById('paymentMode').value = d.paymentMode || 'bar';
+    document.getElementById('orderingMode').value = d.orderingMode || 'pos';
     document.getElementById('emailTemplateSubject').value = d.emailTemplateSubject || DEFAULT_EMAIL_TEMPLATE_SUBJECT;
     document.getElementById('emailTemplateBody').value = d.emailTemplateBody || DEFAULT_EMAIL_TEMPLATE_BODY;
   } catch(e) {
@@ -774,6 +775,7 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
     sumupMerchantCode: document.getElementById('sumupMerchantCode').value.trim(),
     sumupApiKey: document.getElementById('sumupApiKey').value.trim(),
     paymentMode: document.getElementById('paymentMode').value,
+    orderingMode: document.getElementById('orderingMode').value,
     emailTemplateSubject: document.getElementById('emailTemplateSubject').value.trim(),
     emailTemplateBody: document.getElementById('emailTemplateBody').value,
   };

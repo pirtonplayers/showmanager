@@ -72,6 +72,10 @@ function basketCount() {
   return Object.values(state.basket).reduce((s, i) => s + i.quantity, 0);
 }
 
+// Ordering screen has two interchangeable layouts, picked in Admin → Settings & QR: the
+// staff-configured POS button grid (default), or a plain list of every item grouped by category.
+function isPosMode() { return (state.settings && state.settings.orderingMode) !== 'list'; }
+
 // ── Navigation ─────────────────────────────────────────────────────────────
 
 const body = document.querySelector('.pwa-body');
@@ -82,7 +86,8 @@ function goTo(step) {
   document.getElementById('screen' + step).classList.add('active');
   // Compact hero on all non-home screens
   body.classList.toggle('sub-screen', step !== 0);
-  body.classList.toggle('pos-screen', step === 1);
+  body.classList.toggle('pos-screen', step === 1 && isPosMode());
+  body.classList.toggle('list-screen', step === 1 && !isPosMode());
   updateStepBar();
   updateBottomBar();
   window.scrollTo(0, 0);
@@ -99,6 +104,7 @@ function updateBottomBar() {
   const bar  = document.getElementById('bottomBar');
   const next = document.getElementById('nextBtn');
   const back = document.getElementById('backBtn');
+  next.classList.remove('basket-bar-btn'); // only the list-mode branch below re-adds this
   if (state.step === 0 || state.step === 3) { bar.style.display = 'none'; return; }
   if (state.step === 2) {
     bar.style.display = 'flex';
@@ -113,7 +119,25 @@ function updateBottomBar() {
     }
     return;
   }
-  if (state.step === 1 && !state.editingOrderId) { bar.style.display = 'none'; return; }
+  if (state.step === 1 && !state.editingOrderId) {
+    // POS grid mode: its own "Finish" cell drives navigation, so the bottom bar stays hidden.
+    if (isPosMode()) { bar.style.display = 'none'; return; }
+    // List mode: no such cell, so the bar doubles as a sticky basket bar — always visible while
+    // browsing, showing the running count/total and doubling as the way to move on.
+    bar.style.display = 'flex';
+    next.style.display = '';
+    back.textContent = '← Cancel';
+    const count = basketCount();
+    if (count > 0) {
+      next.disabled = false;
+      next.classList.add('basket-bar-btn');
+      next.innerHTML = `<span class="bbb-summary">🛒 ${count} · ${fmtCurrency(basketTotal())}</span><span class="bbb-cta">View Basket →</span>`;
+    } else {
+      next.disabled = true;
+      next.textContent = 'Add items to continue';
+    }
+    return;
+  }
   next.style.display = '';
   bar.style.display = 'flex';
   if (state.step === 1) {
@@ -362,8 +386,18 @@ function renderMenu() {
     : '';
   const numTag = state.editingOrderNumber ? `#${state.editingOrderNumber} · ` : '';
   document.title = `${numTag}${state.sessionName}${statusTag}`;
-  state.posGridStack = ['root'];
-  renderPosGrid();
+  const posGridEl = document.getElementById('posGrid');
+  const listMenuEl = document.getElementById('listMenu');
+  if (isPosMode()) {
+    listMenuEl.style.display = 'none';
+    posGridEl.style.display = '';
+    state.posGridStack = ['root'];
+    renderPosGrid();
+  } else {
+    posGridEl.style.display = 'none';
+    listMenuEl.style.display = '';
+    renderListMenu();
+  }
   renderOrderGrid();
 }
 
@@ -511,36 +545,67 @@ window.selectBasketItem = function(encodedKey) {
   renderOrderGrid();
 };
 
-function renderMenuItems() {
-  const grid = document.getElementById('menuGrid');
-  const cat  = state.selectedCategory;
-  const items = state.menuItems.filter(item =>
-    cat === 'all' || !cat || item.category === cat
-  );
+// ── Screen 1: Category List mode (alternate to the POS grid) ────────────────
+// Every menu item, grouped under its category heading, with a price and a +/- stepper — no POS
+// layout to configure, just whatever's in Menu Items.
 
-  grid.innerHTML = items.length
-    ? items.map(item => `
-        <button class="item-btn" onclick="addItem('${item.id}')">
-          <span class="ib-name">${escHtml(item.name)}</span>
-          <span class="ib-price">${fmtCurrency(item.price)}</span>
-        </button>`).join('')
-    : '<p style="color:var(--text-muted);font-size:13px;grid-column:1/-1">No items.</p>';
+function renderListMenu() {
+  const el = document.getElementById('listMenu');
+  if (!el) return;
+  if (!state.menuItems.length) {
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:12px">No menu items yet.</p>';
+    return;
+  }
+  const groups = {};
+  const catOrder = [];
+  state.menuItems
+    .slice()
+    .sort((a, b) => {
+      const ca = (a.category || '').toLowerCase(), cb = (b.category || '').toLowerCase();
+      if (ca !== cb) return ca < cb ? -1 : 1;
+      return (a.name || '').toLowerCase() < (b.name || '').toLowerCase() ? -1 : 1;
+    })
+    .forEach(item => {
+      const cat = item.category || 'Other';
+      if (!groups[cat]) { groups[cat] = []; catOrder.push(cat); }
+      groups[cat].push(item);
+    });
+
+  el.innerHTML = catOrder.map(cat => `
+    <div class="section-label">${escHtml(cat)}</div>
+    <div class="menu-grid">${groups[cat].map(listMenuItemHtml).join('')}</div>`).join('');
 }
 
-window.selectCategory = function(cat) {
-  state.selectedCategory = cat;
-  document.querySelectorAll('.cat-btn').forEach(b =>
-    b.classList.toggle('active',
-      (cat === 'all' && b.textContent.trim() === 'All') || b.textContent.trim() === cat));
-  renderMenuItems();
-};
+function listMenuItemHtml(item) {
+  const qty = state.basket[item.name]?.quantity || 0;
+  return `<div class="menu-item-card">
+    <span class="mic-name">${escHtml(item.name)}</span>
+    <span class="mic-price">${fmtCurrency(item.price)}</span>
+    <div class="qty-control">
+      <button onclick="listDecItem('${item.id}')" ${qty === 0 ? 'disabled' : ''}>−</button>
+      <span class="qty-num">${qty}</span>
+      <button onclick="listIncItem('${item.id}')">+</button>
+    </div>
+  </div>`;
+}
 
-window.addItem = function(menuItemId) {
+window.listIncItem = function(menuItemId) {
   const item = state.menuItems.find(i => i.id === menuItemId);
   if (!item) return;
   const key = item.name;
   if (!state.basket[key]) state.basket[key] = { name: item.name, price: item.price, quantity: 0 };
   state.basket[key].quantity += 1;
+  renderListMenu();
+  renderOrderGrid();
+  updateBottomBar();
+};
+
+window.listDecItem = function(menuItemId) {
+  const item = state.menuItems.find(i => i.id === menuItemId);
+  if (!item || !state.basket[item.name]) return;
+  state.basket[item.name].quantity -= 1;
+  if (state.basket[item.name].quantity <= 0) delete state.basket[item.name];
+  renderListMenu();
   renderOrderGrid();
   updateBottomBar();
 };
@@ -549,6 +614,7 @@ window.removeFromBasket = function(encodedKey) {
   const key = decodeURIComponent(encodedKey);
   delete state.basket[key];
   renderOrderGrid();
+  if (!isPosMode()) renderListMenu(); // keep its qty steppers in sync with the trashed row
   updateBottomBar();
 };
 

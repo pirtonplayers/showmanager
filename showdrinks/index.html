@@ -70,6 +70,13 @@
     .bottom-bar { padding: 16px 20px; background: var(--bg); border-top: 1px solid var(--border); display: flex; gap: 10px; position: sticky; bottom: 0; }
     .bottom-bar .btn { flex: 1; height: 52px; font-size: 16px; border-radius: 12px; }
 
+    /* Sticky basket bar — list-mode ordering's Next button while the basket has items: stays
+       docked at the bottom as you scroll the category list, showing a live running count/total
+       on one side and the way forward on the other, instead of a plain "Next →". */
+    .bottom-bar .btn.basket-bar-btn { flex: 3; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; }
+    .bbb-summary { font-weight: 700; }
+    .bbb-cta { font-weight: 600; opacity: .9; }
+
     #checkOrderInput { display: flex; gap: 8px; margin-top: 16px; }
 
     .welcome-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; display: flex; align-items: center; gap: 12px; margin-bottom: 20px; box-shadow: var(--shadow); }
@@ -114,6 +121,15 @@
     .pos-screen #screen1 { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; }
     .pos-screen .order-grid-pane { flex:0 0 calc(40% - 24px); height:auto; max-height:none; overflow-y:auto; }
     .pos-screen #posGrid { flex:0 0 60%; overflow-y:auto; min-height:0; }
+
+    /* Screen 1 category-list mode — normal scrolling page (not the fixed-viewport POS layout),
+       so the cart pane above the list only needs to be as tall as its rows, not 40% of the
+       screen. */
+    .list-screen .order-grid-pane { height:auto; max-height:240px; margin-bottom:4px; }
+    .list-screen .og-empty { padding:10px 16px; }
+    #listMenu { padding-bottom:12px; }
+    #listMenu .section-label { margin-top:18px; }
+    #listMenu .section-label:first-child { margin-top:0; }
 
     /* Category bar */
     .cat-bar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
@@ -198,6 +214,7 @@
     <div class="screen" id="screen1">
       <div class="order-grid-pane" id="orderGridPane"></div>
       <div id="posGrid"></div>
+      <div id="listMenu" style="display:none"></div>
     </div>
 
     <!-- Screen 2: Review & Pay -->
