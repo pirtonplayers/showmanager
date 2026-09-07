@@ -535,7 +535,7 @@ function renderOrderGrid() {
   if (!isPosMode()) {
     const count = basketCount();
     pane.innerHTML = `<div class="og-total" style="position:static">
-      <span>${count} item${count === 1 ? '' : 's'}</span>
+      <span class="og-basket">🛒<span class="og-basket-count">${count}</span></span>
       <span>${fmtCurrency(basketTotal())}</span>
     </div>`;
     return;
