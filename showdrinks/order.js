@@ -388,8 +388,10 @@ function renderMenu() {
   document.title = `${numTag}${state.sessionName}${statusTag}`;
   const posGridEl = document.getElementById('posGrid');
   const listMenuEl = document.getElementById('listMenu');
+  const listCatBarEl = document.getElementById('listCatBar');
   if (isPosMode()) {
     listMenuEl.style.display = 'none';
+    listCatBarEl.style.display = 'none';
     posGridEl.style.display = '';
     state.posGridStack = ['root'];
     renderPosGrid();
@@ -551,8 +553,10 @@ window.selectBasketItem = function(encodedKey) {
 
 function renderListMenu() {
   const el = document.getElementById('listMenu');
+  const barEl = document.getElementById('listCatBar');
   if (!el) return;
   if (!state.menuItems.length) {
+    barEl.style.display = 'none';
     el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:12px">No menu items yet.</p>';
     return;
   }
@@ -571,9 +575,58 @@ function renderListMenu() {
       groups[cat].push(item);
     });
 
-  el.innerHTML = catOrder.map(cat => `
-    <div class="section-label">${escHtml(cat)}</div>
+  // Sticky category slider along the top — tap a chip to jump to that category; the active chip
+  // then tracks whichever section is actually in view as the list scrolls underneath it.
+  barEl.style.display = catOrder.length > 1 ? 'flex' : 'none';
+  barEl.innerHTML = catOrder.map((cat, i) => `
+    <button type="button" class="cat-btn" data-cat-idx="${i}" onclick="scrollToListCat(${i})">${escHtml(cat)}</button>`).join('');
+
+  el.innerHTML = catOrder.map((cat, i) => `
+    <div class="section-label" id="list-cat-${i}">${escHtml(cat)}</div>
     <div class="menu-grid">${groups[cat].map(listMenuItemHtml).join('')}</div>`).join('');
+
+  setupListCatScrollSpy(catOrder.length);
+}
+
+let _listCatObserver = null;
+
+// Tapping a chip in the slider scrolls its category heading just under the (sticky) slider bar.
+window.scrollToListCat = function(idx) {
+  const target = document.getElementById('list-cat-' + idx);
+  const container = document.querySelector('.pwa-content');
+  if (!target || !container) return;
+  const barEl = document.getElementById('listCatBar');
+  const barH = barEl ? barEl.offsetHeight : 0;
+  container.scrollTo({ top: target.offsetTop - barH - 8, behavior: 'smooth' });
+  highlightListCat(idx); // instant feedback — the observer below will confirm/correct once it settles
+};
+
+function highlightListCat(idx) {
+  document.querySelectorAll('#listCatBar .cat-btn').forEach(b => {
+    const active = b.dataset.catIdx === String(idx);
+    b.classList.toggle('active', active);
+    if (active) b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  });
+}
+
+// Highlights whichever category heading is currently at the top of the scrolled list, so the
+// slider tracks manual scrolling too, not just its own tap-to-jump.
+function setupListCatScrollSpy(count) {
+  if (_listCatObserver) { _listCatObserver.disconnect(); _listCatObserver = null; }
+  if (!count || typeof IntersectionObserver === 'undefined') return;
+  const container = document.querySelector('.pwa-content');
+  const barEl = document.getElementById('listCatBar');
+  if (!container) return;
+  const barH = barEl ? barEl.offsetHeight : 0;
+  _listCatObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) highlightListCat(entry.target.id.replace('list-cat-', ''));
+    });
+  }, { root: container, rootMargin: `-${barH + 4}px 0px -70% 0px`, threshold: 0 });
+  for (let i = 0; i < count; i++) {
+    const heading = document.getElementById('list-cat-' + i);
+    if (heading) _listCatObserver.observe(heading);
+  }
 }
 
 function listMenuItemHtml(item) {

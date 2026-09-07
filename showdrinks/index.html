@@ -131,10 +131,14 @@
     #listMenu .section-label { margin-top:18px; }
     #listMenu .section-label:first-child { margin-top:0; }
 
-    /* Category bar */
-    .cat-bar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
-    .cat-btn { padding:5px 12px; border:2px solid var(--border); border-radius:999px; background:var(--surface); font-size:12px; font-weight:600; cursor:pointer; transition:all .15s; }
+    /* Category slider — sticky row of category chips along the top of the category list, so it
+       stays put as the item list scrolls underneath it. Tapping a chip jumps to that category;
+       the active chip tracks whichever category is currently in view. */
+    .cat-bar { display:flex; gap:8px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+    .cat-bar::-webkit-scrollbar { display:none; }
+    .cat-btn { flex:0 0 auto; white-space:nowrap; padding:7px 14px; border:2px solid var(--border); border-radius:999px; background:var(--surface); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
     .cat-btn.active { border-color:var(--primary); background:var(--primary); color:#fff; }
+    .list-screen #listCatBar { position:sticky; top:0; z-index:5; background:var(--bg); margin:0 -20px 10px; padding:8px 20px 10px; }
 
     /* 2-column item grid */
     .items-2col { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
@@ -214,6 +218,7 @@
     <div class="screen" id="screen1">
       <div class="order-grid-pane" id="orderGridPane"></div>
       <div id="posGrid"></div>
+      <div id="listCatBar" class="cat-bar" style="display:none"></div>
       <div id="listMenu" style="display:none"></div>
     </div>
 
