@@ -306,7 +306,10 @@
 <script src="order.js"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
-  document.addEventListener('touchmove', e => { if (e.scale !== undefined && e.scale !== 1) e.preventDefault(); }, { passive: false });
+  // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
+  // (e.scale only ever existed on Safari's legacy GestureEvent, never on TouchEvent/touchmove,
+  // so the old `e.scale !== 1` version of this check never actually fired.)
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 </script>
 </body>
 </html>
