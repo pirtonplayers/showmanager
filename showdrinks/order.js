@@ -528,6 +528,19 @@ function renderOrderGrid() {
     return;
   }
 
+  // List mode already shows each item with its own +/- stepper, so the itemized cart pane here
+  // would just repeat that — a running total is all it needs to add (the sticky basket bar at
+  // the bottom of the screen shows the same total again for whenever you've scrolled away from
+  // the top).
+  if (!isPosMode()) {
+    const count = basketCount();
+    pane.innerHTML = `<div class="og-total" style="position:static">
+      <span>${count} item${count === 1 ? '' : 's'}</span>
+      <span>${fmtCurrency(basketTotal())}</span>
+    </div>`;
+    return;
+  }
+
   pane.innerHTML = `<div class="og-rows">` +
     entries.map(([key, i]) => {
       const enc = encodeURIComponent(key);
