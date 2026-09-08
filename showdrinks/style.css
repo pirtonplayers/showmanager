@@ -282,6 +282,13 @@ input, textarea, select, [contenteditable] {
 .qty-control button:hover { background: var(--primary); color: #fff; }
 .qty-control .qty-num { font-weight: 700; font-size: 16px; min-width: 24px; text-align: center; }
 
+/* Category chip filter — index.html's PWA duplicates these inline for itself; this copy is the
+   one admin.html's Show Tabs (category-list ordering mode) uses. */
+.cat-bar { display:flex; gap:8px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.cat-bar::-webkit-scrollbar { display:none; }
+.cat-btn { flex:0 0 auto; white-space:nowrap; padding:7px 14px; border:2px solid var(--border); border-radius:999px; background:var(--surface); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
+.cat-btn.active { border-color:var(--primary); background:var(--primary); color:#fff; }
+
 /* ── Session & Date selectors ── */
 .selector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .selector-btn { padding: 16px; border: 2px solid var(--border); border-radius: var(--radius); background: var(--surface); cursor: pointer; text-align: center; font-weight: 600; font-size: 15px; transition: all .15s; }

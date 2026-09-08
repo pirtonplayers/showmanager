@@ -1244,6 +1244,16 @@ let _tabSelectedMemberId = null;
 let _tabStack            = ['root'];
 let _tabBasket           = {};
 let _tabSelectedKey      = null;
+let _tabSelectedCategory = null;
+
+// Same POS Grid / Category List choice as the customer ordering screen (Settings & QR →
+// Ordering Method, optionally overridden per-show) — Show Tabs follows whichever the current
+// show is actually using, rather than keeping its own separate setting.
+function isPosMode() {
+  const current = _shows.find(s => s.isCurrent);
+  const mode = current?.orderingMode || _systemSettings.orderingMode || 'pos';
+  return mode !== 'list';
+}
 
 window.selectTabsSubtab = function(name) {
   document.querySelectorAll('#tabSubNav .cat-filter-btn').forEach(b =>
@@ -1260,8 +1270,19 @@ async function loadShowTabs() {
     _tabOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderTabMembersList();
   }, e => toast('Could not load tabs: ' + e.message, 'error'));
-  renderTabGrid();
+  renderTabOrderEntry();
   renderTabBasket();
+}
+
+// Shows whichever of the POS grid / category list the current ordering mode calls for, and
+// keeps the "Add to Tab" button (the list mode's only way to commit — the grid has its own
+// "Finish" cell for that) in sync.
+function renderTabOrderEntry() {
+  const posMode = isPosMode();
+  document.getElementById('tabPosGrid').style.display = posMode ? '' : 'none';
+  document.getElementById('tabListArea').style.display = posMode ? 'none' : '';
+  document.getElementById('tabListCommitBtn').style.display = posMode ? 'none' : '';
+  if (posMode) renderTabGrid(); else renderTabListMenu();
 }
 
 async function loadTabMembers() {
@@ -1286,14 +1307,14 @@ window.selectTabMember = function(id) {
     return;
   }
   _tabSelectedMemberId = id || null;
-  _tabStack = ['root']; _tabBasket = {}; _tabSelectedKey = null;
+  _tabStack = ['root']; _tabBasket = {}; _tabSelectedKey = null; _tabSelectedCategory = null;
   document.getElementById('tabMemberSelect').value = id || '';
 
   const posArea = document.getElementById('tabPosArea');
   const member = _tabMembers.find(m => m.id === _tabSelectedMemberId);
   posArea.classList.toggle('inactive', !member);
   document.getElementById('tabPosInactiveHint').style.display = member ? 'none' : '';
-  renderTabGrid();
+  renderTabOrderEntry();
   renderTabBasket();
   if (member) selectTabsSubtab('pos');
   renderTabMembersList();
@@ -1387,6 +1408,79 @@ function renderTabGrid() {
     `<div class="pos-grid">${cells.slice(0,12).map((c,i) => cellBtn(c,i)).join('')}</div>` +
     `<div class="pos-grid-extra">${cells.slice(12).map((c,i) => cellBtn(c,12+i)).join('')}</div>`;
 }
+
+// Category List alternative to the POS grid above — every menu item grouped under its category,
+// each with a +/- stepper straight into the member's basket. Same "All" + per-category chips
+// pattern as the customer ordering screen's list mode.
+function renderTabListMenu() {
+  const el = document.getElementById('tabListMenu');
+  const barEl = document.getElementById('tabListCatBar');
+  if (!el) return;
+  if (!_allMenuItems.length) {
+    barEl.style.display = 'none';
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No menu items yet.</p>';
+    return;
+  }
+  const groups = {};
+  const catOrder = [];
+  _allMenuItems.forEach(item => { // already sorted category-then-name by loadMenuItems()
+    const cat = item.category || 'Other';
+    if (!groups[cat]) { groups[cat] = []; catOrder.push(cat); }
+    groups[cat].push(item);
+  });
+
+  const selected = _tabSelectedCategory && catOrder.includes(_tabSelectedCategory)
+    ? _tabSelectedCategory : 'all';
+  _tabSelectedCategory = selected;
+
+  barEl.style.display = catOrder.length > 1 ? 'flex' : 'none';
+  barEl.innerHTML = ['all', ...catOrder].map(cat => `
+    <button type="button" class="cat-btn ${cat === selected ? 'active' : ''}"
+            onclick="selectTabListCat('${encodeURIComponent(cat)}')">${cat === 'all' ? 'All' : escHtml(cat)}</button>`).join('');
+
+  const shownCats = selected === 'all' ? catOrder : [selected];
+  el.innerHTML = shownCats.map(cat => `
+    <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">${escHtml(cat)}</div>
+    <div class="menu-grid">${groups[cat].map(tabListItemHtml).join('')}</div>`).join('');
+}
+
+function tabListItemHtml(item) {
+  const qty = _tabBasket[item.name]?.qty || 0;
+  return `<div class="menu-item-card">
+    <span class="mic-name">${escHtml(item.name)}</span>
+    <span class="mic-price">${fmtCurrency(item.price)}</span>
+    <div class="qty-control">
+      <button onclick="tabListDecItem('${item.id}')" ${qty === 0 ? 'disabled' : ''}>−</button>
+      <span class="qty-num">${qty}</span>
+      <button onclick="tabListIncItem('${item.id}')">+</button>
+    </div>
+  </div>`;
+}
+
+window.selectTabListCat = function(encodedCat) {
+  _tabSelectedCategory = decodeURIComponent(encodedCat);
+  renderTabListMenu();
+};
+
+window.tabListIncItem = function(menuItemId) {
+  if (!_tabSelectedMemberId) { toast('Select a member first', 'error'); return; }
+  const item = _allMenuItems.find(i => i.id === menuItemId);
+  if (!item) return;
+  const key = item.name;
+  if (!_tabBasket[key]) _tabBasket[key] = { name: item.name, price: item.price, qty: 0 };
+  _tabBasket[key].qty += 1;
+  renderTabListMenu();
+  renderTabBasket();
+};
+
+window.tabListDecItem = function(menuItemId) {
+  const item = _allMenuItems.find(i => i.id === menuItemId);
+  if (!item || !_tabBasket[item.name]) return;
+  _tabBasket[item.name].qty -= 1;
+  if (_tabBasket[item.name].qty <= 0) delete _tabBasket[item.name];
+  renderTabListMenu();
+  renderTabBasket();
+};
 
 // Long-press (500ms+) on an item cell adds it without jumping back to the root menu, so several
 // from the same category can be added in a row; a normal tap still returns to the root menu each
@@ -1489,7 +1583,7 @@ async function commitTabOrder() {
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     _tabBasket = {}; _tabSelectedKey = null; _tabStack = ['root'];
-    renderTabGrid(); renderTabBasket();
+    renderTabOrderEntry(); renderTabBasket();
     openTabFinishModal(totalAmount, member?.name || '');
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
