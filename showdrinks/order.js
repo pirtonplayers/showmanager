@@ -254,7 +254,7 @@ async function renderHomeScreen() {
     </div>`;
     section.innerHTML = header + (enriched.length
       ? enriched.map(orderCard).join('')
-      : `<p style="font-size:13px;color:var(--text-muted)">${showAll ? 'No orders yet.' : 'Nothing pending right now.'}</p>`);
+      : showAll ? `<p style="font-size:13px;color:var(--text-muted)">No orders yet.</p>` : '');
   }
 
   const docs = await Promise.all(
