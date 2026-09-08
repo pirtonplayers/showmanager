@@ -766,7 +766,7 @@ function initServiceWorker() {
 async function checkForUpdate() {
   if (typeof APP_VERSION === 'undefined') return;
   try {
-    const res = await fetch('version.js?_=' + Date.now(), { cache: 'no-store' });
+    const res = await fetch('../shared/version.js?_=' + Date.now(), { cache: 'no-store' });
     const latest = (await res.text()).match(/APP_VERSION\s*=\s*'([^']+)'/)?.[1];
     if (latest && latest !== APP_VERSION) showUpdateBanner();
   } catch (err) { /* offline — nothing meaningful to report */ }

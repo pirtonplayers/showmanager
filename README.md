@@ -71,10 +71,12 @@ part of standing this repo up.
 
 ## Versioning
 
-Each app (root portal, `expenses/`, `showdrinks/`, `budget/`) bumps its own version independently
-— run `node bump-version.js` inside whichever one you changed before deploying, so installed
-PWAs pick up the change instead of serving a stale cached copy (see the comment in any
-`bump-version.js` for why the cache-busting query strings matter on GitHub Pages specifically).
+One version number for the whole suite, in `shared/version.js` — every app (root portal,
+`expenses/`, `showdrinks/`, `budget/`) just references that file. Run `node bump-version.js` at
+the repo root before deploying any change to a cacheable asset anywhere in the repo, so installed
+PWAs pick up the change instead of serving a stale cached copy (see the comment in
+`bump-version.js` for why the cache-busting query strings matter on GitHub Pages specifically —
+and why a bump has to cover every app at once, not just the one you changed).
 
 ## Local testing
 
