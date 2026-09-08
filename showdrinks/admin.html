@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.137"></script>
+  <script src="../shared/embed.js?v=1.0.138"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.0.137">
+  <link rel="stylesheet" href="style.css?v=1.0.138">
 </head>
 <body>
 
@@ -591,6 +591,20 @@
   </div>
 </div>
 
+<!-- Shown by askNameMatch() (admin.js) when a name being added shares a first name with, or is a
+     close spelling match to, one or more existing members — picking one selects that member
+     instead of creating a duplicate; "Someone new" (or tapping outside) proceeds with the add. -->
+<div id="nameMatchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:210;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:380px;margin:20px">
+    <div class="card-header"><h2>Is this someone already on the list?</h2></div>
+    <div class="card-body">
+      <p class="muted" id="nameMatchIntro" style="margin-bottom:12px"></p>
+      <div id="nameMatchList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+      <button type="button" class="btn btn-secondary btn-full" id="nameMatchNewBtn">Someone new — add anyway</button>
+    </div>
+  </div>
+</div>
+
 <!-- Bar Tabs POS basket review — opened by tapping the basket bar (openTabBasketReview). Shows
      what's in it before committing; "← Back" just closes this without touching the basket. -->
 <div id="tabBasketReviewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
@@ -684,11 +698,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.137"></script>
-<script src="../shared/firebase-config.js?v=1.0.137"></script>
-<script src="../shared/auth.js?v=1.0.137"></script>
-<script src="../shared/suite-nav.js?v=1.0.137"></script>
-<script src="admin.js?v=1.0.137"></script>
+<script src="../shared/version.js?v=1.0.138"></script>
+<script src="../shared/firebase-config.js?v=1.0.138"></script>
+<script src="../shared/auth.js?v=1.0.138"></script>
+<script src="../shared/suite-nav.js?v=1.0.138"></script>
+<script src="admin.js?v=1.0.138"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

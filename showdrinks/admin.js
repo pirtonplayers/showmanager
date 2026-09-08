@@ -1430,8 +1430,8 @@ async function loadTabMembers() {
 function renderTabMemberSelect() {
   const sel = document.getElementById('tabMemberSelect');
   sel.innerHTML = '<option value="">— choose a member —</option>' +
-    _tabMembers.map(m => `<option value="${m.id}">${escHtml(m.name)}</option>`).join('') +
-    '<option value="__add__">+ Add a member…</option>';
+    '<option value="__add__">+ Add a member…</option>' +
+    _tabMembers.map(m => `<option value="${m.id}">${escHtml(m.name)}</option>`).join('');
   sel.value = _tabSelectedMemberId || '';
 }
 
@@ -1485,6 +1485,60 @@ function nameSimilarity(a, b) {
 
 const FUZZY_NAME_MATCH_THRESHOLD = 0.75;
 
+// Same first name (a plain "John" typed in shouldn't miss an existing "John Smith" just because
+// the full strings look different) *or* a close full-name spelling match, unioned into one list
+// — either is reason enough to check before creating what might be a duplicate entry.
+function findSimilarMembers(name, candidates) {
+  const nameLower = name.toLowerCase();
+  const firstName = nameLower.split(/\s+/)[0];
+  const matches = new Map();
+  candidates.forEach(m => {
+    if (m.name.toLowerCase().split(/\s+/)[0] === firstName) matches.set(m.id, m);
+  });
+  let closest = null, closestScore = 0;
+  for (const m of candidates) {
+    const score = nameSimilarity(nameLower, m.name.toLowerCase());
+    if (score > closestScore) { closestScore = score; closest = m; }
+  }
+  if (closest && closestScore >= FUZZY_NAME_MATCH_THRESHOLD) matches.set(closest.id, closest);
+  return [...matches.values()];
+}
+
+// Resolves to the matching member the user picked, or null for "someone new, add anyway"
+// (tapping outside the modal counts as the same thing — there's no third "abort entirely" state
+// here, same as the plain confirm() this replaced).
+function askNameMatch(name, members) {
+  return new Promise(resolve => {
+    const modal = document.getElementById('nameMatchModal');
+    document.getElementById('nameMatchIntro').textContent = members.length === 1
+      ? `"${members[0].name}" is already on the list — is this the same person as "${name}"?`
+      : `${members.length} people already on the list have a similar name to "${name}" — is it one of these, or someone new?`;
+    document.getElementById('nameMatchList').innerHTML = members.map(m =>
+      `<button type="button" class="btn btn-secondary btn-full" data-match-id="${m.id}">${escHtml(m.name)}</button>`
+    ).join('');
+
+    function cleanup(result) {
+      modal.style.display = 'none';
+      document.getElementById('nameMatchList').removeEventListener('click', onList);
+      document.getElementById('nameMatchNewBtn').removeEventListener('click', onNew);
+      modal.removeEventListener('click', onBackdrop);
+      resolve(result);
+    }
+    function onList(e) {
+      const btn = e.target.closest('[data-match-id]');
+      if (!btn) return;
+      cleanup(members.find(m => m.id === btn.dataset.matchId) || null);
+    }
+    function onNew() { cleanup(null); }
+    function onBackdrop(e) { if (e.target === modal) cleanup(null); }
+
+    document.getElementById('nameMatchList').addEventListener('click', onList);
+    document.getElementById('nameMatchNewBtn').addEventListener('click', onNew);
+    modal.addEventListener('click', onBackdrop);
+    modal.style.display = 'flex';
+  });
+}
+
 async function addOrSelectTabMember(rawName, rawEmail) {
   const name = rawName.trim();
   const email = rawEmail.trim();
@@ -1498,24 +1552,15 @@ async function addOrSelectTabMember(rawName, rawEmail) {
     return true;
   }
 
-  // Fuzzy check — catches a typo'd or differently-spelled near-match (an exact-match miss) so
-  // whoever's adding this gets a chance to say "yes, same person" instead of the list quietly
-  // growing a second entry for someone who's already on it.
-  let closest = null, closestScore = 0;
-  for (const m of _tabMembers) {
-    const score = nameSimilarity(nameLower, m.name.toLowerCase());
-    if (score > closestScore) { closestScore = score; closest = m; }
-  }
-  if (closest && closestScore >= FUZZY_NAME_MATCH_THRESHOLD) {
-    const sameMember = confirm(
-      `"${closest.name}" already exists — is this the same person as "${name}"?\n\n` +
-      `OK = same person, use the existing entry\nCancel = different person, add as new`
-    );
-    if (sameMember) {
-      selectTabMember(closest.id);
-      toast(`Using existing member "${closest.name}"`, 'info');
+  const similar = findSimilarMembers(name, _tabMembers);
+  if (similar.length) {
+    const chosen = await askNameMatch(name, similar);
+    if (chosen) {
+      selectTabMember(chosen.id);
+      toast(`Using existing member "${chosen.name}"`, 'info');
       return true;
     }
+    // null → confirmed someone new, fall through and create
   }
 
   const ref = await db.collection('showdrinks_tabMembers').add({
@@ -1591,13 +1636,13 @@ async function updateTabMember(id, rawName, rawEmail) {
   const dupe = others.find(m => m.name.toLowerCase() === nameLower);
   if (dupe) { toast(`"${dupe.name}" already uses that name`, 'error'); return false; }
 
-  let closest = null, closestScore = 0;
-  for (const m of others) {
-    const score = nameSimilarity(nameLower, m.name.toLowerCase());
-    if (score > closestScore) { closestScore = score; closest = m; }
-  }
-  if (closest && closestScore >= FUZZY_NAME_MATCH_THRESHOLD) {
-    if (!confirm(`This is similar to an existing member, "${closest.name}" — rename to "${name}" anyway?`)) return false;
+  // Same first name as, or a close spelling match to, one or more other members — not a "pick
+  // which one this actually is" choice like adding gets (this is a rename, not a merge), just a
+  // heads-up before proceeding.
+  const similar = findSimilarMembers(name, others);
+  if (similar.length) {
+    const names = similar.map(m => `"${m.name}"`).join(', ');
+    if (!confirm(`This is similar to ${similar.length === 1 ? 'an existing member' : 'existing members'}, ${names} — rename to "${name}" anyway?`)) return false;
   }
 
   try {
