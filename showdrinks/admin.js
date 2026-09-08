@@ -1,8 +1,10 @@
 'use strict';
 
-// Shared .icon-btn glyph (Feather-style, matching the outline icons used elsewhere in the
-// suite) — used in place of a text label for the common Delete row action.
+// Shared .icon-btn glyphs (Feather-style, matching the outline icons used elsewhere in the
+// suite) — used in place of a text label/emoji for the common Delete row action and the Bar
+// Tabs POS basket bar.
 const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+const ICON_BASKET = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -1612,11 +1614,8 @@ function renderTabBasket() {
   const el = document.getElementById('tabBasket');
   if (!el) return;
   const items = Object.values(_tabBasket);
-  const count = items.reduce((s, i) => s + i.qty, 0);
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-  el.innerHTML = `
-    <span class="tab-basket-badge">🧺<span class="count">${count}</span></span>
-    <span class="tab-basket-total">${fmtCurrency(total)}</span>`;
+  el.innerHTML = `<span class="tab-basket-icon">${ICON_BASKET}</span><span class="tab-basket-total">${fmtCurrency(total)}</span>`;
 }
 
 window.handleTabPosBtn = function(idx, isLongPress) {

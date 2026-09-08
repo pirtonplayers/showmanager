@@ -378,9 +378,9 @@ input, textarea, select, [contenteditable] {
 
 /* Bar Tabs POS's basket — same place (top, below the member picker) and prominence as the
    customer app's own basket, and the same tap-to-commit role "Add to Tab" used to have. */
-.tab-basket-bar { display:flex; align-items:center; justify-content:space-between; gap:16px; background:var(--primary); color:#fff; border-radius:var(--radius); padding:14px 20px; margin-bottom:16px; cursor:pointer; }
-.tab-basket-badge { position:relative; display:inline-flex; font-size:44px; line-height:1; }
-.tab-basket-badge .count { position:absolute; top:-4px; right:-14px; background:#fff; color:var(--primary); font-size:14px; font-weight:800; min-width:24px; height:24px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 5px; line-height:1; }
+.tab-basket-bar { display:flex; align-items:center; justify-content:center; gap:12px; background:var(--primary); color:#fff; border-radius:var(--radius); padding:14px 20px; margin-bottom:16px; cursor:pointer; }
+.tab-basket-icon { width:28px; height:28px; flex-shrink:0; }
+.tab-basket-icon svg { width:100%; height:100%; }
 .tab-basket-total { font-size:26px; font-weight:400; }
 
 /* Per-row "⋯" action menu (Bar Tabs Admin member rows) — <details>/<summary>, same idea as the
