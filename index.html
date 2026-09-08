@@ -111,28 +111,31 @@
     <div id="pane-users" class="work-pane">
       <div class="section-header"><h2>Users</h2></div>
 
-      <!-- #openAddUserBtn (in the All users card header below) opens this. -->
+      <!-- #openAddUserBtn (in the All users card header below) opens this in "add" mode; each
+           row's edit icon opens the same modal in "edit" mode (see openEditUserModal in
+           portal.js) — #newUserCreateOnlyFields (email + temp password) only makes sense when
+           creating the Firebase Auth account, so it's hidden while editing. -->
       <div id="addUserModal" class="modal-backdrop" style="display:none">
         <div class="modal-card">
           <div class="modal-header">
-            <h3>Add a user</h3>
+            <h3 id="userModalTitle">Add a user</h3>
             <button class="modal-close-btn" id="addUserModalCloseBtn" aria-label="Close">×</button>
           </div>
           <div class="modal-body">
             <form id="addUserForm">
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="newUserName">Name</label>
-                  <input type="text" id="newUserName" class="form-control" required autocomplete="off">
-                </div>
+              <div class="form-group">
+                <label for="newUserName">Name</label>
+                <input type="text" id="newUserName" class="form-control" required autocomplete="off">
+              </div>
+              <div id="newUserCreateOnlyFields">
                 <div class="form-group">
                   <label for="newUserEmail">Email</label>
-                  <input type="email" id="newUserEmail" class="form-control" required autocomplete="off">
+                  <input type="email" id="newUserEmail" class="form-control" autocomplete="off">
                 </div>
-              </div>
-              <div class="form-group">
-                <label for="newUserPassword">Temporary password</label>
-                <input type="text" id="newUserPassword" class="form-control" required minlength="6" autocomplete="off">
+                <div class="form-group">
+                  <label for="newUserPassword">Temporary password</label>
+                  <input type="text" id="newUserPassword" class="form-control" minlength="6" autocomplete="off">
+                </div>
               </div>
               <div class="form-group">
                 <label>Access</label>

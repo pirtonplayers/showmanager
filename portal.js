@@ -8,10 +8,11 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// Shared .icon-btn glyph (Feather-style, matching the outline icons used elsewhere in the
-// suite) — used in place of a text label for the row Delete action. (Copy link's icon is
+// Shared .icon-btn glyphs (Feather-style, matching the outline icons used elsewhere in the
+// suite) — used in place of a text label for a row's Edit/Delete actions. (Copy link's icon is
 // inlined directly in index.html's static markup, not rendered from here.)
 const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>';
 function showToast(message, type = 'info') {
   const toast = document.getElementById('toast');
   const el = document.createElement('div');
@@ -310,13 +311,14 @@ document.getElementById('tileGrid').addEventListener('click', (e) => {
 let allUsers = [];
 
 // Manager stays its own checkbox (a different kind of thing — portal-level, manages every app
-// and every user — not just "another app to pick"); the apps themselves are one checkbox each,
-// same as before. (Only the *existing users list* below got a dropdown — one row per user, a
-// checkbox per app there would be a wide, wrapping mess; a single new-user form has the room.)
-function accessPickerHtml(idPrefix, access = {}) {
+// and every user — not just "another app to pick"); the apps themselves are one checkbox each.
+// disableManagerTitle guards against self-demotion when this same picker is reused to edit your
+// own account (see openEditUserModal) — pass a tooltip explaining why to disable it, or '' to
+// leave it enabled (adding a user, or editing someone else).
+function accessPickerHtml(idPrefix, access = {}, disableManagerTitle = '') {
   return `
     <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:10px">
-      <input type="checkbox" id="${idPrefix}-isManager"> Manager (all apps, manages users)
+      <input type="checkbox" id="${idPrefix}-isManager" ${access.isManager ? 'checked' : ''} ${disableManagerTitle ? `disabled title="${escapeHtml(disableManagerTitle)}"` : ''}> Manager (all apps, manages users)
     </label>
     <div style="display:flex;flex-wrap:wrap;gap:14px">
       ${ACCESS_APPS.map(a => `
@@ -346,11 +348,6 @@ async function loadUsers() {
   renderUserList();
 }
 
-// Which row's Permissions dropdown is open — tracked separately from the <details> elements
-// themselves because renderUserList() below rebuilds the whole list (including on every
-// checkbox change inside that same dropdown, since toggling one re-saves and reloads), which
-// would otherwise silently collapse it back to closed on every single selection.
-let openPermissionsUid = null;
 
 function renderUserList() {
   const currentUid = firebase.auth().currentUser?.uid;
@@ -358,38 +355,16 @@ function renderUserList() {
   const rows = allUsers.filter(u => !search || u.name?.toLowerCase().includes(search) || u.email?.toLowerCase().includes(search));
 
   document.getElementById('userList').innerHTML = rows.map(u => {
-    // Manager doesn't imply/require every app's access flag — it's just another permission, so
-    // it lives in this same dropdown as a peer checkbox rather than a separate control.
-    const selectedLabels = [
-      ...(u.isManager ? ['Manager'] : []),
-      ...ACCESS_APPS.filter(a => u.access?.[a.key]).map(a => a.label),
-    ];
-    const summary = selectedLabels.length ? selectedLabels.join(', ') : 'No permissions';
     const isSelf = u.id === currentUid;
     return `
     <div class="item-row" style="flex-wrap:wrap">
       <div style="flex:1;min-width:180px">
-        <div class="item-name">${escapeHtml(u.name || u.email)}
-          <button type="button" data-edit-name="${u.id}" title="Edit name" style="margin-left:4px;font-size:11px;font-weight:400;color:var(--text-muted);background:none;border:none;cursor:pointer;text-decoration:underline">Edit</button>
-        </div>
+        <div class="item-name">${escapeHtml(u.name || u.email)}</div>
         <div class="item-sub">${escapeHtml(u.email)}</div>
       </div>
-      <div class="access-flags item-actions">
-        <details class="access-dropdown" data-uid="${u.id}" ${openPermissionsUid === u.id ? 'open' : ''}>
-          <summary title="${escapeHtml(summary)}">Permissions</summary>
-          <div class="access-dropdown-menu">
-            <label>
-              <input type="checkbox" data-toggle="${u.id}:isManager" ${u.isManager ? 'checked' : ''} ${isSelf ? 'disabled title="You can\'t change your own Manager status"' : ''}> Manager
-            </label>
-            <div class="access-dropdown-divider"></div>
-            ${ACCESS_APPS.map(a => `
-              <label>
-                <input type="checkbox" data-toggle="${u.id}:access.${a.key}" ${u.access?.[a.key] ? 'checked' : ''}> ${escapeHtml(a.label)}
-              </label>
-            `).join('')}
-          </div>
-        </details>
+      <div class="item-actions">
         <button class="btn btn-secondary btn-sm" data-send-link="${u.id}">Send link</button>
+        <button class="icon-btn" data-edit-user="${u.id}" title="Edit" aria-label="Edit">${ICON_EDIT}</button>
         <button class="icon-btn icon-btn-danger" data-delete-user="${u.id}" ${isSelf ? 'disabled title="You can\'t delete your own account this way"' : 'title="Delete" aria-label="Delete"'}>${ICON_TRASH}</button>
       </div>
     </div>
@@ -398,30 +373,39 @@ function renderUserList() {
 }
 document.getElementById('userSearchInput').addEventListener('input', renderUserList);
 
-// Only one row's Permissions dropdown open at a time. 'toggle' doesn't bubble, so this has to
-// be a capture-phase listener to catch it via delegation from a single spot on the container.
-document.getElementById('userList').addEventListener('toggle', (e) => {
-  if (!e.target.matches?.('.access-dropdown')) return;
-  const uid = e.target.getAttribute('data-uid');
-  if (e.target.open) {
-    openPermissionsUid = uid;
-    document.querySelectorAll('#userList .access-dropdown[open]').forEach(d => {
-      if (d !== e.target) d.removeAttribute('open');
-    });
-  } else if (openPermissionsUid === uid) {
-    openPermissionsUid = null;
-  }
-}, true);
+// One modal, two modes — _editingUserId null means "add", set means "edit that user". Reused
+// rather than a separate edit form since the fields (name + access picker) are the same; only
+// the create-only fields (email, temp password — meaningless once the Firebase Auth account
+// already exists) and the submit action differ.
+let _editingUserId = null;
 
-// Closes it on a click anywhere outside — <details> has no such behaviour natively (only
-// clicking its own <summary> again toggles it), and toggling a checkbox inside it re-renders
-// the whole list (see openPermissionsUid above), which would otherwise leave nothing to close
-// it except that same summary click.
-document.addEventListener('click', (e) => {
-  if (!openPermissionsUid || e.target.closest('.access-dropdown')) return;
-  document.querySelectorAll('#userList .access-dropdown[open]').forEach(d => d.removeAttribute('open'));
-  openPermissionsUid = null;
-});
+function openAddUserModal() {
+  _editingUserId = null;
+  document.getElementById('userModalTitle').textContent = 'Add a user';
+  document.getElementById('addUserBtn').textContent = '+ Add user';
+  document.getElementById('addUserForm').reset();
+  document.getElementById('newUserCreateOnlyFields').style.display = '';
+  document.getElementById('newUserAccessList').innerHTML = accessPickerHtml('newUser');
+  document.getElementById('addUserError').textContent = '';
+  document.getElementById('addUserModal').style.display = 'flex';
+}
+
+function openEditUserModal(id) {
+  const user = allUsers.find(u => u.id === id);
+  if (!user) return;
+  const isSelf = user.id === firebase.auth().currentUser?.uid;
+  _editingUserId = id;
+  document.getElementById('userModalTitle').textContent = 'Edit user';
+  document.getElementById('addUserBtn').textContent = 'Save changes';
+  document.getElementById('addUserForm').reset();
+  document.getElementById('newUserName').value = user.name || '';
+  document.getElementById('newUserCreateOnlyFields').style.display = 'none';
+  document.getElementById('newUserAccessList').innerHTML = accessPickerHtml('newUser',
+    { ...user.access, isManager: user.isManager },
+    isSelf ? "You can't change your own Manager status" : '');
+  document.getElementById('addUserError').textContent = '';
+  document.getElementById('addUserModal').style.display = 'flex';
+}
 
 document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -429,18 +413,33 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   const btn = document.getElementById('addUserBtn');
   errorEl.textContent = '';
   const name = document.getElementById('newUserName').value.trim();
-  const email = document.getElementById('newUserEmail').value.trim();
-  const password = document.getElementById('newUserPassword').value.trim();
   const isManager = document.getElementById('newUser-isManager').checked;
   const access = readAccessPicker('newUser');
+  if (!name) { errorEl.textContent = 'Enter a name.'; return; }
 
   btn.disabled = true;
   try {
-    await functionsRegion.httpsCallable('createUser')({ name, email, password, isManager, access });
-    document.getElementById('addUserForm').reset();
-    document.getElementById('newUserAccessList').innerHTML = accessPickerHtml('newUser');
-    document.getElementById('addUserModal').style.display = 'none';
-    showToast(`Account created for ${name} — pass on the temporary password`, 'success');
+    if (_editingUserId) {
+      const user = allUsers.find(u => u.id === _editingUserId);
+      if (isManager !== !!user?.isManager) {
+        const verb = isManager ? 'give Manager access to' : 'remove Manager access from';
+        if (!confirm(`Are you sure you want to ${verb} ${user?.name || user?.email}? Manager can manage every app and every user.`)) {
+          btn.disabled = false;
+          return;
+        }
+      }
+      await db.collection('users').doc(_editingUserId).update({ name, isManager, access });
+      document.getElementById('addUserModal').style.display = 'none';
+      showToast('Updated', 'success');
+    } else {
+      const email = document.getElementById('newUserEmail').value.trim();
+      const password = document.getElementById('newUserPassword').value.trim();
+      if (!email) { errorEl.textContent = 'Enter an email.'; btn.disabled = false; return; }
+      if (!password || password.length < 6) { errorEl.textContent = 'Enter a temporary password (6+ characters).'; btn.disabled = false; return; }
+      await functionsRegion.httpsCallable('createUser')({ name, email, password, isManager, access });
+      document.getElementById('addUserModal').style.display = 'none';
+      showToast(`Account created for ${name} — pass on the temporary password`, 'success');
+    }
     await loadUsers();
   } catch (err) {
     errorEl.textContent = err.message;
@@ -449,9 +448,7 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   }
 });
 
-document.getElementById('openAddUserBtn').addEventListener('click', () => {
-  document.getElementById('addUserModal').style.display = 'flex';
-});
+document.getElementById('openAddUserBtn').addEventListener('click', openAddUserModal);
 document.getElementById('addUserModalCloseBtn').addEventListener('click', () => {
   document.getElementById('addUserModal').style.display = 'none';
 });
@@ -482,48 +479,9 @@ document.getElementById('resyncClaimsBtn').addEventListener('click', async () =>
   }
 });
 
-document.getElementById('userList').addEventListener('change', async (e) => {
-  const key = e.target.getAttribute('data-toggle');
-  if (!key) return;
-  const [id, field] = key.split(':');
-  const checked = e.target.checked;
-  try {
-    if (field === 'isManager') {
-      const user = allUsers.find(u => u.id === id);
-      const verb = checked ? 'give Manager access to' : 'remove Manager access from';
-      if (!confirm(`Are you sure you want to ${verb} ${user?.name || user?.email}? Manager can manage every app and every user.`)) {
-        e.target.checked = !checked;
-        return;
-      }
-      await db.collection('users').doc(id).update({ isManager: checked });
-    } else {
-      await db.collection('users').doc(id).update({ [field]: checked });
-    }
-    showToast('Updated', 'success');
-    await loadUsers();
-  } catch (err) {
-    e.target.checked = !checked;
-    showToast(err.message, 'error');
-  }
-});
-
 document.getElementById('userList').addEventListener('click', async (e) => {
-  const editId = e.target.getAttribute('data-edit-name');
-  if (editId) {
-    const user = allUsers.find(u => u.id === editId);
-    const name = prompt('New name:', user?.name || '');
-    if (name === null) return;
-    const trimmed = name.trim();
-    if (!trimmed || trimmed === user?.name) return;
-    try {
-      await db.collection('users').doc(editId).update({ name: trimmed });
-      showToast('Updated', 'success');
-      await loadUsers();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-    return;
-  }
+  const editBtn = e.target.closest('[data-edit-user]'); // icon-btn's <svg> is the actual click target
+  if (editBtn) { openEditUserModal(editBtn.getAttribute('data-edit-user')); return; }
 
   const linkId = e.target.getAttribute('data-send-link');
   if (linkId) {
