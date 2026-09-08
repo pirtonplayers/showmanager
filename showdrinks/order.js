@@ -861,19 +861,11 @@ function showOrderStatus(order) {
   if (collectBtn) collectBtn.style.display = isReady ? '' : 'none';
 }
 
-// Every current call to this is right after freshly placing/confirming an order — the home
-// screen's own order cards keep live-updating the same status (see orderCard's ready-expanded
-// state), so there's no need to keep sitting on this confirmation screen; it returns home on
-// its own after a bit rather than waiting for the customer to tap Home themselves.
-let _statusAutoHomeTimer = null;
-
 function subscribeToOrderStatus(orderId) {
   if (state.statusUnsubscribe) state.statusUnsubscribe();
   state.statusUnsubscribe = db.collection('showdrinks_orders').doc(orderId).onSnapshot(snap => {
     if (snap.exists) showOrderStatus({ id: snap.id, ...snap.data() });
   });
-  if (_statusAutoHomeTimer) clearTimeout(_statusAutoHomeTimer);
-  _statusAutoHomeTimer = setTimeout(goHomeFromStatus, 10000);
 }
 
 // Shared by the status screen's own button and each ready order's inline "I've collected my
@@ -900,7 +892,6 @@ document.getElementById('collectBtn').addEventListener('click', () => {
 });
 
 function goHomeFromStatus() {
-  if (_statusAutoHomeTimer) { clearTimeout(_statusAutoHomeTimer); _statusAutoHomeTimer = null; }
   if (state.statusUnsubscribe) { state.statusUnsubscribe(); state.statusUnsubscribe = null; }
   state.showDate = ''; state.sessionId = ''; state.sessionName = '';
   state.basket = {}; state.orderId = null; state.selectedCategory = null;
