@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.129"></script>
+  <script src="../shared/embed.js?v=1.0.130"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#92400e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Pirton Players Expenses — Manager</title>
   <link rel="manifest" href="admin-manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-admin.png">
-  <link rel="stylesheet" href="style.css?v=1.0.129">
+  <link rel="stylesheet" href="style.css?v=1.0.130">
 </head>
 <body class="theme-admin">
 
@@ -127,7 +127,7 @@
         <h2>Expenses</h2>
         <div style="display:flex;gap:8px">
           <button class="btn btn-danger btn-sm" id="deleteSelectedBtn" style="display:none">Delete selected</button>
-          <button class="btn btn-primary btn-sm" id="openMarkPaidBtn">Mark expenses as paid</button>
+          <button class="btn btn-primary btn-sm" id="openMarkPaidBtn" style="display:none">Mark expenses as paid</button>
           <button class="btn btn-secondary btn-sm" id="exportBtn">⬇ Export to Excel</button>
         </div>
       </div>
@@ -136,7 +136,7 @@
 
       <div class="filters-toolbar">
         <select id="filterShow" class="form-control"><option value="">All shows</option></select>
-        <input type="text" id="filterUser" class="form-control" placeholder="Filter by name or email">
+        <select id="filterUser" class="form-control"><option value="">All submitters</option></select>
         <select id="filterPaid" class="form-control">
           <option value="0" selected>Unpaid only</option>
           <option value="">Paid + Unpaid</option>
@@ -448,10 +448,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="../shared/version.js?v=1.0.129"></script>
-<script src="../shared/firebase-config.js?v=1.0.129"></script>
-<script src="../shared/auth.js?v=1.0.129"></script>
-<script src="../shared/suite-nav.js?v=1.0.129"></script>
-<script src="admin.js?v=1.0.129"></script>
+<script src="../shared/version.js?v=1.0.130"></script>
+<script src="../shared/firebase-config.js?v=1.0.130"></script>
+<script src="../shared/auth.js?v=1.0.130"></script>
+<script src="../shared/suite-nav.js?v=1.0.130"></script>
+<script src="admin.js?v=1.0.130"></script>
 </body>
 </html>

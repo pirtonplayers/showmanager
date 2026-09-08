@@ -438,6 +438,7 @@ function subscribeExpenses() {
     allExpenses = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+    renderUserFilter();
     renderSummary();
     renderExpenseTable();
     renderReports();
@@ -445,6 +446,19 @@ function subscribeExpenses() {
     console.error(err);
     showToast(err.message, 'error');
   });
+}
+
+// Keyed by email (always unique, unlike name) — same key openUserExpenses() already used with
+// this field back when it was a free-text search box.
+function renderUserFilter() {
+  const sel = document.getElementById('filterUser');
+  const current = sel.value;
+  const byEmail = new Map();
+  allExpenses.forEach(e => { if (!byEmail.has(e.userEmail)) byEmail.set(e.userEmail, e.userName); });
+  const people = [...byEmail.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  sel.innerHTML = '<option value="">All submitters</option>' +
+    people.map(([email, name]) => `<option value="${escapeHtml(email)}">${escapeHtml(name)}</option>`).join('');
+  sel.value = current;
 }
 
 function renderSummary() {
@@ -457,12 +471,12 @@ function renderSummary() {
 
 function filteredExpenses() {
   const showId = document.getElementById('filterShow').value;
-  const user = document.getElementById('filterUser').value.trim().toLowerCase();
+  const user = document.getElementById('filterUser').value; // an email now, not free text — see renderUserFilter()
   const paid = document.getElementById('filterPaid').value;
   return allExpenses.filter(e => {
     if (showId && e.showId !== showId) return false;
     if (paid !== '' && String(e.paid ? 1 : 0) !== paid) return false;
-    if (user && !e.userName.toLowerCase().includes(user) && !e.userEmail.toLowerCase().includes(user)) return false;
+    if (user && e.userEmail !== user) return false;
     return true;
   });
 }
@@ -476,6 +490,13 @@ function filteredExpenses() {
 let selectedExpenseIds = new Set();
 
 function renderExpenseTable() {
+  // "Mark expenses as paid" only makes sense once the table's actually narrowed to one person —
+  // paying "everyone currently shown" isn't a real action — and only if that person actually has
+  // something outstanding (a submitter picked while viewing Paid-only history, say, wouldn't).
+  const filteredEmail = document.getElementById('filterUser').value;
+  const hasOutstanding = filteredEmail && outstandingByPerson().some(p => p.email === filteredEmail);
+  document.getElementById('openMarkPaidBtn').style.display = hasOutstanding ? '' : 'none';
+
   // Bulk delete is for cleaning up old paid records — an unpaid expense doesn't even get a
   // checkbox, so there's no way to select (and so no risk of bulk-deleting) one by mistake.
   selectedExpenseIds = new Set([...selectedExpenseIds].filter(id => allExpenses.some(r => r.id === id && r.paid)));
@@ -890,26 +911,15 @@ function updateMarkPaidTotal() {
   submitBtn.disabled = checkedIds.length === 0;
 }
 
-document.getElementById('openMarkPaidBtn').addEventListener('click', () => {
-  const people = outstandingByPerson();
-  document.getElementById('markPaidPersonSelect').innerHTML = '<option value="">Choose a person…</option>' +
-    people.map(p => `<option value="${escapeHtml(p.email)}">${escapeHtml(p.name)} (${money(p.total)})</option>`).join('');
-  document.getElementById('markPaidExpenseList').innerHTML = '';
-  document.getElementById('markPaidTotalRow').style.display = 'none';
-  document.getElementById('markPaidSubmitBtn').style.display = 'none';
-  document.getElementById('markPaidModal').style.display = 'flex';
-});
-
-document.getElementById('markPaidCloseBtn').addEventListener('click', closeMarkPaidModal);
-document.getElementById('markPaidModal').addEventListener('click', (e) => {
-  if (e.target.id === 'markPaidModal') closeMarkPaidModal();
-});
-
-document.getElementById('markPaidPersonSelect').addEventListener('change', (e) => {
+// Shared by the person <select>'s own change handler and openMarkPaidBtn below (which
+// pre-selects whichever person the outer Expenses filter is already narrowed to, since that's
+// the whole reason the button appeared in the first place — no need to make them choose again).
+function selectMarkPaidPerson(email) {
   const listEl = document.getElementById('markPaidExpenseList');
   const totalRow = document.getElementById('markPaidTotalRow');
   const submitBtn = document.getElementById('markPaidSubmitBtn');
-  const person = outstandingByPerson().find(p => p.email === e.target.value);
+  document.getElementById('markPaidPersonSelect').value = email;
+  const person = outstandingByPerson().find(p => p.email === email);
   if (!person) {
     listEl.innerHTML = '';
     totalRow.style.display = 'none';
@@ -926,6 +936,29 @@ document.getElementById('markPaidPersonSelect').addEventListener('change', (e) =
   totalRow.style.display = 'flex';
   submitBtn.style.display = 'block';
   updateMarkPaidTotal();
+}
+
+document.getElementById('openMarkPaidBtn').addEventListener('click', () => {
+  const people = outstandingByPerson();
+  document.getElementById('markPaidPersonSelect').innerHTML = '<option value="">Choose a person…</option>' +
+    people.map(p => `<option value="${escapeHtml(p.email)}">${escapeHtml(p.name)} (${money(p.total)})</option>`).join('');
+  document.getElementById('markPaidExpenseList').innerHTML = '';
+  document.getElementById('markPaidTotalRow').style.display = 'none';
+  document.getElementById('markPaidSubmitBtn').style.display = 'none';
+  document.getElementById('markPaidModal').style.display = 'flex';
+  // The button only ever shows once the outer Expenses filter has narrowed to one submitter
+  // (see renderExpenseTable) — jump straight to their list instead of asking again.
+  const filteredEmail = document.getElementById('filterUser').value;
+  if (filteredEmail) selectMarkPaidPerson(filteredEmail);
+});
+
+document.getElementById('markPaidCloseBtn').addEventListener('click', closeMarkPaidModal);
+document.getElementById('markPaidModal').addEventListener('click', (e) => {
+  if (e.target.id === 'markPaidModal') closeMarkPaidModal();
+});
+
+document.getElementById('markPaidPersonSelect').addEventListener('change', (e) => {
+  selectMarkPaidPerson(e.target.value);
 });
 
 document.getElementById('markPaidExpenseList').addEventListener('change', (e) => {
@@ -1104,8 +1137,8 @@ document.getElementById('expensesUserList').addEventListener('click', (e) => {
 });
 
 // Jumps to the Expenses tab pre-filtered to just this person (every status, not just Unpaid,
-// same reasoning as openShowExpenses above). filterUser matches name-or-email substring, and an
-// email is always unique, so it's the safer of the two to filter on here.
+// same reasoning as openShowExpenses above). filterUser is keyed by email (see renderUserFilter),
+// which is always unique unlike name, so that's what's set here.
 function openUserExpenses(email) {
   document.getElementById('filterShow').value = '';
   document.getElementById('filterUser').value = email;
