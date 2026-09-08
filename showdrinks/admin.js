@@ -1266,14 +1266,13 @@ async function loadShowTabs() {
   renderTabBasket();
 }
 
-// Shows whichever of the POS grid / category list the current ordering mode calls for, and
-// keeps the "Add to Tab" button (the list mode's only way to commit — the grid has its own
-// "Finish" cell for that) in sync.
+// Shows whichever of the POS grid / category list the current ordering mode calls for. Either
+// way, tapping the basket bar above (#tabBasket) commits the order to the member's tab — a POS
+// grid's own "Finish" cell still works too, but nothing list-mode-specific is needed for it.
 function renderTabOrderEntry() {
   const posMode = isPosMode();
   document.getElementById('tabPosGrid').style.display = posMode ? '' : 'none';
   document.getElementById('tabListArea').style.display = posMode ? 'none' : '';
-  document.getElementById('tabListCommitBtn').style.display = posMode ? 'none' : '';
   if (posMode) renderTabGrid(); else renderTabListMenu();
 }
 
@@ -1610,10 +1609,9 @@ function renderTabBasket() {
   const items = Object.values(_tabBasket);
   const count = items.reduce((s, i) => s + i.qty, 0);
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-  el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between">
-    <span class="basket-badge">🛒<span class="count">${count}</span></span>
-    <span style="font-weight:800;font-size:19px">${fmtCurrency(total)}</span>
-  </div>`;
+  el.innerHTML = `
+    <span class="tab-basket-badge">🧺<span class="count">${count}</span></span>
+    <span class="tab-basket-total">${fmtCurrency(total)}</span>`;
 }
 
 window.handleTabPosBtn = function(idx, isLongPress) {

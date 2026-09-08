@@ -62,11 +62,6 @@
     .location-banner { background: var(--success-light); color: var(--success); padding: 20px; border-radius: 12px; font-size: 20px; font-weight: 800; margin-bottom: 16px; }
     .location-banner .loc-label { font-size: 13px; font-weight: 500; opacity: .8; display: block; margin-bottom: 4px; }
 
-    .step-bar { display: flex; justify-content: center; align-items: center; gap: 6px; padding: 16px 0 8px; }
-    .step-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.35); transition: all .3s; }
-    .step-dot.active { background: #fff; width: 24px; border-radius: 4px; }
-    .step-dot.done { background: rgba(255,255,255,.7); }
-
     .bottom-bar { padding: 16px 20px; background: var(--bg); border-top: 1px solid var(--border); display: flex; gap: 10px; position: sticky; bottom: 0; }
     .bottom-bar .btn { flex: 1; height: 52px; font-size: 16px; border-radius: 12px; }
 
@@ -107,12 +102,10 @@
     .sub-screen .pwa-hero svg { display:none; }
     .sub-screen .pwa-hero h1 { font-size:14px; font-weight:700; margin:0; }
     .sub-screen .pwa-hero p { display:none; }
-    .sub-screen .step-bar { padding:6px 0 4px; }
     .sub-screen .pwa-content { padding-top:16px; }
 
     /* Screen 2 POS mode — hide chrome, fill viewport */
-    .pos-screen .pwa-hero,
-    .pos-screen .step-bar { display:none; }
+    .pos-screen .pwa-hero { display:none; }
     .pos-screen .pwa-content { padding:10px 12px 12px; display:flex; flex-direction:column; height:calc(100vh - env(safe-area-inset-top)); height:calc(100dvh - env(safe-area-inset-top)); box-sizing:border-box; overflow:hidden; }
     .pos-screen #screen1 { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; }
     .pos-screen .order-grid-pane { flex:0 0 calc(40% - 24px); height:auto; max-height:none; overflow-y:auto; }
@@ -127,10 +120,12 @@
     #listMenu .section-label:first-child { margin-top:0; }
 
     #heroBasketTotal, #heroBasketBtn { display:none; }
-    .list-screen .pwa-hero { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; }
-    .list-screen #heroBasketTotal { display:inline-flex; justify-self:center; font-weight:800; font-size:17px; }
-    .list-screen #heroBasketBtn { display:inline-flex; justify-self:end; position:relative; background:none; border:none; color:#fff; font-size:22px; line-height:1; padding:4px; cursor:pointer; }
-    .hero-basket-count { position:absolute; top:-4px; right:-6px; background:#fff; color:var(--primary); font-size:10px; font-weight:800; min-width:16px; height:16px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 3px; line-height:1; }
+    .list-screen .pwa-hero { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; padding:12px 20px; }
+    .list-screen #heroBasketTotal { display:inline-flex; justify-self:center; font-weight:800; font-size:30px; }
+    /* 3x the original 22px icon — the basket is the primary call-to-action on this screen, so it
+       reads as the biggest, most obviously-tappable thing in the header. */
+    .list-screen #heroBasketBtn { display:inline-flex; justify-self:end; position:relative; background:none; border:none; color:#fff; font-size:66px; line-height:1; padding:2px; cursor:pointer; }
+    .hero-basket-count { position:absolute; top:-2px; right:-12px; background:#fff; color:var(--primary); font-size:14px; font-weight:800; min-width:26px; height:26px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 5px; line-height:1; }
 
     /* Category slider — sticky row of category chips along the top of the category list, so it
        stays put as the item list scrolls underneath it. Tapping a chip jumps to that category;
@@ -182,6 +177,12 @@
 
     /* Collected order state */
     .past-order-card.collected { opacity:.55; border-color:var(--border); }
+
+    /* A ready order expands right here on the home screen instead of needing the status screen —
+       collect-location line + the collect button live directly on the card. */
+    .past-order-card.ready-expanded { flex-direction:column; align-items:stretch; gap:10px; cursor:default; }
+    .past-order-card.ready-expanded .past-order-info { display:flex; justify-content:space-between; align-items:baseline; cursor:pointer; }
+    .poi-ready-line { font-size:16px; font-weight:700; color:var(--success); }
     .status-icon-wrap.collected { background:#f1f5f9; }
   </style>
 </head>
@@ -202,14 +203,8 @@
     <p style="font-size:11px;opacity:.4;margin-top:4px" id="heroVersion"></p>
     <span id="heroBasketTotal">£0.00</span>
     <button type="button" id="heroBasketBtn" onclick="goToListBasket()" title="View basket">
-      🛒<span id="heroBasketCount" class="hero-basket-count">0</span>
+      🧺<span id="heroBasketCount" class="hero-basket-count">0</span>
     </button>
-  </div>
-  <div class="step-bar" id="stepBar">
-    <div class="step-dot active" id="dot0"></div>
-    <div class="step-dot" id="dot1"></div>
-    <div class="step-dot" id="dot2"></div>
-    <div class="step-dot" id="dot3"></div>
   </div>
 
   <div class="pwa-content">
@@ -303,7 +298,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="../shared/version.js?v=1.0.107"></script>
+<script src="../shared/version.js?v=1.0.108"></script>
 <script src="../shared/firebase-config.js"></script>
 <script src="../shared/a2hs.js"></script>
 <script src="order.js"></script>

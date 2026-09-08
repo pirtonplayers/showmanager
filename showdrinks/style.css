@@ -369,14 +369,19 @@ input, textarea, select, [contenteditable] {
 .tab-member-row:hover { border-color:var(--primary); }
 .tab-member-row.active { border-color:var(--primary); background:var(--primary-light); }
 .tab-pos-split { display:flex; gap:16px; align-items:stretch; position:relative; }
-.tab-pos-buttons { flex:1 1 50%; min-width:0; max-height:65vh; overflow-y:auto; }
-.tab-pos-order { flex:1 1 50%; min-width:0; max-height:65vh; overflow-y:auto; display:flex; flex-direction:column; }
+.tab-pos-buttons { flex:1 1 100%; min-width:0; max-height:65vh; overflow-y:auto; }
 /* No member picked yet — grid stays visible (so it's obvious what's coming) but can't be used. */
 .tab-pos-split.inactive { pointer-events:none; }
-.tab-pos-split.inactive .tab-pos-buttons, .tab-pos-split.inactive .tab-pos-order { opacity:.35; }
-.tab-pos-inactive-hint { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; font-size:14px; font-weight:600; color:var(--text-muted); }
+.tab-pos-split.inactive .tab-pos-buttons { opacity:.35; }
 .card-corner-btn { position:absolute; top:10px; right:10px; background:none; border:none; cursor:pointer; font-size:18px; line-height:1; padding:4px; color:var(--text-muted); border-radius:6px; }
 .card-corner-btn:hover { color:var(--danger); background:var(--bg); }
+
+/* Bar Tabs POS's basket — same place (top, below the member picker) and prominence as the
+   customer app's own basket, and the same tap-to-commit role "Add to Tab" used to have. */
+.tab-basket-bar { display:flex; align-items:center; justify-content:space-between; gap:16px; background:var(--primary); color:#fff; border-radius:var(--radius); padding:14px 20px; margin-bottom:16px; cursor:pointer; }
+.tab-basket-badge { position:relative; display:inline-flex; font-size:44px; line-height:1; }
+.tab-basket-badge .count { position:absolute; top:-4px; right:-14px; background:#fff; color:var(--primary); font-size:14px; font-weight:800; min-width:24px; height:24px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 5px; line-height:1; }
+.tab-basket-total { font-size:26px; font-weight:800; }
 
 /* Per-row "⋯" action menu (Bar Tabs Admin member rows) — <details>/<summary>, same idea as the
    portal's Users permissions dropdown: native disclosure, closed on outside click via a small
@@ -442,5 +447,4 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
   .orders-toolbar { flex-direction: column; align-items: stretch; }
   .order-card-header { flex-wrap: wrap; }
   .tab-pos-split { flex-direction: column; }
-  .tab-pos-order { width: 100%; }
 }

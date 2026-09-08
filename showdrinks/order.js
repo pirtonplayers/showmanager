@@ -88,16 +88,8 @@ function goTo(step) {
   body.classList.toggle('sub-screen', step !== 0);
   body.classList.toggle('pos-screen', step === 1 && isPosMode());
   body.classList.toggle('list-screen', step === 1 && !isPosMode());
-  updateStepBar();
   updateBottomBar();
   window.scrollTo(0, 0);
-}
-
-function updateStepBar() {
-  for (let i = 0; i < 4; i++) {
-    const dot = document.getElementById('dot' + i);
-    dot.className = 'step-dot' + (i < state.step ? ' done' : i === state.step ? ' active' : '');
-  }
 }
 
 function updateBottomBar() {
@@ -284,10 +276,24 @@ function orderCard(o) {
   const isReady     = o.prepStatus === 'ready';
   const isCollected = o.prepStatus === 'collected';
   const numLabel = o.orderNumber ? `<span style="font-weight:900;color:var(--primary)">#${o.orderNumber}</span> · ` : '';
-  const statusLabel = isCollected ? 'Collected'
-    : isReady ? (o.locationName ? `✓ ${escHtml(o.locationName)}` : '✓ Ready') : 'Pending';
-  const badgeCls = isCollected ? 'badge-primary' : isReady ? 'badge-success' : 'badge-warning';
-  return `<div class="past-order-card ${isReady ? 'ready' : ''} ${isCollected ? 'collected' : ''}"
+
+  // Ready orders expand right here — no need to tap through to the status screen just to see
+  // where to collect from and confirm collection.
+  if (isReady) {
+    const readyLine = o.locationName ? `Ready to collect from <strong>${escHtml(o.locationName)}</strong>` : 'Ready to collect';
+    return `<div class="past-order-card ready ready-expanded">
+      <div class="past-order-info" onclick="viewOrder('${o.id}')">
+        <div class="poi-session">${numLabel}${escHtml(o.sessionName || '')}</div>
+        <div class="poi-total">${fmtCurrency(o.totalAmount)}</div>
+      </div>
+      <div class="poi-ready-line">${readyLine}</div>
+      <button class="btn btn-success btn-full" onclick="collectOrderInline('${o.id}')">✓ I've collected my drinks</button>
+    </div>`;
+  }
+
+  const statusLabel = isCollected ? 'Collected' : 'Pending';
+  const badgeCls = isCollected ? 'badge-primary' : 'badge-warning';
+  return `<div class="past-order-card ${isCollected ? 'collected' : ''}"
               onclick="viewOrder('${o.id}')">
     <div class="past-order-info">
       <div class="poi-session">${numLabel}${escHtml(o.sessionName || '')}</div>
@@ -832,9 +838,9 @@ function subscribeToOrderStatus(orderId) {
   });
 }
 
-document.getElementById('collectBtn').addEventListener('click', async () => {
-  const orderId = state.currentStatusOrderId;
-  if (!orderId) return;
+// Shared by the status screen's own button and each ready order's inline "I've collected my
+// drinks" button on the home screen (see orderCard).
+async function markOrderCollected(orderId) {
   try {
     await db.collection('showdrinks_orders').doc(orderId).update({
       prepStatus: 'collected',
@@ -845,6 +851,14 @@ document.getElementById('collectBtn').addEventListener('click', async () => {
   } catch(e) {
     toast('Error: ' + e.message, 'error');
   }
+}
+
+window.collectOrderInline = function(orderId) {
+  markOrderCollected(orderId);
+};
+
+document.getElementById('collectBtn').addEventListener('click', () => {
+  if (state.currentStatusOrderId) markOrderCollected(state.currentStatusOrderId);
 });
 
 document.getElementById('newOrderBtn').addEventListener('click', () => {
