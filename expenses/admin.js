@@ -535,13 +535,13 @@ function renderExpenseList() {
     container.innerHTML = sortedGroups.map(g => `
       <div class="expense-user-group">
         <div class="expense-user-header">
-          <div>
+          <div class="eu-identity">
             <div class="eu-name">${escapeHtml(g.name)}</div>
             <div class="eu-email">${escapeHtml(g.email)}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px">
+          <div class="eu-actions">
             <div class="eu-total">${money(g.total)}</div>
-            ${g.rows.some(r => !r.paid) ? `<button type="button" class="btn btn-primary btn-sm" data-mark-paid-email="${escapeHtml(g.email)}" style="white-space:nowrap">Mark as paid</button>` : ''}
+            ${g.rows.some(r => !r.paid) ? `<button type="button" class="btn btn-primary btn-sm" data-mark-paid-email="${escapeHtml(g.email)}">Mark as paid</button>` : ''}
           </div>
         </div>
         ${g.rows.map(r => `

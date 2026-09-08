@@ -350,9 +350,14 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 /* ── Expenses list — grouped by submitter (renderExpenseList) ── */
 .expense-user-group { border-top: 1px solid var(--border); }
 .expense-user-group:first-child { border-top: none; }
-.expense-user-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; background: var(--bg); }
+.expense-user-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 10px; padding: 10px 16px; background: var(--bg); }
+/* min-width:0 lets this actually shrink/wrap inside the flex row instead of forcing .eu-actions
+   past the card's edge to keep the name on one line — a long name plus "Mark as paid" is more
+   than a phone's width can always fit on a single row otherwise. */
+.eu-identity { min-width: 0; overflow-wrap: break-word; }
 .eu-name { font-weight: 700; font-size: 14px; }
 .eu-email { font-size: 11px; color: var(--text-muted); }
+.eu-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; white-space: nowrap; }
 .eu-total { font-weight: 700; color: var(--primary); white-space: nowrap; }
 .expense-row { padding: 8px 16px; border-top: 1px solid var(--border); }
 .er-main { font-size: 13px; margin-bottom: 4px; }
