@@ -551,13 +551,21 @@ async function loadOrders() {
   _ordersUnsubscribe = query.onSnapshot(snap => {
     let orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // Auto-fill each order's collection point from the current show's default (Show & Sessions'
-    // "Default Location") so staff don't have to hand-pick the same one for every order — still
-    // overridable per order via the dropdown below. Only orders missing a location are touched,
-    // so this converges after one extra snapshot round-trip rather than looping.
+    // Auto-fill a freshly-placed order's collection point from the current show's default (Show
+    // & Sessions' "Default Location") so staff don't have to hand-pick the same one for every
+    // order — still overridable per order via the dropdown below. Scoped to snap.docChanges()'
+    // 'added' entries only (not the whole `orders` list, which is every order this query has ever
+    // matched) — orders have no showId to filter by, so re-scanning the full list on every
+    // snapshot would keep retrying old/historical orders from past shows forever, and every
+    // marginally-unrelated change firing this listener (marking some other order Ready, say)
+    // would re-write every still-unlocated order all over again.
     const currentShow = _shows.find(s => s.isCurrent);
     if (currentShow?.defaultLocationId) {
-      orders.forEach(o => { if (!o.locationId) setOrderLocation(o.id, currentShow.defaultLocationId); });
+      snap.docChanges().forEach(change => {
+        if (change.type !== 'added') return;
+        const o = { id: change.doc.id, ...change.doc.data() };
+        if (!o.locationId) setOrderLocation(o.id, currentShow.defaultLocationId);
+      });
     }
 
     if (status === 'all') { /* no filter */ }
