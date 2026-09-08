@@ -32,10 +32,12 @@ function restamp(text, assets) {
   return text;
 }
 
-// showdrinks is the one exception: it never adopted the ?v= scheme (its sw.js instead does a
-// network-first fetch for everything, and update detection goes through the service worker's own
-// waiting/updatefound events rather than polling version.js) — so it's just given the new shared
-// version.js path/cache-name, no query-string restamping to do there.
+// showdrinks' index.html (the customer PWA) has its own network-first service worker on top of
+// this, but that's registered by order.js itself — it can't protect the very first load, or
+// admin.html, which never registers a service worker at all. Both still need the same ?v=
+// restamping as everything else, or GitHub Pages' CDN can keep serving a stale style.css/admin.js
+// for up to 10 minutes after every deploy (see restamp() above) — this was silently undoing CSS
+// fixes to admin.html on repeat testing for a while before it was caught.
 function bumpApp({ dir, assets = [], html = [], swCache }) {
   const p = (name) => dir ? `${dir}/${name}` : name;
   if (swCache) {
@@ -73,7 +75,10 @@ bumpApp({
 });
 bumpApp({
   dir: 'showdrinks', swCache: 'showdrinks',
-  assets: ['../shared/version.js'],
+  assets: [
+    'style.css', 'admin.js', 'order.js',
+    '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/a2hs.js',
+  ],
   html: ['index.html', 'admin.html'],
 });
 
