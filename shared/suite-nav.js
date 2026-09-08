@@ -29,7 +29,7 @@ const APP_SUBNAV = {
   showdrinksAdmin: [
     { id: 'orders', label: 'Orders', selector: '[data-tab="orders"]' },
     { id: 'tabs', label: 'Bar Tabs POS', selector: '[data-tab="tabs"]' },
-    { id: 'tabmembers', label: 'Bar Tabs Admin', selector: '[data-tab="tabmembers"]' },
+    { id: 'tabmembers', label: 'Bar Tabs', selector: '[data-tab="tabmembers"]' },
     { id: 'show', label: 'Show & Sessions', selector: '[data-tab="show"]' },
     { id: 'menu', label: 'Menu Items', selector: '[data-tab="menu"]' },
     { id: 'locations', label: 'Locations', selector: '[data-tab="locations"]' },

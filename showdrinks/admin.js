@@ -1378,7 +1378,7 @@ async function addOrSelectTabMember(rawName, rawEmail) {
 }
 
 // ── Add/Edit member modal — one modal, two modes ────────────────────────────
-// Opened from: Bar Tabs Admin's "+ Add Member" button, a row's "✏ Edit", or the Bar Tabs POS
+// Opened from: Bar Tabs' "+ Add Member" button, a row's "✏ Edit", or the Bar Tabs POS
 // member picker's "+ Add a member…" option. _editingTabMemberId null = adding, set = editing.
 
 let _editingTabMemberId = null;
