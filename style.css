@@ -144,8 +144,10 @@ input[type="file"].form-control { padding: 7px 10px; }
 /* ════════════════════════ ADMIN LAYOUT ════════════════════════ */
 .admin-header { background: var(--primary); color: #fff; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 16px; box-shadow: var(--shadow-md); position: sticky; top: 0; z-index: 100; }
 /* Centered across the whole header — .admin-header's own position:sticky makes it the
-   positioning context, so this doesn't need position:relative added just for this. */
-.header-title { position: absolute; left: 0; right: 0; text-align: center; font-size: 15px; font-weight: 600; color: inherit; text-decoration: none; pointer-events: auto; }
+   positioning context, so this doesn't need position:relative added just for this. Sized to its
+   own text (not left:0;right:0, which would stretch the clickable link across the full header
+   width and sit on top of the Home button/hamburger either side of it). */
+.header-title { position: absolute; left: 50%; transform: translateX(-50%); width: max-content; font-size: 15px; font-weight: 600; color: inherit; text-decoration: none; }
 /* Fixed to the actual bottom of the viewport, not just the end of the page's content — a
    native pane with little content, or an app iframe sized to fill the screen below the header
    (see .shell-frame), would otherwise leave it well below the fold instead of visible at the
