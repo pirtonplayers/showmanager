@@ -104,7 +104,6 @@ function updateBottomBar() {
   const bar  = document.getElementById('bottomBar');
   const next = document.getElementById('nextBtn');
   const back = document.getElementById('backBtn');
-  next.classList.remove('basket-bar-btn'); // only the list-mode branch below re-adds this
   if (state.step === 0 || state.step === 3) { bar.style.display = 'none'; return; }
   if (state.step === 2) {
     bar.style.display = 'flex';
@@ -122,20 +121,11 @@ function updateBottomBar() {
   if (state.step === 1 && !state.editingOrderId) {
     // POS grid mode: its own "Finish" cell drives navigation, so the bottom bar stays hidden.
     if (isPosMode()) { bar.style.display = 'none'; return; }
-    // List mode: no such cell, so the bar doubles as a sticky basket bar — always visible while
-    // browsing, showing the running count/total and doubling as the way to move on.
+    // List mode: the basket total/trolley live in the header instead (see updateHeroBasket) and
+    // the trolley is how you get to Review, so the bottom bar here is just Cancel.
     bar.style.display = 'flex';
-    next.style.display = '';
+    next.style.display = 'none';
     back.textContent = '← Cancel';
-    const count = basketCount();
-    if (count > 0) {
-      next.disabled = false;
-      next.classList.add('basket-bar-btn');
-      next.innerHTML = `<span class="bbb-summary">🛒 ${count} · ${fmtCurrency(basketTotal())}</span><span class="bbb-cta">View Basket →</span>`;
-    } else {
-      next.disabled = true;
-      next.textContent = 'Add items to continue';
-    }
     return;
   }
   next.style.display = '';
@@ -173,16 +163,14 @@ document.getElementById('nextBtn').addEventListener('click', async () => {
   if (state.step === 2 && state.editingOrderId) {
     goTo(3); subscribeToOrderStatus(state.editingOrderId); return;
   }
-  if (state.step === 1) {
-    if (state.editingOrderId) {
-      if (state.editingOrderStatus !== 'pending') {
-        goTo(3); subscribeToOrderStatus(state.editingOrderId);
-      } else {
-        await saveOrderEdits();
-      }
+  if (state.step === 1 && state.editingOrderId) {
+    // Reaching step 1 (POS grid / category list) with a new, non-editing order never shows this
+    // button — POS uses its grid's own "Finish" cell and list mode uses the header trolley
+    // (goToListBasket) instead, both going straight to Review themselves.
+    if (state.editingOrderStatus !== 'pending') {
+      goTo(3); subscribeToOrderStatus(state.editingOrderId);
     } else {
-      if (basketCount() === 0) { toast('Add at least one item', 'error'); return; }
-      goTo(2); renderReview();
+      await saveOrderEdits();
     }
   }
 });
@@ -520,24 +508,21 @@ wirePosLongPress(document.getElementById('posGrid'), handlePosBtn);
 
 function renderOrderGrid() {
   const pane  = document.getElementById('orderGridPane');
+
+  // List mode already shows each item with its own +/- stepper, so this itemized pane would just
+  // repeat that — its job (running total + a way to reach Review) lives in the header instead.
+  if (!isPosMode()) {
+    pane.style.display = 'none';
+    updateHeroBasket();
+    return;
+  }
+  pane.style.display = '';
+
   const entries = Object.entries(state.basket);
 
   if (!entries.length) {
     state.selectedBasketKey = null;
     pane.innerHTML = '<div class="og-empty">Your order is empty — tap items below to add</div>';
-    return;
-  }
-
-  // List mode already shows each item with its own +/- stepper, so the itemized cart pane here
-  // would just repeat that — a running total is all it needs to add (the sticky basket bar at
-  // the bottom of the screen shows the same total again for whenever you've scrolled away from
-  // the top).
-  if (!isPosMode()) {
-    const count = basketCount();
-    pane.innerHTML = `<div class="og-total" style="position:static">
-      <span class="og-basket">🛒<span class="og-basket-count">${count}</span></span>
-      <span>${fmtCurrency(basketTotal())}</span>
-    </div>`;
     return;
   }
 
@@ -559,6 +544,21 @@ function renderOrderGrid() {
 window.selectBasketItem = function(encodedKey) {
   state.selectedBasketKey = decodeURIComponent(encodedKey);
   renderOrderGrid();
+};
+
+// List mode's basket lives in the header: running total centered, trolley top-right. The trolley
+// is the only way to reach Review in this mode (the bottom bar there is just Cancel).
+function updateHeroBasket() {
+  const totalEl = document.getElementById('heroBasketTotal');
+  const countEl = document.getElementById('heroBasketCount');
+  if (!totalEl || !countEl) return;
+  totalEl.textContent = fmtCurrency(basketTotal());
+  countEl.textContent = basketCount();
+}
+
+window.goToListBasket = function() {
+  if (basketCount() === 0) { toast('Add at least one item', 'error'); return; }
+  goTo(2); renderReview();
 };
 
 // ── Screen 1: Category List mode (alternate to the POS grid) ────────────────
