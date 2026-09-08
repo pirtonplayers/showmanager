@@ -1265,6 +1265,10 @@ function renderTabOrderEntry() {
   const posMode = isPosMode();
   document.getElementById('tabPosGrid').style.display = posMode ? '' : 'none';
   document.getElementById('tabListArea').style.display = posMode ? 'none' : '';
+  // #tabListCatBar now lives in the sticky header (a sibling of #tabListArea, not nested inside
+  // it), so it needs its own explicit hide here for grid mode — renderTabListMenu() (list mode)
+  // sets its own display based on category count.
+  if (posMode) document.getElementById('tabListCatBar').style.display = 'none';
   if (posMode) renderTabGrid(); else renderTabListMenu();
 }
 

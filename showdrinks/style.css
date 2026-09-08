@@ -211,13 +211,13 @@ input, textarea, select, [contenteditable] {
   display: none !important;
 }
 .embedded .admin-content { margin-left: 0 !important; }
-/* .orders-sticky-ribbon and .menu-sticky-header stick at top:60px to clear the real
-   .admin-header — but that header is hidden above, so with no 60px of header actually there, a
-   sticky top of 60px is *more* than this page's natural top offset and clamps the bar 60px lower
-   than its own reserved space in the flow, permanently overlapping the content right after it
-   (the first order card / menu row) even before any scrolling happens. With nothing to clear
-   when embedded, this just needs to stick at the very top instead. */
-.embedded .orders-sticky-ribbon, .embedded .menu-sticky-header { top: 0; }
+/* .orders-sticky-ribbon, .menu-sticky-header and .tab-pos-sticky-header stick at top:60px to
+   clear the real .admin-header — but that header is hidden above, so with no 60px of header
+   actually there, a sticky top of 60px is *more* than this page's natural top offset and clamps
+   the bar 60px lower than its own reserved space in the flow, permanently overlapping the
+   content right after it (the first order card / menu row / POS grid) even before any scrolling
+   happens. With nothing to clear when embedded, this just needs to stick at the very top instead. */
+.embedded .orders-sticky-ribbon, .embedded .menu-sticky-header, .embedded .tab-pos-sticky-header { top: 0; }
 
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
@@ -314,9 +314,10 @@ input, textarea, select, [contenteditable] {
 .cat-bar { display:flex; gap:8px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
 .cat-bar::-webkit-scrollbar { display:none; }
 .cat-btn { flex:0 0 auto; white-space:nowrap; padding:7px 14px; border:2px solid var(--border); border-radius:999px; background:var(--surface); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
-/* Sticky within Bar Tabs POS's own scrolling item list (.tab-pos-buttons), so it stays put as
-   that list scrolls underneath it rather than scrolling away with the items. */
-#tabListCatBar { position:sticky; top:0; z-index:2; background:var(--surface); padding-top:2px; }
+/* Lives in .tab-pos-sticky-header now (a sibling of the member picker/basket bar, not nested in
+   the scrolling grid/list below) — that wrapper is what's sticky, so this just needs its own
+   flow spacing, no positioning of its own. */
+#tabListCatBar { padding-top:2px; }
 .cat-btn.active { border-color:var(--primary); background:var(--primary); color:#fff; }
 
 /* ── Session & Date selectors ── */
@@ -369,6 +370,10 @@ input, textarea, select, [contenteditable] {
 .tab-member-row { cursor:pointer; transition:border-color .15s, box-shadow .15s; position:relative; }
 .tab-member-row:hover { border-color:var(--primary); }
 .tab-member-row.active { border-color:var(--primary); background:var(--primary-light); }
+/* Member picker + basket bar + (list mode's) category pills — sticks flush against the header,
+   same treatment as .orders-sticky-ribbon/.menu-sticky-header (see there for why the negative
+   margin and the .embedded top:0 override exist). */
+.tab-pos-sticky-header { position: sticky; top: 60px; z-index: 60; background: var(--bg); margin: -24px -24px 12px; padding: 12px 24px; }
 .tab-pos-split { display:flex; gap:16px; align-items:stretch; position:relative; }
 .tab-pos-buttons { flex:1 1 100%; min-width:0; max-height:65vh; overflow-y:auto; }
 /* No member picked yet — grid stays visible (so it's obvious what's coming) but can't be used. */
@@ -449,6 +454,7 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
   .admin-content { padding: 16px; }
   .orders-sticky-ribbon { margin: -16px -16px 12px; padding: 12px 16px; }
   .menu-sticky-header { margin: -16px -16px 12px; padding: 12px 16px 4px; }
+  .tab-pos-sticky-header { margin: -16px -16px 12px; padding: 12px 16px; }
   .form-row { grid-template-columns: 1fr; }
   .orders-toolbar { flex-direction: column; align-items: stretch; }
   .order-card-header { flex-wrap: wrap; }

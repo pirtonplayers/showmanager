@@ -325,23 +325,29 @@
 
   <!-- ── SHOW TABS ── -->
   <div id="tab-tabs" class="tab-panel">
+    <!-- Member picker + basket bar + (list mode's) category pills stick together as one block —
+         same flush-against-the-header treatment as Orders'/Menu Items' sticky headers — so only
+         the grid/list itself scrolls underneath. -->
+    <div class="tab-pos-sticky-header">
+      <div class="form-group" style="max-width:320px;margin-bottom:12px">
+        <select id="tabMemberSelect" class="form-control" onchange="selectTabMember(this.value)">
+          <option value="">— choose a member —</option>
+        </select>
+      </div>
+
+      <!-- Same place/size as the customer app's own basket (top of the ordering screen) —
+           tapping it opens a review of what's in it before committing (openTabBasketReview). -->
+      <div id="tabBasket" class="tab-basket-bar" onclick="openTabBasketReview()"></div>
+
+      <div id="tabListCatBar" class="cat-bar" style="display:none"></div>
+    </div>
+
     <div class="card">
       <div class="card-body">
-        <div class="form-group" style="max-width:320px">
-          <select id="tabMemberSelect" class="form-control" onchange="selectTabMember(this.value)">
-            <option value="">— choose a member —</option>
-          </select>
-        </div>
-
-        <!-- Same place/size as the customer app's own basket (top of the ordering screen) —
-             tapping it opens a review of what's in it before committing (openTabBasketReview). -->
-        <div id="tabBasket" class="tab-basket-bar" onclick="openTabBasketReview()"></div>
-
         <div id="tabPosArea" class="tab-pos-split inactive">
           <div class="tab-pos-buttons">
             <div id="tabPosGrid"></div>
             <div id="tabListArea" style="display:none">
-              <div id="tabListCatBar" class="cat-bar" style="display:none;margin-bottom:10px"></div>
               <div id="tabListMenu"></div>
             </div>
           </div>
@@ -657,7 +663,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="../shared/version.js?v=1.0.120"></script>
+<script src="../shared/version.js?v=1.0.121"></script>
 <script src="../shared/firebase-config.js"></script>
 <script src="../shared/auth.js"></script>
 <script src="../shared/suite-nav.js"></script>
