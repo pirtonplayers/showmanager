@@ -1485,16 +1485,22 @@ function nameSimilarity(a, b) {
 
 const FUZZY_NAME_MATCH_THRESHOLD = 0.75;
 
-// Same first name (a plain "John" typed in shouldn't miss an existing "John Smith" just because
-// the full strings look different) *or* a close full-name spelling match, unioned into one list
-// — either is reason enough to check before creating what might be a duplicate entry.
+// Same first name *or* a close full-name spelling match, unioned into one list — either is
+// reason enough to check before creating what might be a duplicate entry.
+// The first-name check only fires when the typed name has no surname of its own — "John" should
+// surface every existing John so whoever's typing can pick the right one, but "John Smith"
+// shouldn't flag an existing "John Doe" just because they happen to share a first name; those
+// are two different full names, not a probable duplicate, and the full-string fuzzy check below
+// already covers a genuine near-miss like "John Smith" vs "Jon Smith".
 function findSimilarMembers(name, candidates) {
   const nameLower = name.toLowerCase();
-  const firstName = nameLower.split(/\s+/)[0];
+  const nameParts = nameLower.split(/\s+/);
   const matches = new Map();
-  candidates.forEach(m => {
-    if (m.name.toLowerCase().split(/\s+/)[0] === firstName) matches.set(m.id, m);
-  });
+  if (nameParts.length === 1) {
+    candidates.forEach(m => {
+      if (m.name.toLowerCase().split(/\s+/)[0] === nameParts[0]) matches.set(m.id, m);
+    });
+  }
   let closest = null, closestScore = 0;
   for (const m of candidates) {
     const score = nameSimilarity(nameLower, m.name.toLowerCase());

@@ -79,32 +79,69 @@ function canLeaveActiveApp() {
   return !unsaved;
 }
 
+// Creates (and starts loading) an app's iframe if it doesn't exist yet, without touching
+// activeKey/panes/nav — shared by activateApp (on-demand, the first time someone opens an app)
+// and preloadApps (proactive, right after sign-in, for every app the account can reach) so the
+// same iframe just happens to already be loading by the time someone actually clicks its tile.
+function ensureFrame(key) {
+  let frame = frames[key];
+  if (frame) return frame;
+  const app = ACCESS_APPS.find(a => a.key === key);
+  if (!app) return null;
+  frame = document.createElement('iframe');
+  frame.className = 'shell-frame';
+  frame.title = app.label;
+  frame.src = app.href;
+  // Only postMessage the starting tab once this fresh iframe has actually loaded and had a
+  // chance to register its own message listener (shared/embed.js) — an earlier message would
+  // just be missed. Only hides the loading overlay if we're still looking at this app when it
+  // finishes — a preloaded app's own 'load' event can fire long after the user's moved on.
+  frame.addEventListener('load', () => {
+    activateTab(key, lastTab[key] || APP_SUBNAV[key]?.[0]?.id);
+    if (key === activeKey) hideAppLoadingOverlay();
+  });
+  document.getElementById('workAreaFrames').appendChild(frame);
+  frames[key] = frame;
+  return frame;
+}
+
+function showAppLoadingOverlay(label) {
+  document.getElementById('appLoadingMessage').textContent = `Loading ${label}…`;
+  document.getElementById('appLoadingOverlay').classList.add('active');
+}
+function hideAppLoadingOverlay() {
+  document.getElementById('appLoadingOverlay').classList.remove('active');
+}
+
+// Fired once, right after sign-in — starts every accessible app's iframe loading in the
+// background (dashboard stays responsive immediately) so opening one later, most of the time,
+// finds it already warm instead of paying its full cold-start cost right when it's wanted.
+function preloadApps() {
+  if (!currentAccount) return;
+  accessibleApps(currentAccount).forEach(a => ensureFrame(a.key));
+}
+
 function activateApp(key) {
   if (key !== activeKey && !canLeaveActiveApp()) return;
   activeKey = key;
   if (key === 'dashboard' || key === 'users') {
     activatePane(key);
     renderShellNav();
+    hideAppLoadingOverlay();
     return;
   }
   const app = ACCESS_APPS.find(a => a.key === key);
   if (!app) return;
   activatePane(null); // hides every native pane and every other iframe
 
-  let frame = frames[key];
-  if (!frame) {
-    frame = document.createElement('iframe');
-    frame.className = 'shell-frame';
-    frame.title = app.label;
-    frame.src = app.href;
-    // Only postMessage the starting tab once this fresh iframe has actually loaded and had a
-    // chance to register its own message listener (shared/embed.js) — an earlier message would
-    // just be missed.
-    frame.addEventListener('load', () => activateTab(key, lastTab[key] || APP_SUBNAV[key]?.[0]?.id));
-    document.getElementById('workAreaFrames').appendChild(frame);
-    frames[key] = frame;
-  } else if (lastTab[key]) {
+  const alreadyReady = !!frames[key] && !!lastTab[key];
+  const frame = ensureFrame(key);
+  if (!frame) return;
+  if (alreadyReady) {
     activateTab(key, lastTab[key]);
+    hideAppLoadingOverlay();
+  } else {
+    showAppLoadingOverlay(app.label);
   }
   frame.classList.add('active');
   renderShellNav();
@@ -282,6 +319,7 @@ firebase.auth().onAuthStateChanged(async user => {
       document.getElementById('adminApp').style.display = 'block';
       renderTiles(data);
       renderShellNav();
+      preloadApps();
       if (!dashboardInitialized) {
         dashboardInitialized = true;
         document.getElementById('headerVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';

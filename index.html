@@ -10,12 +10,15 @@
   <title>Pirton Players</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=1.0.138">
+  <link rel="stylesheet" href="style.css?v=1.0.139">
 </head>
 <body class="theme-portal">
 
 <!-- Covers the page until the first onAuthStateChanged fires — see #authGate in style.css. -->
-<div id="authGate"></div>
+<div id="authGate">
+  <div class="splash-dots"><span class="splash-dot"></span><span class="splash-dot"></span><span class="splash-dot"></span></div>
+  <p class="splash-message">Loading Pirton Players…</p>
+</div>
 
 <div id="updateBanner">
   <span>A new version is available</span>
@@ -215,7 +218,16 @@
        chrome so only its content shows, and shared/suite-nav.js drives which tab is open via
        postMessage). Sits alongside <main> so it can be full-bleed while the native panes above
        keep their own centred/padded layout — see #workAreaFrames in style.css. ── -->
-  <div id="workAreaFrames"></div>
+  <div id="workAreaFrames">
+    <!-- Shown by activateApp() (portal.js) while switching to an app whose iframe hasn't
+         finished its own first load yet — most of the time preloadApps() already got there
+         first, so this is only actually seen on a slow connection or an app that's still busy
+         loading. -->
+    <div id="appLoadingOverlay" class="app-loading-overlay">
+      <div class="splash-dots"><span class="splash-dot"></span><span class="splash-dot"></span><span class="splash-dot"></span></div>
+      <p class="splash-message" id="appLoadingMessage"></p>
+    </div>
+  </div>
 
   <!-- Fixed to the bottom of the viewport (see .footer-version) — not inside the flow of
        <main>/#workAreaFrames above, since position:fixed ignores that anyway. -->
@@ -241,11 +253,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="shared/version.js?v=1.0.138"></script>
-<script src="shared/firebase-config.js?v=1.0.138"></script>
-<script src="shared/auth.js?v=1.0.138"></script>
-<script src="shared/suite-nav.js?v=1.0.138"></script>
-<script src="shared/a2hs.js?v=1.0.138"></script>
-<script src="portal.js?v=1.0.138"></script>
+<script src="shared/version.js?v=1.0.139"></script>
+<script src="shared/firebase-config.js?v=1.0.139"></script>
+<script src="shared/auth.js?v=1.0.139"></script>
+<script src="shared/suite-nav.js?v=1.0.139"></script>
+<script src="shared/a2hs.js?v=1.0.139"></script>
+<script src="portal.js?v=1.0.139"></script>
 </body>
 </html>
