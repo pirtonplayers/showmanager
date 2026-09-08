@@ -112,9 +112,11 @@ let userDocUnsub = null;
 let dashboardInitialized = false;
 
 firebase.auth().onAuthStateChanged(async user => {
+  window.markPerf?.('onAuthStateChanged fired');
   if (user) {
     // Shared login (shared/auth.js): isManager or access.expensesAdmin gets in.
     const allowed = await checkAccess(user.uid, 'expensesAdmin').catch(() => null);
+    window.markPerf?.('checkAccess resolved');
     if (!allowed) {
       await firebase.auth().signOut();
       document.getElementById('loginError').textContent = 'This account does not have Expenses admin access — ask a manager to grant it from the showmanager portal.';
@@ -234,6 +236,8 @@ async function initDashboard() {
   await loadShows();
   subscribeExpenses();
   await loadNotifySettings();
+  window.markPerf?.('initDashboard data loaded (Shows/Notify settings)');
+  window.showPerfReport?.('Expenses Manager');
 }
 
 // ── Shows ────────────────────────────────────────────────────────────────
