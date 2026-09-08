@@ -381,6 +381,17 @@ let editingPendingId = null; // id of the pending item currently loaded into the
 let editingRemovedReceiptPaths = []; // its receipts marked for removal, not yet actually deleted
 let newReceiptFiles = []; // File objects picked in receiptInput but not yet uploaded/submitted
 
+// Closing the tab/refreshing with expenses staged-but-not-submitted would lose them (they only
+// exist in pendingExpenses until Submit all actually writes them) — the browser's own generic
+// confirm dialog lets the user cancel and stay. Doesn't fire for switching tabs/apps within the
+// showmanager shell itself (the iframe isn't unloaded, just hidden), only for an actual page
+// unload — exactly the case where pendingExpenses would really be lost.
+window.addEventListener('beforeunload', (e) => {
+  if (!pendingExpenses.length) return;
+  e.preventDefault();
+  e.returnValue = ''; // required by Chrome; the message itself is browser-controlled, not this string
+});
+
 // Shared full-size view every receipt thumbnail opens into (new-file preview, pending list,
 // editing view) — same modal, each just brings its own onDelete for what "delete" actually
 // means in that context (splice a not-yet-uploaded file / delete from Storage right away /
