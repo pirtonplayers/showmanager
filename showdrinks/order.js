@@ -65,6 +65,19 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// One overall status made of two independent fields: an order can't be Ready/Collected until
+// it's paid, so "Unpaid" only applies to a pay-at-bar order that hasn't been marked paid yet
+// (see admin.js's Mark Paid) — a SumUp order is already "paid" the moment its redirect-back
+// handler runs, so it never shows Unpaid at all.
+function orderStage(o) {
+  if (o.prepStatus === 'collected') return 'collected';
+  if (o.prepStatus === 'ready') return 'ready';
+  if (o.paymentMode === 'bar' && o.paymentStatus !== 'paid') return 'unpaid';
+  return 'paid';
+}
+const ORDER_STAGE_LABEL = { unpaid: 'Unpaid', paid: 'Paid', ready: 'Ready', collected: 'Collected' };
+const ORDER_STAGE_BADGE = { unpaid: 'badge-danger', paid: 'badge-warning', ready: 'badge-success', collected: 'badge-primary' };
+
 function basketTotal() {
   return Object.values(state.basket).reduce((s, i) => s + i.price * i.quantity, 0);
 }
@@ -291,8 +304,9 @@ function orderCard(o) {
     </div>`;
   }
 
-  const statusLabel = isCollected ? 'Collected' : 'Pending';
-  const badgeCls = isCollected ? 'badge-primary' : 'badge-warning';
+  const stage = orderStage(o);
+  const statusLabel = ORDER_STAGE_LABEL[stage];
+  const badgeCls = ORDER_STAGE_BADGE[stage];
   return `<div class="past-order-card ${isCollected ? 'collected' : ''}"
               onclick="viewOrder('${o.id}')">
     <div class="past-order-info">
@@ -805,11 +819,15 @@ function initiateSumupPayment() {
 // ── Screen 3: Status ───────────────────────────────────────────────────────
 
 function showOrderStatus(order) {
-  const isReady     = order.prepStatus === 'ready';
-  const isCollected = order.prepStatus === 'collected';
+  const stage = orderStage(order);
+  const isReady     = stage === 'ready';
+  const isCollected = stage === 'collected';
 
-  const iconState = isCollected ? 'collected' : isReady ? 'ready' : 'pending';
-  document.getElementById('statusIcon').className   = `status-icon-wrap ${iconState}`;
+  // 'unpaid' reuses the same warning-ish look as "being prepared" (.pending) plus its own
+  // banner below, rather than a whole extra icon treatment for a stage that isn't visually
+  // different from "order received" in any other way.
+  const iconClass = isCollected ? 'collected' : isReady ? 'ready' : 'pending';
+  document.getElementById('statusIcon').className   = `status-icon-wrap ${iconClass}`;
   document.getElementById('statusIcon').textContent = isCollected ? '🎉' : isReady ? '✅' : '';
   document.getElementById('statusTitle').textContent = isCollected ? 'Enjoy your drinks!'
     : isReady ? 'Your drinks are ready!' : 'Order received!';
@@ -820,6 +838,11 @@ function showOrderStatus(order) {
 
   const numEl = document.getElementById('confOrderNum');
   if (numEl) numEl.textContent = order.orderNumber ? '#' + order.orderNumber : '';
+
+  // Persistent reminder for a pay-at-bar order until it's actually marked paid (see admin.js's
+  // Mark Paid) — separate from the ready/collected messaging above since payment and prep are
+  // independent (an order can be made and even ready before it's paid).
+  document.getElementById('payAtBarBanner').style.display = stage === 'unpaid' ? '' : 'none';
 
   const locBanner = document.getElementById('locationBanner');
   if (isReady && order.locationName) {

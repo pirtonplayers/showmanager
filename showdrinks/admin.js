@@ -212,6 +212,11 @@ function renderShowEditor() {
 
   document.getElementById('showName').value = show.name || '';
 
+  const defaultLocSelect = document.getElementById('showDefaultLocation');
+  defaultLocSelect.innerHTML = '<option value="">— none —</option>' +
+    _locations.map(l => `<option value="${l.id}">${escHtml(l.name)}</option>`).join('');
+  defaultLocSelect.value = show.defaultLocationId || '';
+
   // Both need a real saved doc to act on — hidden until this draft has actually been saved once.
   const setCurBtn = document.getElementById('setCurrentShowBtn');
   const deleteBtn = document.getElementById('deleteShowBtn');
@@ -249,7 +254,8 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
   const sumupMerchantCode = document.getElementById('showSumupMerchantCode').value.trim();
   const sumupApiKey       = document.getElementById('showSumupApiKey').value.trim();
   const orderingMode      = document.getElementById('showOrderingMode').value;
-  const fields = { name, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode };
+  const defaultLocationId = document.getElementById('showDefaultLocation').value;
+  const fields = { name, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode, defaultLocationId };
 
   try {
     if (_creatingNewShow) {
@@ -544,6 +550,16 @@ async function loadOrders() {
 
   _ordersUnsubscribe = query.onSnapshot(snap => {
     let orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Auto-fill each order's collection point from the current show's default (Show & Sessions'
+    // "Default Location") so staff don't have to hand-pick the same one for every order — still
+    // overridable per order via the dropdown below. Only orders missing a location are touched,
+    // so this converges after one extra snapshot round-trip rather than looping.
+    const currentShow = _shows.find(s => s.isCurrent);
+    if (currentShow?.defaultLocationId) {
+      orders.forEach(o => { if (!o.locationId) setOrderLocation(o.id, currentShow.defaultLocationId); });
+    }
+
     if (status === 'all') { /* no filter */ }
     else if (status === '') orders = orders.filter(o => o.prepStatus !== 'collected');
     else orders = orders.filter(o => o.prepStatus === status);
