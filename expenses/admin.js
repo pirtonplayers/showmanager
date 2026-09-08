@@ -470,9 +470,22 @@ function renderSummary() {
   const unpaidExpenses = allExpenses.filter(e => !e.paid);
   const unpaid = unpaidExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
   document.getElementById('summaryCards').innerHTML = `
-    <div class="summary-card"><div class="snum">${money(unpaid)}</div><div class="slabel">Unpaid (${unpaidExpenses.length} expense${unpaidExpenses.length === 1 ? '' : 's'})</div></div>
+    <div class="summary-card" style="cursor:pointer" onclick="showUnpaidOnly()" title="Show unpaid expenses">
+      <div class="snum">${money(unpaid)}</div><div class="slabel">Unpaid (${unpaidExpenses.length} expense${unpaidExpenses.length === 1 ? '' : 's'})</div>
+    </div>
   `;
 }
+
+// Jumps to the unpaid list from the summary card above — clears the other filters (show/
+// submitter) rather than layering on top of whatever was already selected, since the card's own
+// total is always the suite-wide unpaid figure, not scoped to any filter already in place.
+window.showUnpaidOnly = function() {
+  document.getElementById('filterShow').value = '';
+  document.getElementById('filterUser').value = '';
+  document.getElementById('filterUnpaidCheck').checked = true;
+  document.getElementById('filterPaidCheck').checked = false;
+  renderExpenseTable();
+};
 
 function filteredExpenses() {
   const showId = document.getElementById('filterShow').value;
