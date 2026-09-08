@@ -835,7 +835,31 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
 
 let _qrInstance = null;
 
-document.getElementById('generateQrBtn').addEventListener('click', () => {
+// Loaded lazily on first actual use rather than a static <script> tag every admin.html page
+// load — most visits never touch Settings & QR at all, so that was one more CDN round trip
+// (its own DNS/TLS handshake to cdnjs.cloudflare.com, on top of gstatic's) sitting in the
+// critical path of every single Bar Manager open for a feature most opens never use.
+let _qrLibPromise = null;
+function loadQrLib() {
+  if (window.QRCode) return Promise.resolve();
+  if (_qrLibPromise) return _qrLibPromise;
+  _qrLibPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.onload = resolve;
+    s.onerror = () => { _qrLibPromise = null; reject(new Error('Could not load QR code library')); };
+    document.head.appendChild(s);
+  });
+  return _qrLibPromise;
+}
+
+document.getElementById('generateQrBtn').addEventListener('click', async () => {
+  try {
+    await loadQrLib();
+  } catch(e) {
+    toast(e.message, 'error');
+    return;
+  }
   const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', '');
   const orderUrl = baseUrl.replace(/\/$/, '') + '/index.html';
   document.getElementById('qrUrl').textContent = orderUrl;
