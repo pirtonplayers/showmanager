@@ -122,9 +122,10 @@
     #heroBasketTotal, #heroBasketBtn { display:none; }
     .list-screen .pwa-hero { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; padding:12px 20px; }
     .list-screen #heroBasketTotal { display:inline-flex; justify-self:center; font-weight:800; font-size:30px; }
-    /* 3x the original 22px icon — the basket is the primary call-to-action on this screen, so it
-       reads as the biggest, most obviously-tappable thing in the header. */
-    .list-screen #heroBasketBtn { display:inline-flex; justify-self:end; position:relative; background:none; border:none; color:#fff; font-size:66px; line-height:1; padding:2px; cursor:pointer; }
+    /* The basket is the primary call-to-action on this screen, so it reads as the biggest, most
+       obviously-tappable thing in the header. */
+    .list-screen #heroBasketBtn { display:inline-flex; justify-self:end; position:relative; background:none; border:none; color:#fff; padding:2px; cursor:pointer; }
+    .hero-basket-svg { width:56px; height:56px; display:block; }
     .hero-basket-count { position:absolute; top:-2px; right:-12px; background:#fff; color:var(--primary); font-size:14px; font-weight:800; min-width:26px; height:26px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 5px; line-height:1; }
 
     /* Category slider — sticky row of category chips along the top of the category list, so it
@@ -203,7 +204,8 @@
     <p style="font-size:11px;opacity:.4;margin-top:4px" id="heroVersion"></p>
     <span id="heroBasketTotal">£0.00</span>
     <button type="button" id="heroBasketBtn" onclick="goToListBasket()" title="View basket">
-      🧺<span id="heroBasketCount" class="hero-basket-count">0</span>
+      <svg class="hero-basket-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      <span id="heroBasketCount" class="hero-basket-count">0</span>
     </button>
   </div>
 
@@ -298,7 +300,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="../shared/version.js?v=1.0.112"></script>
+<script src="../shared/version.js?v=1.0.113"></script>
 <script src="../shared/firebase-config.js"></script>
 <script src="../shared/a2hs.js"></script>
 <script src="order.js"></script>
