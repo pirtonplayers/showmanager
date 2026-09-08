@@ -712,10 +712,8 @@ document.getElementById('changePasswordForm').addEventListener('submit', async (
 let dashboardInitialized = false;
 
 firebase.auth().onAuthStateChanged(async user => {
-  window.markPerf?.('onAuthStateChanged fired');
   if (user) {
     const allowed = await checkAccess(user.uid, 'budget').catch(() => null);
-    window.markPerf?.('checkAccess resolved');
     if (!allowed) {
       await firebase.auth().signOut();
       document.getElementById('loginError').textContent = 'This account does not have Budget access — ask a manager to grant it from the showmanager portal.';
@@ -739,8 +737,6 @@ firebase.auth().onAuthStateChanged(async user => {
         document.getElementById('headerVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';
         await ensureTemplateExists();
         await loadShows();
-        window.markPerf?.('data loaded (ensureTemplateExists/loadShows)');
-        window.showPerfReport?.('ShowBudget');
       }
     }
   } else {

@@ -61,7 +61,7 @@ bumpApp({
   dir: 'expenses', swCache: 'expenses',
   assets: [
     'style.css', 'app.js', 'admin.js',
-    '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/a2hs.js', '../shared/perf-report.js', '../shared/load-script.js',
+    '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/a2hs.js', '../shared/load-script.js',
   ],
   html: ['index.html', 'admin.html', 'help.html', 'admin-help.html'],
 });
@@ -69,7 +69,7 @@ bumpApp({
   dir: 'budget', swCache: 'budget',
   assets: [
     'style.css', 'budget.js',
-    '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/perf-report.js', '../shared/load-script.js',
+    '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/load-script.js',
   ],
   html: ['index.html'],
 });
