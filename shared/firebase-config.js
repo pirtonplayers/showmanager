@@ -16,4 +16,15 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 
+// Explicit persistence, set immediately — without this, the Auth SDK's own auto-detection step
+// (choosing the best persistence + a cross-tab/third-party-storage check via a hidden
+// Google-hosted iframe, evidenced by apis.google.com/js/api.js + gapi_iframes showing up in the
+// suite's load-time diagnostics) can hang for many seconds on iOS Safari specifically — its
+// storage partitioning makes that check slow to resolve — before falling back to exactly this
+// same LOCAL persistence anyway. Measured as a ~13s delay before onAuthStateChanged ever fired
+// on ShowBudget, despite every script/resource itself loading in well under a second.
+// showdrinks/index.html (the customer PWA, no login of its own) never loads
+// firebase-auth-compat.js at all, so this is guarded rather than assumed present.
+if (firebase.auth) firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
 const db = firebase.firestore();

@@ -583,7 +583,18 @@ document.getElementById('deleteShowBtn').addEventListener('click', async () => {
 
 // ── Export to Excel ──────────────────────────────────────────────────────
 
-document.getElementById('exportExcelBtn').addEventListener('click', () => {
+// Loaded lazily on first actual export rather than a static <script> tag on every single page
+// load — xlsx.full.min.js is a heavy library (over a second to fetch on a slow connection) for
+// a feature most visits to this page never touch at all.
+const XLSX_LIB_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+
+document.getElementById('exportExcelBtn').addEventListener('click', async () => {
+  try {
+    await loadScript(XLSX_LIB_URL, 'XLSX');
+  } catch(e) {
+    showToast(e.message, 'error');
+    return;
+  }
   const wb = XLSX.utils.book_new();
 
   const fp = currentShow.fixedParams;

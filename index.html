@@ -10,7 +10,7 @@
   <title>Pirton Players</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=1.0.134">
+  <link rel="stylesheet" href="style.css?v=1.0.135">
 </head>
 <body class="theme-portal">
 
@@ -223,17 +223,29 @@
 
 </div>
 
+<!-- Shown by canLeaveActiveApp() (portal.js) in place of a plain alert() — always a hard block,
+     never a choice, so this only ever has the one OK button. -->
+<div id="unsavedWorkModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card" style="max-width:360px">
+    <div class="modal-header"><h3>Unsaved work</h3></div>
+    <div class="modal-body">
+      <p class="muted" style="margin-bottom:16px">You have unsaved work here — finish or cancel it before leaving this page.</p>
+      <button type="button" class="btn btn-primary btn-full" id="unsavedWorkModalOkBtn">OK</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="shared/version.js?v=1.0.134"></script>
-<script src="shared/firebase-config.js?v=1.0.134"></script>
-<script src="shared/auth.js?v=1.0.134"></script>
-<script src="shared/suite-nav.js?v=1.0.134"></script>
-<script src="shared/a2hs.js?v=1.0.134"></script>
-<script src="portal.js?v=1.0.134"></script>
+<script src="shared/version.js?v=1.0.135"></script>
+<script src="shared/firebase-config.js?v=1.0.135"></script>
+<script src="shared/auth.js?v=1.0.135"></script>
+<script src="shared/suite-nav.js?v=1.0.135"></script>
+<script src="shared/a2hs.js?v=1.0.135"></script>
+<script src="portal.js?v=1.0.135"></script>
 </body>
 </html>

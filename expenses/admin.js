@@ -609,7 +609,18 @@ document.getElementById('expenseTableBody').addEventListener('click', async (e) 
 
 // ── Export ───────────────────────────────────────────────────────────────
 
-document.getElementById('exportBtn').addEventListener('click', () => {
+// Loaded lazily on first actual export rather than a static <script> tag on every single
+// page load — xlsx.full.min.js is a heavy library (over a second to fetch on a slow
+// connection) for a feature most visits to this page never touch at all.
+const XLSX_LIB_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+
+document.getElementById('exportBtn').addEventListener('click', async () => {
+  try {
+    await loadScript(XLSX_LIB_URL, 'XLSX');
+  } catch(e) {
+    showToast(e.message, 'error');
+    return;
+  }
   const rows = filteredExpenses().map(r => ({
     Show: r.showName || '',
     Description: r.description,
@@ -748,9 +759,15 @@ document.getElementById('printReportBtn').addEventListener('click', () => {
   window.print();
 });
 
-document.getElementById('exportReportBtn').addEventListener('click', () => {
+document.getElementById('exportReportBtn').addEventListener('click', async () => {
   const rows = reportFilteredExpenses();
   if (!rows.length) { showToast('Nothing to export with the current filters', 'info'); return; }
+  try {
+    await loadScript(XLSX_LIB_URL, 'XLSX');
+  } catch(e) {
+    showToast(e.message, 'error');
+    return;
+  }
 
   const wb = XLSX.utils.book_new();
 

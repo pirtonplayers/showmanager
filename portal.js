@@ -73,7 +73,9 @@ function canLeaveActiveApp() {
   if (typeof check !== 'function') return true;
   let unsaved = false;
   try { unsaved = !!check(); } catch { /* treat as safe to leave if the check itself errors */ }
-  if (unsaved) alert('You have unsaved work here — finish or cancel it before leaving this page.');
+  // A plain fire-and-forget show — the block itself doesn't wait on the user dismissing this,
+  // it's already decided (unlike a confirm(), there's no choice to make here).
+  if (unsaved) document.getElementById('unsavedWorkModal').style.display = 'flex';
   return !unsaved;
 }
 
@@ -152,7 +154,11 @@ function handleNavClick(e) {
     const btn = e.target.closest('[data-pane],[data-subtab]');
     if (!btn) return;
     if (btn.dataset.pane) activateApp(btn.dataset.pane);
-    else activateTab(btn.dataset.app, btn.dataset.subtab);
+    // A subtab click doesn't leave the app's iframe (it's the same document, just telling it to
+    // show a different one of its own screens) — but it does navigate the view away from
+    // whatever's currently showing there, which is exactly what canLeaveActiveApp() exists to
+    // guard, same as leaving the app entirely.
+    else if (canLeaveActiveApp()) activateTab(btn.dataset.app, btn.dataset.subtab);
   }
   document.getElementById('shellNavDropdown').classList.remove('open');
 }
@@ -165,6 +171,13 @@ document.getElementById('homeBtn').addEventListener('click', () => activateApp('
 // escape route while there's unsaved work — see canLeaveActiveApp.
 document.getElementById('pirtonPlayersLink').addEventListener('click', (e) => {
   if (!canLeaveActiveApp()) e.preventDefault();
+});
+
+document.getElementById('unsavedWorkModalOkBtn').addEventListener('click', () => {
+  document.getElementById('unsavedWorkModal').style.display = 'none';
+});
+document.getElementById('unsavedWorkModal').addEventListener('click', (e) => {
+  if (e.target.id === 'unsavedWorkModal') document.getElementById('unsavedWorkModal').style.display = 'none';
 });
 
 document.getElementById('menuBtn').addEventListener('click', (e) => {
