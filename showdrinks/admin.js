@@ -595,16 +595,23 @@ function renderOrders(orders) {
   container.innerHTML = orders.map(o => {
     const isReady     = o.prepStatus === 'ready';
     const isCollected = o.prepStatus === 'collected';
+    const isPaid      = o.paymentStatus === 'paid';
     const sessionLabel = o.sessionName || o.sessionId || '';
     const statusBadge = isCollected ? '<span class="badge badge-primary">Collected</span>'
       : isReady ? '<span class="badge badge-success">Ready</span>'
       : '<span class="badge badge-warning">Pending</span>';
+    // Payment for a "pay at bar" order isn't taken until the customer's at the counter, so it
+    // can't be marked Collected until staff have actually taken payment and flagged it here —
+    // SumUp orders normally flip to paid on their own (the redirect-back handler), but the same
+    // Mark Paid button covers one that's stuck (e.g. the browser closed before returning).
+    const markPaidBtn = `<button class="btn btn-primary btn-sm" onclick="markOrderPaid('${o.id}')">💰 Mark Paid</button>`;
     const actionBtns = isCollected
       ? `<button class="btn btn-secondary btn-sm" onclick="markReady('${o.id}')">↩ Undo Collected</button>`
       : isReady
-        ? `<button class="btn btn-primary btn-sm" onclick="markCollected('${o.id}')">✓ Collected</button>
+        ? `${isPaid ? `<button class="btn btn-primary btn-sm" onclick="markCollected('${o.id}')">✓ Collected</button>` : markPaidBtn}
            <button class="btn btn-secondary btn-sm" onclick="markPending('${o.id}')">↩ Pending</button>`
-        : `<button class="btn btn-success btn-sm" onclick="markReady('${o.id}')">✓ Mark Ready</button>`;
+        : `<button class="btn btn-success btn-sm" onclick="markReady('${o.id}')">✓ Mark Ready</button>
+           ${isPaid ? '' : markPaidBtn}`;
 
     // Ready/collected orders have nothing left to prepare, so they collapse their items/location
     // by default — expandable per-order via the chevron below. Pending ones always show in full.
@@ -642,8 +649,8 @@ function renderOrders(orders) {
         </div>`}
         <div class="order-card-footer">
           ${actionBtns}
-          <span style="font-size:12px;color:var(--text-muted);margin-left:auto">
-            ${o.paymentMode === 'bar' ? '💵 Pay at bar' : '💳 Paid online'}
+          <span class="badge ${isPaid ? 'badge-success' : 'badge-warning'}" style="margin-left:auto">
+            ${isPaid ? '✓ Paid' : (o.paymentMode === 'bar' ? '💵 Unpaid (pay at bar)' : '⏳ Awaiting payment')}
           </span>
         </div>
       </div>`;
@@ -680,7 +687,23 @@ window.markPending = async function(id) {
   }
 };
 
+window.markOrderPaid = async function(id) {
+  try {
+    await db.collection('showdrinks_orders').doc(id).update({
+      paymentStatus: 'paid',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('Order marked as paid', 'success');
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+  }
+};
+
 window.markCollected = async function(id) {
+  // Defensive — the button that reaches this is already hidden until the order's paid (see
+  // orderCard), but _lastOrders lets this double-check without another Firestore round trip.
+  const order = _lastOrders.find(o => o.id === id);
+  if (order && order.paymentStatus !== 'paid') { toast('Mark it paid first', 'error'); return; }
   try {
     await db.collection('showdrinks_orders').doc(id).update({
       prepStatus: 'collected',
