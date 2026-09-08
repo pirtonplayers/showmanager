@@ -541,4 +541,17 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
   .form-row { grid-template-columns: 1fr; }
   .filters-toolbar { flex-direction: column; align-items: stretch; }
   .filters-toolbar .form-control { width: 100%; }
+
+  /* Income/Spend run noticeably smaller on a phone (smaller heading, tighter table rows, a
+     narrower amount input) so both fit comfortably without needing horizontal scroll. */
+  .budget-columns .card-header { padding: 10px 14px; }
+  .budget-columns .card-header h2 { font-size: 14px; }
+  .budget-columns .card-body { padding: 14px; }
+  .budget-columns .expense-table { font-size: 12px; }
+  .budget-columns .expense-table th { font-size: 10px; padding: 6px 8px; }
+  .budget-columns .expense-table td { padding: 6px 8px; }
+  .budget-columns .expense-table .num-input { width: 70px; }
+  /* The Amount column's width:120px is set inline in the HTML (needs !important to override
+     here) — narrower on a phone so the Item column keeps enough room for a name to actually read. */
+  .budget-columns .expense-table th:nth-child(2), .budget-columns .expense-table td:nth-child(2) { width: 90px !important; }
 }
