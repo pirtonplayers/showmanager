@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowDrinks</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css?v=1.0.126">
+  <link rel="stylesheet" href="style.css?v=1.0.127">
   <style>
     .pwa-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--primary); }
     .pwa-content { flex: 1; background: var(--bg); border-radius: 24px 24px 0 0; margin-top: 8px; padding: 24px 20px 40px; overflow-y: auto; }
@@ -116,12 +116,18 @@
        already has its own +/- stepper inline below) — instead the header doubles as a mini
        basket: running total, trolley icon that's the only way to reach Review in this mode.
 
-       .pwa-content needs an actual bounded height here (like .pos-screen already gets above) for
-       #listCatBar's position:sticky to have any visible effect — .pwa-body is min-height:100vh,
-       not height:100vh, so without this .pwa-content's overflow-y:auto never actually engages;
-       the whole page grows and the *document* scrolls instead, and a sticky element only sticks
-       relative to whichever box is genuinely doing the scrolling the user sees. */
-    .list-screen .pwa-content { height:calc(100vh - env(safe-area-inset-top)); height:calc(100dvh - env(safe-area-inset-top)); box-sizing:border-box; overflow-y:auto; }
+       .pwa-body itself needs a genuine capped height here — a previous fix gave .pwa-content its
+       own explicit height instead, which engaged its overflow-y:auto but didn't account for
+       .pwa-hero's own height (shown in this mode, unlike .pos-screen, which hides it): hero +
+       content's fixed height together came to *more* than the viewport, so .pwa-body (still only
+       min-height:100vh at its base rule) grew past 100vh anyway, leaving the outer page with a
+       sliver of its own scroll room. A touch swipe on a phone grabs that outer document scroll
+       readily, dragging #listCatBar along with everything else — it's only sticky relative to
+       .pwa-content's own internal scroll, not the document, so from the outside it looked like it
+       simply wasn't sticking at all. Capping .pwa-body itself instead means flexbox sizes
+       .pwa-content to genuinely "whatever's left after the hero" via its own flex:1 (the base
+       .pwa-content rule already has that, plus overflow-y:auto) — no separate override needed. */
+    .list-screen .pwa-body { height:100vh; height:100dvh; overflow:hidden; }
     #listMenu { padding-bottom:12px; }
     #listMenu .section-label { margin-top:18px; }
     #listMenu .section-label:first-child { margin-top:0; }
@@ -312,10 +318,10 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="../shared/version.js?v=1.0.126"></script>
-<script src="../shared/firebase-config.js?v=1.0.126"></script>
-<script src="../shared/a2hs.js?v=1.0.126"></script>
-<script src="order.js?v=1.0.126"></script>
+<script src="../shared/version.js?v=1.0.127"></script>
+<script src="../shared/firebase-config.js?v=1.0.127"></script>
+<script src="../shared/a2hs.js?v=1.0.127"></script>
+<script src="order.js?v=1.0.127"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
