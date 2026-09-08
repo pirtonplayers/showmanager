@@ -335,25 +335,13 @@ input, textarea, select, [contenteditable] {
 /* ── Menu items inline grid (admin) ── */
 .menu-grid-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .menu-grid-table th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); }
-.menu-grid-table td { padding: 4px 4px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.menu-grid-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .menu-grid-table tr:last-child td { border-bottom: none; }
 .menu-grid-table tr:hover td { background: var(--bg); }
-.grid-input { width: 100%; border: 1px solid transparent; border-radius: 6px; padding: 7px 10px; font-size: 16px; background: transparent; color: var(--text); transition: border-color .15s, background .15s; }
-.grid-input:hover { border-color: var(--border); background: var(--surface); }
-.grid-input:focus { outline: none; border-color: var(--primary); background: var(--surface); box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
-.price-input { text-align: right; }
-.grid-del-btn { width: 30px; height: 30px; border-radius: 50%; border: none; background: none; color: var(--text-muted); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
-.grid-del-btn:hover { background: var(--danger-light); color: var(--danger); }
 
-/* Category filter chips (admin) */
-.cat-filter-btn { padding: 5px 14px; border: 2px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all .15s; }
-.cat-filter-btn:hover { border-color: var(--primary); color: var(--primary); }
-.cat-filter-btn.active { border-color: var(--primary); background: var(--primary); color: #fff; }
-
-/* Spare new-item row */
-.new-item-row td { background: #fafafa; }
-.new-item-row .grid-input { color: var(--text-muted); }
-.new-item-row .grid-input:focus { color: var(--text); }
+/* Menu Items' category slider — sticky below the header while the table scrolls under it, same
+   idea as Bar Tabs POS's own category chips. */
+.menu-cat-bar { position: sticky; top: 60px; z-index: 60; background: var(--bg); padding: 10px 0; margin-bottom: 4px; }
 
 /* ── POS Admin Editor ── */
 .pos-editor { display:flex; gap:16px; align-items:flex-start; }
@@ -378,10 +366,12 @@ input, textarea, select, [contenteditable] {
 
 /* Bar Tabs POS's basket — same place (top, below the member picker) and prominence as the
    customer app's own basket, and the same tap-to-commit role "Add to Tab" used to have. */
-.tab-basket-bar { display:flex; align-items:center; justify-content:center; gap:12px; background:var(--primary); color:#fff; border-radius:var(--radius); padding:14px 20px; margin-bottom:16px; cursor:pointer; }
+.tab-basket-bar { display:flex; flex-direction:column; align-items:center; gap:2px; background:var(--primary); color:#fff; border-radius:var(--radius); padding:14px 20px; margin-bottom:16px; cursor:pointer; }
+.tab-basket-row { display:flex; align-items:center; gap:12px; }
 .tab-basket-icon { width:28px; height:28px; flex-shrink:0; }
 .tab-basket-icon svg { width:100%; height:100%; }
 .tab-basket-total { font-size:26px; font-weight:400; }
+.tab-basket-caption { font-size:11px; font-weight:600; opacity:.8; text-transform:uppercase; letter-spacing:.03em; }
 
 /* Per-row "⋯" action menu (Bar Tabs Admin member rows) — <details>/<summary>, same idea as the
    portal's Users permissions dropdown: native disclosure, closed on outside click via a small
@@ -434,6 +424,7 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .pos-grid-extra .pos-btn { min-height:40px; font-size:11px; padding:4px 2px; border-radius:8px; }
 .pos-btn:active { transform:scale(.95); }
 .pos-btn.empty { opacity:0; pointer-events:none; }
+.pos-btn.unavailable { opacity:.4; cursor:not-allowed; }
 .pos-btn .pb-lbl { line-height:1.2; }
 .pos-btn .pb-price { font-size:11px; font-weight:400; opacity:.75; }
 /* Currently in the basket — an inset ring layers on top regardless of a cell's own custom

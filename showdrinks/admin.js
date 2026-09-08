@@ -1,10 +1,11 @@
 'use strict';
 
 // Shared .icon-btn glyphs (Feather-style, matching the outline icons used elsewhere in the
-// suite) — used in place of a text label/emoji for the common Delete row action and the Bar
-// Tabs POS basket bar.
+// suite) — used in place of a text label/emoji for common row actions and the Bar Tabs POS
+// basket bar (ICON_TROLLEY — the same icon the customer app's own basket button uses).
 const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
-const ICON_BASKET = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
+const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>';
+const ICON_TROLLEY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>';
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -306,9 +307,10 @@ async function loadMenuItems() {
 
 function renderMenuCategoryBar() {
   const bar = document.getElementById('menuCategoryBar');
-  if (!_menuCategories.length) { bar.innerHTML = ''; return; }
+  if (!_menuCategories.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  bar.style.display = 'flex';
   bar.innerHTML = ['all', ..._menuCategories].map(cat => `
-    <button class="cat-filter-btn ${cat === _selectedMenuCat ? 'active' : ''}"
+    <button type="button" class="cat-btn ${cat === _selectedMenuCat ? 'active' : ''}"
             onclick="setMenuCat('${escHtml(cat)}')">
       ${cat === 'all' ? 'All' : escHtml(cat)}
     </button>`).join('');
@@ -326,52 +328,30 @@ function renderMenuTable() {
     ? _allMenuItems
     : _allMenuItems.filter(i => i.category === _selectedMenuCat);
 
-  const defaultCat = _selectedMenuCat === 'all' ? '' : _selectedMenuCat;
-  tbody.innerHTML = items.map(i => menuItemRow(i.id, i)).join('') + newItemRow(defaultCat);
-}
-
-function categorySelectHtml(selected, onchangeJs) {
-  const opts = `<option value="">— none —</option>` +
-    _menuCategories.map(c =>
-      `<option value="${escHtml(c)}"${c === selected ? ' selected' : ''}>${escHtml(c)}</option>`
-    ).join('') +
-    `<option value="__new__">+ Add new category…</option>`;
-  return `<select class="grid-input" onchange="${onchangeJs}">${opts}</select>`;
+  tbody.innerHTML = items.length ? items.map(i => menuItemRow(i.id, i)).join('')
+    : '<tr><td colspan="5" style="color:var(--text-muted);padding:20px;text-align:center">No items yet — + Add Item to get started.</td></tr>';
 }
 
 function menuItemRow(id, item) {
-  const name  = escHtml(item.name || '');
-  const price = Number(item.price || 0).toFixed(2);
+  const onSale = item.onSale !== false;
   return `<tr id="mrow-${id}">
-    <td>${categorySelectHtml(item.category || '', `handleCatChange('${id}',this)`)}</td>
-    <td><input class="grid-input" value="${name}" placeholder="Item name"
-               onblur="saveMenuField('${id}','name',this.value.trim())"></td>
-    <td><input class="grid-input price-input" type="number" value="${price}" min="0" step="0.50"
-               onblur="saveMenuField('${id}','price',parseFloat(this.value)||0)"></td>
+    <td>${escHtml(item.category || '—')}</td>
+    <td>${escHtml(item.name || '')}</td>
+    <td>${fmtCurrency(item.price || 0)}</td>
+    <td>${onSale ? '<span class="badge badge-success">On sale</span>' : '<span class="badge badge-warning">Hidden</span>'}</td>
     <td style="text-align:center">
-      <button class="grid-del-btn" title="Delete" onclick="deleteMenuItem('${id}')">×</button>
+      <button type="button" class="icon-btn" onclick="openEditMenuItemModal('${id}')" title="Edit" aria-label="Edit">${ICON_EDIT}</button>
     </td>
   </tr>`;
 }
 
-function newItemRow(defaultCat) {
-  return `<tr id="newItemRow" class="new-item-row">
-    <td>${categorySelectHtml(defaultCat, 'handleNewCatChange(this)')}</td>
-    <td><input class="grid-input" id="newItemName" placeholder="New item name…"
-               onblur="autoCreateItem(event)"></td>
-    <td><input class="grid-input price-input" type="number" id="newItemPrice"
-               placeholder="0.00" min="0" step="0.50" onblur="autoCreateItem(event)"></td>
-    <td></td>
-  </tr>`;
-}
-
-// Prompt for a new category name; update select and optionally save to a doc
+// Prompt for a new category name; update a <select>'s options in place (used by the edit modal's
+// Category field) and optionally run a callback with the new name once chosen.
 function promptNewCategory(selectEl, afterCb) {
   const name = prompt('New category name:');
   if (!name || !name.trim()) { selectEl.value = ''; return; }
   const cat = name.trim();
   if (!_menuCategories.includes(cat)) { _menuCategories.push(cat); _menuCategories.sort(); }
-  // Rebuild the select options in place
   selectEl.innerHTML = `<option value="">— none —</option>` +
     _menuCategories.map(c => `<option value="${escHtml(c)}"${c === cat ? ' selected' : ''}>${escHtml(c)}</option>`).join('') +
     `<option value="__new__">+ Add new category…</option>`;
@@ -379,51 +359,14 @@ function promptNewCategory(selectEl, afterCb) {
   if (afterCb) afterCb(cat);
 }
 
-window.handleCatChange = async function(id, selectEl) {
-  if (selectEl.value === '__new__') {
-    promptNewCategory(selectEl, async cat => {
-      await saveMenuField(id, 'category', cat);
-      await loadMenuItems();
-    });
-  } else {
-    await saveMenuField(id, 'category', selectEl.value);
-    // If filtering by category and this item moved out, reload
-    if (_selectedMenuCat !== 'all') await loadMenuItems();
-  }
+window.openAddMenuItemModal = function() {
+  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true });
 };
 
-window.handleNewCatChange = function(selectEl) {
-  if (selectEl.value === '__new__') promptNewCategory(selectEl, null);
-};
-
-window.autoCreateItem = async function(e) {
-  if (e && e.relatedTarget && e.relatedTarget.closest('#newItemRow')) return;
-  const nameEl  = document.getElementById('newItemName');
-  const priceEl = document.getElementById('newItemPrice');
-  const catSel  = document.querySelector('#newItemRow select');
-  if (!nameEl) return;
-  const name = nameEl.value.trim();
-  if (!name) return;
-  const cat   = (catSel?.value === '__new__' || !catSel?.value) ? '' : catSel.value;
-  const price = parseFloat(priceEl?.value) || 0;
-  try {
-    await db.collection('showdrinks_menuItems').add({
-      category: cat, name, price, available: true,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-    await loadMenuItems();
-    document.getElementById('newItemName')?.focus();
-  } catch(e) {
-    toast('Failed: ' + e.message, 'error');
-  }
-};
-
-window.saveMenuField = async function(id, field, value) {
-  try {
-    await db.collection('showdrinks_menuItems').doc(id).update({ [field]: value });
-  } catch(e) {
-    toast('Save failed: ' + e.message, 'error');
-  }
+window.openEditMenuItemModal = function(id) {
+  const item = _allMenuItems.find(i => i.id === id);
+  if (!item) return;
+  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false });
 };
 
 document.getElementById('clearAllMenuBtn').addEventListener('click', async () => {
@@ -494,12 +437,33 @@ function openModal(title, ctx) {
   _modalCtx = ctx;
   document.getElementById('editModalTitle').textContent = title;
   document.getElementById('editName').value = ctx.name || '';
-  const priceGroup = document.getElementById('editPriceGroup');
+
+  const priceGroup   = document.getElementById('editPriceGroup');
+  const catGroup      = document.getElementById('editCategoryGroup');
+  const onSaleGroup   = document.getElementById('editOnSaleGroup');
+  const deleteBtn     = document.getElementById('editDeleteBtn');
+
   if (ctx.type === 'menuItem') {
     priceGroup.style.display = '';
     document.getElementById('editPrice').value = ctx.price || '';
+
+    catGroup.style.display = '';
+    const catSelect = document.getElementById('editCategory');
+    catSelect.innerHTML = `<option value="">— none —</option>` +
+      _menuCategories.map(c => `<option value="${escHtml(c)}"${c === ctx.category ? ' selected' : ''}>${escHtml(c)}</option>`).join('') +
+      `<option value="__new__">+ Add new category…</option>`;
+    catSelect.value = ctx.category || '';
+    catSelect.onchange = () => { if (catSelect.value === '__new__') promptNewCategory(catSelect, null); };
+
+    onSaleGroup.style.display = '';
+    document.getElementById('editOnSale').checked = ctx.onSale !== false;
+
+    deleteBtn.style.display = ctx.id ? '' : 'none';
   } else {
     priceGroup.style.display = 'none';
+    catGroup.style.display = 'none';
+    onSaleGroup.style.display = 'none';
+    deleteBtn.style.display = 'none';
   }
   const modal = document.getElementById('editModal');
   modal.style.display = 'flex';
@@ -524,11 +488,32 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
       }
       loadLocations();
       closeModal();
+    } else if (_modalCtx.type === 'menuItem') {
+      const catSelect = document.getElementById('editCategory');
+      const category  = catSelect.value === '__new__' ? '' : catSelect.value;
+      const price      = parseFloat(document.getElementById('editPrice').value) || 0;
+      const onSale     = document.getElementById('editOnSale').checked;
+      if (_modalCtx.id) {
+        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale });
+      } else {
+        await db.collection('showdrinks_menuItems').add({
+          name, category, price, onSale, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      await loadMenuItems();
+      closeModal();
     }
     toast('Saved', 'success');
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
   }
+});
+
+document.getElementById('editDeleteBtn').addEventListener('click', async () => {
+  if (!_modalCtx || _modalCtx.type !== 'menuItem' || !_modalCtx.id) return;
+  if (!confirm(`Delete "${_modalCtx.name}"?`)) return;
+  await deleteMenuItem(_modalCtx.id);
+  closeModal();
 });
 
 // Click outside modal to close
@@ -1490,9 +1475,13 @@ function renderTabGrid() {
     const style = cell.color
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
     const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
+    // Live lookup (the cell itself only stores a denormalized label/price) — off-sale items are
+    // dimmed and untappable, but the button stays put; the grid's own layout is meaningful.
+    const liveItem = cell.type === 'item' ? _allMenuItems.find(mi => mi.id === cell.menuItemId) : null;
+    const offSale = !!(liveItem && liveItem.onSale === false);
     // Same key handleTabPosBtn uses to add this cell to the basket.
-    const hasQty = cell.type === 'item' && _tabBasket[cell.label || cell.menuItemId]?.qty > 0;
-    return `<button class="pos-btn${hasQty ? ' has-qty' : ''}" style="${style}" data-idx="${i}">
+    const hasQty = cell.type === 'item' && !offSale && _tabBasket[cell.label || cell.menuItemId]?.qty > 0;
+    return `<button class="pos-btn${hasQty ? ' has-qty' : ''}${offSale ? ' unavailable' : ''}" style="${style}" data-idx="${i}" ${offSale ? 'disabled' : ''}>
       <span class="pb-lbl">${escHtml(cell.label || '')}</span>
       ${price ? `<span class="pb-price">${price}</span>` : ''}
     </button>`;
@@ -1509,14 +1498,15 @@ function renderTabListMenu() {
   const el = document.getElementById('tabListMenu');
   const barEl = document.getElementById('tabListCatBar');
   if (!el) return;
-  if (!_allMenuItems.length) {
+  const onSaleItems = _allMenuItems.filter(item => item.onSale !== false);
+  if (!onSaleItems.length) {
     barEl.style.display = 'none';
     el.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No menu items yet.</p>';
     return;
   }
   const groups = {};
   const catOrder = [];
-  _allMenuItems.forEach(item => { // already sorted category-then-name by loadMenuItems()
+  onSaleItems.forEach(item => { // already sorted category-then-name by loadMenuItems()
     const cat = item.category || 'Other';
     if (!groups[cat]) { groups[cat] = []; catOrder.push(cat); }
     groups[cat].push(item);
@@ -1615,7 +1605,12 @@ function renderTabBasket() {
   if (!el) return;
   const items = Object.values(_tabBasket);
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-  el.innerHTML = `<span class="tab-basket-icon">${ICON_BASKET}</span><span class="tab-basket-total">${fmtCurrency(total)}</span>`;
+  el.innerHTML = `
+    <span class="tab-basket-row">
+      <span class="tab-basket-icon">${ICON_TROLLEY}</span>
+      <span class="tab-basket-total">${fmtCurrency(total)}</span>
+    </span>
+    <span class="tab-basket-caption">Tap to review &amp; add to tab</span>`;
 }
 
 window.handleTabPosBtn = function(idx, isLongPress) {
@@ -1625,6 +1620,8 @@ window.handleTabPosBtn = function(idx, isLongPress) {
   const cell = posNormCells(grid.cells)[idx];
   if (!cell || cell.type === 'empty') return;
   if (cell.type === 'item') {
+    const liveItem = _allMenuItems.find(mi => mi.id === cell.menuItemId);
+    if (liveItem && liveItem.onSale === false) { toast('Item not available', 'error'); return; }
     const key = cell.label || cell.menuItemId;
     if (!_tabBasket[key]) _tabBasket[key] = { name: cell.label, price: cell.menuItemPrice || 0, qty: 0 };
     _tabBasket[key].qty += 1;

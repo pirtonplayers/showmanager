@@ -422,8 +422,11 @@ function renderPosGrid() {
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
     const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
     const menuItem = cell.type === 'item' ? state.menuItems.find(mi => mi.id === cell.menuItemId) : null;
-    const hasQty = !!(menuItem && state.basket[menuItem.name]?.quantity > 0);
-    return `<button class="pos-btn${hasQty ? ' has-qty' : ''}" style="${style}" data-idx="${i}">
+    // Off-sale: dimmed and untappable, but still shown (a staff-placed grid button shouldn't
+    // just vanish — the layout itself is meaningful/memorised).
+    const offSale = !!(menuItem && menuItem.onSale === false);
+    const hasQty = !!(menuItem && !offSale && state.basket[menuItem.name]?.quantity > 0);
+    return `<button class="pos-btn${hasQty ? ' has-qty' : ''}${offSale ? ' unavailable' : ''}" style="${style}" data-idx="${i}" ${offSale ? 'disabled' : ''}>
       <span class="pb-lbl">${escHtml(cell.label || '')}</span>
       ${price ? `<span class="pb-price">${price}</span>` : ''}
     </button>`;
@@ -467,7 +470,7 @@ window.handlePosBtn = function(idx, isLongPress) {
   if (!cell || cell.type === 'empty') return;
   if (cell.type === 'item') {
     const menuItem = state.menuItems.find(i => i.id === cell.menuItemId);
-    if (!menuItem) { toast('Item not available', 'error'); return; }
+    if (!menuItem || menuItem.onSale === false) { toast('Item not available', 'error'); return; }
     const key = menuItem.name;
     if (!state.basket[key]) state.basket[key] = { name: menuItem.name, price: menuItem.price, quantity: 0 };
     state.basket[key].quantity += 1;
@@ -558,10 +561,8 @@ window.selectBasketItem = function(encodedKey) {
 // is the only way to reach Review in this mode (the bottom bar there is just Cancel).
 function updateHeroBasket() {
   const totalEl = document.getElementById('heroBasketTotal');
-  const countEl = document.getElementById('heroBasketCount');
-  if (!totalEl || !countEl) return;
+  if (!totalEl) return;
   totalEl.textContent = fmtCurrency(basketTotal());
-  countEl.textContent = basketCount();
 }
 
 window.goToListBasket = function() {
@@ -577,14 +578,15 @@ function renderListMenu() {
   const el = document.getElementById('listMenu');
   const barEl = document.getElementById('listCatBar');
   if (!el) return;
-  if (!state.menuItems.length) {
+  const onSaleItems = state.menuItems.filter(item => item.onSale !== false);
+  if (!onSaleItems.length) {
     barEl.style.display = 'none';
     el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:12px">No menu items yet.</p>';
     return;
   }
   const groups = {};
   const catOrder = [];
-  state.menuItems
+  onSaleItems
     .slice()
     .sort((a, b) => {
       const ca = (a.category || '').toLowerCase(), cb = (b.category || '').toLowerCase();

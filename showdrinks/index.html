@@ -119,14 +119,17 @@
     #listMenu .section-label { margin-top:18px; }
     #listMenu .section-label:first-child { margin-top:0; }
 
-    #heroBasketTotal, #heroBasketBtn { display:none; }
-    .list-screen .pwa-hero { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; padding:12px 20px; }
-    .list-screen #heroBasketTotal { display:inline-flex; justify-self:center; font-weight:800; font-size:30px; }
-    /* The basket is the primary call-to-action on this screen, so it reads as the biggest, most
-       obviously-tappable thing in the header. */
-    .list-screen #heroBasketBtn { display:inline-flex; justify-self:end; position:relative; background:none; border:none; color:#fff; padding:2px; cursor:pointer; }
-    .hero-basket-svg { width:56px; height:56px; display:block; }
-    .hero-basket-count { position:absolute; top:-2px; right:-12px; background:#fff; color:var(--primary); font-size:14px; font-weight:800; min-width:26px; height:26px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 5px; line-height:1; }
+    #heroBasketBtn { display:none; }
+    .list-screen .pwa-hero { display:grid; grid-template-columns:1fr auto; align-items:center; padding:10px 20px; }
+    /* One solid pill button — same idea as Bar Tabs POS's basket bar, just inverted (white on
+       the hero's own primary-colour background instead of primary on white) so it still reads
+       as a distinct, obviously-tappable button rather than blending into the header. Shows the
+       running total, not an item count — nothing here needs a per-item badge. */
+    .list-screen #heroBasketBtn { display:flex; flex-direction:column; align-items:center; gap:1px; justify-self:end; background:#fff; color:var(--primary); border:none; border-radius:999px; padding:6px 20px; cursor:pointer; }
+    .hero-basket-row { display:flex; align-items:center; gap:8px; }
+    .hero-basket-svg { width:26px; height:26px; display:block; }
+    .hero-basket-total-text { font-size:20px; font-weight:800; }
+    .hero-basket-caption { font-size:10px; font-weight:600; opacity:.75; text-transform:uppercase; letter-spacing:.03em; }
 
     /* Category slider — sticky row of category chips along the top of the category list, so it
        stays put as the item list scrolls underneath it. Tapping a chip jumps to that category;
@@ -202,10 +205,12 @@
     <h1 id="heroShowName">ShowDrinks</h1>
     <p>Pre-order your drinks</p>
     <p style="font-size:11px;opacity:.4;margin-top:4px" id="heroVersion"></p>
-    <span id="heroBasketTotal">£0.00</span>
     <button type="button" id="heroBasketBtn" onclick="goToListBasket()" title="View basket">
-      <svg class="hero-basket-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-      <span id="heroBasketCount" class="hero-basket-count">0</span>
+      <span class="hero-basket-row">
+        <svg class="hero-basket-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        <span id="heroBasketTotal" class="hero-basket-total-text">£0.00</span>
+      </span>
+      <span class="hero-basket-caption">Tap to checkout</span>
     </button>
   </div>
 
@@ -300,7 +305,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="../shared/version.js?v=1.0.113"></script>
+<script src="../shared/version.js?v=1.0.114"></script>
 <script src="../shared/firebase-config.js"></script>
 <script src="../shared/a2hs.js"></script>
 <script src="order.js"></script>
