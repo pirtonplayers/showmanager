@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own hero/sidebar
        never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.143"></script>
+  <script src="../shared/embed.js?v=1.0.144"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0f766e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Pirton Players Expenses</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=1.0.143">
+  <link rel="stylesheet" href="style.css?v=1.0.144">
 </head>
 <body class="pwa-body">
 
@@ -110,7 +110,7 @@
     <button class="hamburger-btn" id="menuBtn">☰</button>
     <div id="mainMenuDropdown" class="dropdown-menu">
       <button class="tab-btn active" data-screen="screenMain">New expense</button>
-      <button class="tab-btn" data-screen="screenExpenses">Your expenses</button>
+      <button class="tab-btn" data-screen="screenExpenses">My expenses</button>
       <a href="help.html" class="tab-btn">Help</a>
     </div>
   </div>
@@ -122,7 +122,7 @@
      see goTo() in app.js. Shares data-screen buttons/handler with #mainMenuDropdown above. -->
 <nav class="admin-sidebar" id="pwaSidebar" style="display:none">
   <button class="tab-btn active" data-screen="screenMain">New expense</button>
-  <button class="tab-btn" data-screen="screenExpenses">Your expenses</button>
+  <button class="tab-btn" data-screen="screenExpenses">My expenses</button>
   <a href="help.html" class="tab-btn">Help</a>
 </nav>
 <button class="sidebar-toggle" id="pwaSidebarToggleBtn" title="Collapse/expand menu" style="display:none">‹</button>
@@ -132,7 +132,7 @@
   <!-- Screen: main app -->
   <div id="screenMain" class="screen">
     <div class="summary-grid" style="margin-bottom:16px">
-      <div class="summary-card"><div class="snum" id="myUnpaidTotalText">£0.00</div><div class="slabel">Your unpaid total</div></div>
+      <div class="summary-card" style="cursor:pointer" onclick="goTo('screenExpenses')" title="Show my expenses"><div class="snum" id="myUnpaidTotalText">£0.00</div><div class="slabel">My unpaid total</div></div>
     </div>
     <button type="button" class="btn btn-primary btn-full btn-lg" id="addExpenseBtn" style="margin-bottom:16px">+ Add expense</button>
 
@@ -148,7 +148,7 @@
   <!-- Screen: expense list -->
   <div id="screenExpenses" class="screen">
     <div class="pwa-section-title" style="display:flex;align-items:center;justify-content:space-between">
-      <span>Your expenses</span>
+      <span>My expenses</span>
       <label class="switch-label">
         <input type="checkbox" id="showAllExpensesToggle">
         <span class="switch"></span>
@@ -228,10 +228,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.143"></script>
-<script src="../shared/firebase-config.js?v=1.0.143"></script>
-<script src="../shared/auth.js?v=1.0.143"></script>
-<script src="../shared/a2hs.js?v=1.0.143"></script>
-<script src="app.js?v=1.0.143"></script>
+<script src="../shared/version.js?v=1.0.144"></script>
+<script src="../shared/firebase-config.js?v=1.0.144"></script>
+<script src="../shared/auth.js?v=1.0.144"></script>
+<script src="../shared/a2hs.js?v=1.0.144"></script>
+<script src="app.js?v=1.0.144"></script>
 </body>
 </html>
