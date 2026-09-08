@@ -285,13 +285,13 @@
 
   <!-- ── ORDERS ── -->
   <div id="tab-orders" class="tab-panel active">
-    <div class="section-header">
-      <h2>Orders</h2>
-      <button class="btn btn-secondary btn-sm" id="refreshOrdersBtn">⟳ Refresh</button>
-      <button class="btn btn-danger btn-sm" id="clearAllOrdersBtn">Clear All Orders</button>
-    </div>
-
     <div class="orders-sticky-ribbon">
+      <div class="section-header" style="margin-bottom:0">
+        <h2>Orders</h2>
+        <button class="btn btn-secondary btn-sm" id="refreshOrdersBtn">⟳ Refresh</button>
+        <button class="btn btn-danger btn-sm" id="clearAllOrdersBtn">Clear All Orders</button>
+      </div>
+
       <div class="orders-toolbar">
         <div class="form-group" style="margin:0;flex:1;min-width:160px">
           <select id="filterSession" class="form-control">
@@ -330,9 +330,8 @@
         </div>
 
         <!-- Same place/size as the customer app's own basket (top of the ordering screen) —
-             tapping it commits the basket to the member's tab directly; there's no separate
-             "Add to Tab" step any more. -->
-        <div id="tabBasket" class="tab-basket-bar" onclick="commitTabOrder()"></div>
+             tapping it opens a review of what's in it before committing (openTabBasketReview). -->
+        <div id="tabBasket" class="tab-basket-bar" onclick="openTabBasketReview()"></div>
 
         <div id="tabPosArea" class="tab-pos-split inactive">
           <div class="tab-pos-buttons">
@@ -415,17 +414,6 @@
     <div class="section-header">
       <h2>Settings &amp; QR Code</h2>
       <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
-    </div>
-
-    <div class="card" style="margin-bottom:20px">
-      <div class="card-header"><h2>Admin Users</h2></div>
-      <div class="card-body">
-        <p style="font-size:13px;color:var(--text-muted)">
-          Logins and access are managed in one place for every showmanager app now —
-          <a href="../index.html">open the portal → Users</a> to add someone or grant them
-          ShowDrinks admin access.
-        </p>
-      </div>
     </div>
 
     <div class="card" style="margin-bottom:20px">
@@ -560,6 +548,28 @@
   </div>
 </div>
 
+<!-- Bar Tabs POS basket review — opened by tapping the basket bar (openTabBasketReview). Shows
+     what's in it before committing; "← Back" just closes this without touching the basket. -->
+<div id="tabBasketReviewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:400px;margin:20px">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+      <h2>Order Summary</h2>
+      <button onclick="closeTabBasketReview()" style="background:none;border:none;font-size:20px;cursor:pointer">×</button>
+    </div>
+    <div class="card-body">
+      <div id="tabBasketReviewItems" style="margin-bottom:12px"></div>
+      <div style="display:flex;justify-content:space-between;font-weight:700;font-size:18px;border-top:1px solid var(--border);padding-top:10px;margin-bottom:16px">
+        <span>Total</span>
+        <span id="tabBasketReviewTotal"></span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" style="flex:1" onclick="closeTabBasketReview()">← Back</button>
+        <button class="btn btn-primary" style="flex:1" onclick="commitTabOrder()">Add to Show Tab</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Order-added confirmation (Show Tabs "Finish") — shows the total added to the member's tab,
      then clears the member picker back to blank so the next customer can be selected. -->
 <div id="tabFinishModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center">
@@ -644,7 +654,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="../shared/version.js?v=1.0.110"></script>
+<script src="../shared/version.js?v=1.0.111"></script>
 <script src="../shared/firebase-config.js"></script>
 <script src="../shared/auth.js"></script>
 <script src="../shared/suite-nav.js"></script>

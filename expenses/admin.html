@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.110"></script>
+  <script src="../shared/embed.js?v=1.0.111"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#92400e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Pirton Players Expenses — Manager</title>
   <link rel="manifest" href="admin-manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-admin.png">
-  <link rel="stylesheet" href="style.css?v=1.0.110">
+  <link rel="stylesheet" href="style.css?v=1.0.111">
 </head>
 <body class="theme-admin">
 
@@ -258,11 +258,6 @@
 
     <!-- ── USERS (expenses-only — broader access changes still go through the portal) ── -->
     <div id="tab-users" class="tab-panel">
-      <div class="section-header">
-        <h2>Users</h2>
-        <button type="button" class="btn btn-primary btn-sm" onclick="openAddExpensesUserModal()">+ Add user</button>
-      </div>
-
       <!-- One modal, two modes (see openAddExpensesUserModal/openEditExpensesUserModal in
            admin.js) — email/name are only editable when adding (creating the Firebase Auth
            account); editing an existing user is just their name and Expenses access, the only
@@ -331,7 +326,10 @@
       </div>
 
       <div class="card">
-        <div class="card-header"><h2>All users</h2></div>
+        <div class="card-header">
+          <h2>All users</h2>
+          <button type="button" class="btn btn-primary btn-sm" onclick="openAddExpensesUserModal()">+ Add user</button>
+        </div>
         <div class="card-body">
           <input type="text" id="expensesUserSearchInput" class="form-control" placeholder="Search by name or email" style="margin-bottom:14px">
           <div class="item-list" id="expensesUserList"></div>
@@ -450,10 +448,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="../shared/version.js?v=1.0.110"></script>
-<script src="../shared/firebase-config.js?v=1.0.110"></script>
-<script src="../shared/auth.js?v=1.0.110"></script>
-<script src="../shared/suite-nav.js?v=1.0.110"></script>
-<script src="admin.js?v=1.0.110"></script>
+<script src="../shared/version.js?v=1.0.111"></script>
+<script src="../shared/firebase-config.js?v=1.0.111"></script>
+<script src="../shared/auth.js?v=1.0.111"></script>
+<script src="../shared/suite-nav.js?v=1.0.111"></script>
+<script src="admin.js?v=1.0.111"></script>
 </body>
 </html>

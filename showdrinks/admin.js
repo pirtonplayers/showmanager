@@ -91,6 +91,10 @@ const DEFAULT_SESSIONS = {
 
 let _shows = [];
 let _selectedShowId = null;
+// True while the editor is showing an in-progress "+ New Show" draft that hasn't been saved yet
+// — no Firestore doc exists for it until Save Changes, so Delete/Set-as-Current (both of which
+// need a real doc) stay hidden until then.
+let _creatingNewShow = false;
 
 async function loadShows() {
   try {
@@ -134,11 +138,13 @@ function renderShowsList() {
 // "show", the Shows list it came from — see activateAdminTab).
 window.selectShow = function(id) {
   _selectedShowId = id;
+  _creatingNewShow = false;
   renderShowEditor();
   activateAdminTab('showEditor', 'show');
 };
 
 window.backToShowsList = function() {
+  _creatingNewShow = false; // abandons an unsaved draft, if that's where this was called from
   renderShowsList();
   activateAdminTab('show');
 };
@@ -181,43 +187,33 @@ window.deleteShow = async function(id) {
   }
 };
 
-// Just adds a row — every other detail (name, sessions, payment) is editable on its own Show
-// Editor page once it's created, so there's nothing worth a prompt() interrupting for first.
-// Opens straight into that editor with the name field selected, ready to type over "New show".
-document.getElementById('addShowBtn').addEventListener('click', async () => {
-  try {
-    const doc = {
-      name: 'New show',
-      isCurrent: _shows.length === 0,
-      sessions: DEFAULT_SESSIONS,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    };
-    const ref = await db.collection('showdrinks_shows').add(doc);
-    _shows.push({ id: ref.id, ...doc, isCurrent: doc.isCurrent });
-    _selectedShowId = ref.id;
-    renderShowEditor();
-    activateAdminTab('showEditor', 'show');
-    updateHeaderShowName();
-    const nameInput = document.getElementById('showName');
-    nameInput.focus();
-    nameInput.select();
-  } catch(e) {
-    toast('Failed: ' + e.message, 'error');
-  }
+// Opens the editor on a blank draft — nothing is written to Firestore until Save Changes, so
+// there's nothing yet to set as current or delete (renderShowEditor hides both for this case).
+document.getElementById('addShowBtn').addEventListener('click', () => {
+  _selectedShowId = null;
+  _creatingNewShow = true;
+  renderShowEditor();
+  activateAdminTab('showEditor', 'show');
+  const nameInput = document.getElementById('showName');
+  nameInput.focus();
 });
 
 document.getElementById('setCurrentShowBtn').addEventListener('click', () => setCurrentShow());
 document.getElementById('deleteShowBtn').addEventListener('click', () => { if (_selectedShowId) deleteShow(_selectedShowId); });
 
 function renderShowEditor() {
-  const show = _shows.find(s => s.id === _selectedShowId);
+  const show = _creatingNewShow ? { name: '', sessions: DEFAULT_SESSIONS } : _shows.find(s => s.id === _selectedShowId);
   const wrap = document.getElementById('showEditorWrap');
   if (!show) { wrap.style.display = 'none'; return; }
   wrap.style.display = '';
 
   document.getElementById('showName').value = show.name || '';
 
+  // Both need a real saved doc to act on — hidden until this draft has actually been saved once.
   const setCurBtn = document.getElementById('setCurrentShowBtn');
+  const deleteBtn = document.getElementById('deleteShowBtn');
+  setCurBtn.style.display = _creatingNewShow ? 'none' : '';
+  deleteBtn.style.display = _creatingNewShow ? 'none' : '';
   setCurBtn.disabled = !!show.isCurrent;
   setCurBtn.textContent = show.isCurrent ? 'Current Show' : 'Set as Current';
 
@@ -235,7 +231,6 @@ function renderShowEditor() {
 }
 
 document.getElementById('saveShowBtn').addEventListener('click', async () => {
-  if (!_selectedShowId) { toast('Add or select a show first', 'error'); return; }
   const name = document.getElementById('showName').value.trim();
   if (!name) { toast('Enter a show name', 'error'); return; }
 
@@ -251,16 +246,26 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
   const sumupMerchantCode = document.getElementById('showSumupMerchantCode').value.trim();
   const sumupApiKey       = document.getElementById('showSumupApiKey').value.trim();
   const orderingMode      = document.getElementById('showOrderingMode').value;
+  const fields = { name, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode };
 
   try {
-    await db.collection('showdrinks_shows').doc(_selectedShowId).update({
-      name, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode,
-    });
-    const show = _shows.find(s => s.id === _selectedShowId);
-    if (show) { Object.assign(show, { name, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode }); }
+    if (_creatingNewShow) {
+      const doc = { ...fields, isCurrent: _shows.length === 0, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+      const ref = await db.collection('showdrinks_shows').add(doc);
+      _shows.push({ id: ref.id, ...doc });
+      _selectedShowId = ref.id;
+      _creatingNewShow = false;
+      renderShowEditor(); // now shows Set as Current/Delete, since it's a real saved show
+      toast('Show created', 'success');
+    } else {
+      if (!_selectedShowId) { toast('Add or select a show first', 'error'); return; }
+      await db.collection('showdrinks_shows').doc(_selectedShowId).update(fields);
+      const show = _shows.find(s => s.id === _selectedShowId);
+      if (show) Object.assign(show, fields);
+      toast('Show & sessions saved', 'success');
+    }
     renderShowsList();
     updateHeaderShowName();
-    toast('Show & sessions saved', 'success');
   } catch(e) {
     console.error(e);
     toast('Save failed – ' + e.message, 'error');
@@ -1669,11 +1674,36 @@ async function commitTabOrder() {
     });
     _tabBasket = {}; _tabSelectedKey = null; _tabStack = ['root'];
     renderTabOrderEntry(); renderTabBasket();
+    closeTabBasketReview();
     openTabFinishModal(totalAmount, member?.name || '');
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
   }
 }
+
+// ── Basket review modal (tap the basket bar) ────────────────────────────────
+
+window.openTabBasketReview = function() {
+  const items = Object.values(_tabBasket);
+  const el = document.getElementById('tabBasketReviewItems');
+  el.innerHTML = items.length
+    ? items.map(i => `
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:14px">
+        <span>${i.qty}× ${escHtml(i.name)}</span>
+        <span>${fmtCurrency(i.price * i.qty)}</span>
+      </div>`).join('')
+    : '<p style="color:var(--text-muted);font-size:14px">No drinks added yet.</p>';
+  document.getElementById('tabBasketReviewTotal').textContent = fmtCurrency(items.reduce((s, i) => s + i.price * i.qty, 0));
+  document.getElementById('tabBasketReviewModal').style.display = 'flex';
+};
+
+window.closeTabBasketReview = function() {
+  document.getElementById('tabBasketReviewModal').style.display = 'none';
+};
+
+document.getElementById('tabBasketReviewModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeTabBasketReview();
+});
 
 // ── Order-added confirmation modal ──────────────────────────────────────────
 

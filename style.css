@@ -157,7 +157,10 @@ input[type="file"].form-control { padding: 7px 10px; }
    once its normal position would scroll past that, rather than living in a card header where
    it'd be out of reach while scrolled down a long list. Scoped to whatever pane renders it
    (nested in that pane's own markup), not a global fixed element. */
-.sticky-actions-bar { position: sticky; bottom: 28px; margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); }
+.sticky-actions-bar { position: fixed; left: 0; right: 0; bottom: 28px; z-index: 91; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border-top: 1px solid var(--border); box-shadow: var(--shadow-md); }
+/* Fixed, so it doesn't push content — reserve room at the bottom of whichever pane has one so
+   the bar never overlaps that pane's last row. */
+#pane-users { padding-bottom: 60px; }
 .hamburger-btn { background: none; border: none; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; }
 .hamburger-btn:hover { opacity: .8; }
 /* Same look as .hamburger-btn but visible on desktop too (unlike .hamburger-btn, which the
@@ -254,6 +257,8 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
   body.sidebar-collapsed .admin-content { margin-left: 0; }
   #workAreaFrames { margin-left: 220px; transition: margin-left .2s ease; }
   body.sidebar-collapsed #workAreaFrames { margin-left: 0; }
+  .sticky-actions-bar { left: 220px; transition: left .2s ease; }
+  body.sidebar-collapsed .sticky-actions-bar { left: 0; }
 }
 .work-pane { display: none; }
 .work-pane.active { display: block; }

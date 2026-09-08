@@ -381,7 +381,7 @@ input, textarea, select, [contenteditable] {
 .tab-basket-bar { display:flex; align-items:center; justify-content:space-between; gap:16px; background:var(--primary); color:#fff; border-radius:var(--radius); padding:14px 20px; margin-bottom:16px; cursor:pointer; }
 .tab-basket-badge { position:relative; display:inline-flex; font-size:44px; line-height:1; }
 .tab-basket-badge .count { position:absolute; top:-4px; right:-14px; background:#fff; color:var(--primary); font-size:14px; font-weight:800; min-width:24px; height:24px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 5px; line-height:1; }
-.tab-basket-total { font-size:26px; font-weight:800; }
+.tab-basket-total { font-size:26px; font-weight:400; }
 
 /* Per-row "⋯" action menu (Bar Tabs Admin member rows) — <details>/<summary>, same idea as the
    portal's Users permissions dropdown: native disclosure, closed on outside click via a small
