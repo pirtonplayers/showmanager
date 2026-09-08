@@ -385,6 +385,20 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
   .form-row { grid-template-columns: 1fr; }
   .filters-toolbar { flex-direction: column; align-items: stretch; }
   .filters-toolbar .form-control { width: 100%; }
+
+  /* The expense table has too many columns (9) to shrink and still be readable at phone width —
+     each row becomes its own stacked card instead (one field per line, via data-label — see
+     renderExpenseTable), so nothing needs horizontal scrolling. */
+  .expense-table-wrap { overflow-x: visible; }
+  .expense-table thead { display: none; }
+  .expense-table, .expense-table tbody, .expense-table tr, .expense-table td { display: block; width: 100%; }
+  .expense-table tr { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; padding: 4px 10px; }
+  .expense-table td { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--border); text-align: right; }
+  .expense-table td:last-child { border-bottom: none; }
+  .expense-table td::before { content: attr(data-label); font-weight: 600; color: var(--text-muted); text-align: left; flex-shrink: 0; }
+  /* The "no expenses match" row has no fields to lay out as label/value — reset to plain
+     centred text instead of getting shoved to one side by the flex rule above. */
+  .expense-table td.empty-state { display: block; text-align: center; }
 }
 
 /* ── Print / PDF ──────────────────────────────────────────────────────────

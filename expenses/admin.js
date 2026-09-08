@@ -508,16 +508,20 @@ function renderExpenseTable() {
   selectedExpenseIds = new Set([...selectedExpenseIds].filter(id => allExpenses.some(r => r.id === id && r.paid)));
   const rows = filteredExpenses();
   const tbody = document.getElementById('expenseTableBody');
+  // data-label feeds each cell's ::before on mobile, where the table becomes stacked cards (one
+  // field per line) instead of a 9-column row too wide for a phone to show without horizontal
+  // scrolling — see the max-width:600px block in style.css. Left off the checkbox/delete cells,
+  // which don't need a label to make sense.
   tbody.innerHTML = rows.map(r => `
     <tr>
       <td>${r.paid ? `<input type="checkbox" data-select-expense="${r.id}" ${selectedExpenseIds.has(r.id) ? 'checked' : ''}>` : ''}</td>
-      <td>${escapeHtml(r.showName || '—')}</td>
-      <td>${escapeHtml(r.description)}</td>
-      <td>${escapeHtml(r.userName)}<br><span class="muted">${escapeHtml(r.userEmail)}</span></td>
-      <td>${receiptLinksHtml(r)}</td>
-      <td>${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : ''}</td>
-      <td class="amount-cell${r.paid ? '' : ' unpaid'}">${money(r.amount)}</td>
-      <td><span class="badge ${r.paid ? 'badge-success' : 'badge-warning'}">${r.paid ? 'Paid' : 'Unpaid'}</span></td>
+      <td data-label="Show">${escapeHtml(r.showName || '—')}</td>
+      <td data-label="Description">${escapeHtml(r.description)}</td>
+      <td data-label="Submitted by">${escapeHtml(r.userName)}<br><span class="muted">${escapeHtml(r.userEmail)}</span></td>
+      <td data-label="Receipt">${receiptLinksHtml(r)}</td>
+      <td data-label="Date">${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : ''}</td>
+      <td class="amount-cell${r.paid ? '' : ' unpaid'}" data-label="Amount">${money(r.amount)}</td>
+      <td data-label="Paid"><span class="badge ${r.paid ? 'badge-success' : 'badge-warning'}">${r.paid ? 'Paid' : 'Unpaid'}</span></td>
       <td><button class="icon-btn icon-btn-danger" data-delete-expense="${r.id}" title="Delete" aria-label="Delete">${ICON_TRASH}</button></td>
     </tr>
   `).join('') || `<tr><td colspan="9" class="empty-state">No expenses match these filters.</td></tr>`;
