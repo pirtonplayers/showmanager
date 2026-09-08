@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.135"></script>
+  <script src="../shared/embed.js?v=1.0.136"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#92400e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Pirton Players Expenses — Manager</title>
   <link rel="manifest" href="admin-manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-admin.png">
-  <link rel="stylesheet" href="style.css?v=1.0.135">
+  <link rel="stylesheet" href="style.css?v=1.0.136">
 </head>
 <body class="theme-admin">
 
@@ -149,13 +149,17 @@
       <div class="filters-toolbar">
         <select id="filterShow" class="form-control"><option value="">All shows</option></select>
         <select id="filterUser" class="form-control"><option value="">All submitters</option></select>
-        <label style="display:flex;align-items:center;gap:6px;font-size:14px;white-space:nowrap;cursor:pointer">
-          <input type="checkbox" id="filterUnpaidCheck" checked> Unpaid
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:14px;white-space:nowrap;cursor:pointer">
-          <input type="checkbox" id="filterPaidCheck"> Paid
-        </label>
-        <button class="btn btn-primary btn-sm" id="openMarkPaidBtn" style="display:none">Mark expenses as paid</button>
+        <!-- Stays one row even where .filters-toolbar itself stacks to a column on a phone —
+             these three belong together, not spread across separate lines. -->
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:nowrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;white-space:nowrap;cursor:pointer">
+            <input type="checkbox" id="filterUnpaidCheck" checked> Unpaid
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;white-space:nowrap;cursor:pointer">
+            <input type="checkbox" id="filterPaidCheck"> Paid
+          </label>
+          <button class="btn btn-primary btn-sm" id="openMarkPaidBtn" style="display:none;white-space:nowrap;flex-shrink:0">Mark as paid</button>
+        </div>
       </div>
 
       <div class="card">
@@ -461,12 +465,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.135"></script>
-<script src="../shared/perf-report.js?v=1.0.135"></script>
-<script src="../shared/load-script.js?v=1.0.135"></script>
-<script src="../shared/firebase-config.js?v=1.0.135"></script>
-<script src="../shared/auth.js?v=1.0.135"></script>
-<script src="../shared/suite-nav.js?v=1.0.135"></script>
-<script src="admin.js?v=1.0.135"></script>
+<script src="../shared/version.js?v=1.0.136"></script>
+<script src="../shared/perf-report.js?v=1.0.136"></script>
+<script src="../shared/load-script.js?v=1.0.136"></script>
+<script src="../shared/firebase-config.js?v=1.0.136"></script>
+<script src="../shared/auth.js?v=1.0.136"></script>
+<script src="../shared/suite-nav.js?v=1.0.136"></script>
+<script src="admin.js?v=1.0.136"></script>
 </body>
 </html>
