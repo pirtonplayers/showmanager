@@ -52,6 +52,7 @@ function goTo(screenId) {
   document.querySelector('.pwa-content').style.display = loggedInScreen ? '' : 'none';
   document.getElementById('heroMenuWrap').style.display = loggedInScreen ? '' : 'none';
   document.getElementById('mainMenuDropdown').classList.remove('open');
+  document.body.classList.remove('menu-open');
   document.getElementById('pwaSidebar').style.display = loggedInScreen ? '' : 'none';
   document.getElementById('pwaSidebarToggleBtn').style.display = loggedInScreen ? '' : 'none';
   document.querySelector('.pwa-content').classList.toggle('with-sidebar', loggedInScreen);
@@ -67,9 +68,15 @@ function goTo(screenId) {
 
 document.getElementById('menuBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  document.getElementById('mainMenuDropdown').classList.toggle('open');
+  const open = document.getElementById('mainMenuDropdown').classList.toggle('open');
+  // See body.menu-open in style.css — a full-viewport tap target, so there's always somewhere
+  // to tap to close this even when the menu itself runs taller than the screen on a phone.
+  document.body.classList.toggle('menu-open', open);
 });
-document.addEventListener('click', () => { document.getElementById('mainMenuDropdown').classList.remove('open'); });
+document.addEventListener('click', () => {
+  document.getElementById('mainMenuDropdown').classList.remove('open');
+  document.body.classList.remove('menu-open');
+});
 
 document.querySelectorAll('.tab-btn[data-screen]').forEach(btn => {
   btn.addEventListener('click', () => {

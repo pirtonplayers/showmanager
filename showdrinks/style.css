@@ -274,19 +274,23 @@ input, textarea, select, [contenteditable] {
 
 /* ── Menu item cards in PWA ── */
 .menu-grid { display: flex; flex-direction: column; gap: 10px; }
-.menu-item-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); }
+.menu-item-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); transition: border-color .15s, background-color .15s; }
 .menu-item-card .mic-name { flex: 1; font-weight: 600; font-size: 15px; }
 .menu-item-card .mic-price { font-weight: 700; color: var(--primary); font-size: 15px; min-width: 50px; text-align: right; }
+.menu-item-card.has-qty { border-color: var(--primary); background: var(--primary-light); }
 .qty-control { display: flex; align-items: center; gap: 8px; }
 .qty-control button { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--primary); background: none; color: var(--primary); font-size: 20px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; transition: all .15s; }
 .qty-control button:hover { background: var(--primary); color: #fff; }
 .qty-control .qty-num { font-weight: 700; font-size: 16px; min-width: 24px; text-align: center; }
 
 /* Category chip filter — index.html's PWA duplicates these inline for itself; this copy is the
-   one admin.html's Show Tabs (category-list ordering mode) uses. */
+   one admin.html's Bar Tabs POS (category-list ordering mode) uses. */
 .cat-bar { display:flex; gap:8px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
 .cat-bar::-webkit-scrollbar { display:none; }
 .cat-btn { flex:0 0 auto; white-space:nowrap; padding:7px 14px; border:2px solid var(--border); border-radius:999px; background:var(--surface); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
+/* Sticky within Bar Tabs POS's own scrolling item list (.tab-pos-buttons), so it stays put as
+   that list scrolls underneath it rather than scrolling away with the items. */
+#tabListCatBar { position:sticky; top:0; z-index:2; background:var(--surface); padding-top:2px; }
 .cat-btn.active { border-color:var(--primary); background:var(--primary); color:#fff; }
 
 /* ── Session & Date selectors ── */
@@ -373,6 +377,12 @@ input, textarea, select, [contenteditable] {
 }
 .dropdown-menu .btn { width:100%; justify-content:flex-start; }
 
+/* Full-viewport tap target while the main nav menu is open — on a phone the menu can run taller
+   than the screen (nothing below it left exposed to tap), so this guarantees there's always an
+   "outside" to close it with. Sits under the menu's own z-index (50) so taps on the menu itself
+   still land on it; anything else bubbles up to the click-listener that closes the menu. */
+body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
+
 .pos-drag-item { padding:6px 8px; border:1px solid var(--border); border-radius:6px; margin-bottom:5px; cursor:grab; font-size:13px; background:var(--bg); display:flex; justify-content:space-between; align-items:center; user-select:none; }
 .pos-drag-item:active { cursor:grabbing; opacity:.7; }
 .pos-admin-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; max-width:420px; margin-top:16px; }
@@ -396,6 +406,9 @@ input, textarea, select, [contenteditable] {
 .pos-btn.empty { opacity:0; pointer-events:none; }
 .pos-btn .pb-lbl { line-height:1.2; }
 .pos-btn .pb-price { font-size:11px; font-weight:400; opacity:.75; }
+/* Currently in the basket — an inset ring layers on top regardless of a cell's own custom
+   color, rather than a border/background change that a colored cell would just override. */
+.pos-btn.has-qty { box-shadow: inset 0 0 0 3px var(--primary); }
 
 /* ── Responsive ── */
 @media (max-width: 600px) {

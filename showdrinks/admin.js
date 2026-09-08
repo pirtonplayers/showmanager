@@ -62,11 +62,15 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 window.toggleMainMenu = function(e) {
   e.stopPropagation();
-  document.getElementById('mainMenuDropdown').classList.toggle('open');
+  const open = document.getElementById('mainMenuDropdown').classList.toggle('open');
+  // See body.menu-open in style.css — a full-viewport tap target, so there's always somewhere
+  // to tap to close this even when the menu itself runs taller than the screen on a phone.
+  document.body.classList.toggle('menu-open', open);
 };
 
 document.addEventListener('click', () => {
   document.getElementById('mainMenuDropdown')?.classList.remove('open');
+  document.body.classList.remove('menu-open');
 });
 
 // ── Show & Sessions ────────────────────────────────────────────────────────
@@ -1257,19 +1261,27 @@ function isPosMode() {
 }
 
 // Shared by both Bar Tabs pages (POS and Admin) — members + their running totals, and the live
-// tabOrders listener renderTabMembersList() needs to compute those totals.
+// tabOrders listener renderTabMembersList() needs to compute those totals. Cached: skips the
+// members re-fetch once loaded (this array is kept in sync locally whenever a member's added —
+// see addOrSelectTabMember) and keeps the tabOrders listener subscribed across tab switches
+// instead of tearing it down and resubscribing every time — re-opening either Bar Tabs page was
+// paying for a full re-fetch + a fresh listener setup on every visit for no reason.
 async function loadTabMembersData() {
-  await loadTabMembers();
-  if (_tabOrdersUnsubscribe) { _tabOrdersUnsubscribe(); _tabOrdersUnsubscribe = null; }
-  _tabOrdersUnsubscribe = db.collection('showdrinks_tabOrders').orderBy('createdAt', 'desc').onSnapshot(snap => {
-    _tabOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderTabMembersList();
-  }, e => toast('Could not load tabs: ' + e.message, 'error'));
+  if (!_tabMembers.length) await loadTabMembers();
+  if (!_tabOrdersUnsubscribe) {
+    _tabOrdersUnsubscribe = db.collection('showdrinks_tabOrders').orderBy('createdAt', 'desc').onSnapshot(snap => {
+      _tabOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderTabMembersList();
+    }, e => toast('Could not load tabs: ' + e.message, 'error'));
+  }
 }
 
 async function loadShowTabs() {
-  if (!Object.keys(_posGrids).length) await loadPosGrids();
-  await loadTabMembersData();
+  // Independent fetches — run them together rather than one after the other.
+  await Promise.all([
+    Object.keys(_posGrids).length ? Promise.resolve() : loadPosGrids(),
+    loadTabMembersData(),
+  ]);
   renderTabOrderEntry();
   renderTabBasket();
 }
@@ -1313,7 +1325,6 @@ window.selectTabMember = function(id) {
   const posArea = document.getElementById('tabPosArea');
   const member = _tabMembers.find(m => m.id === _tabSelectedMemberId);
   posArea.classList.toggle('inactive', !member);
-  document.getElementById('tabPosInactiveHint').style.display = member ? 'none' : '';
   renderTabOrderEntry();
   renderTabBasket();
   renderTabMembersList();
@@ -1324,16 +1335,66 @@ window.selectTabMember = function(id) {
 // just selects the existing member instead of creating a second one, otherwise creates the
 // member, refreshes the dropdown/list, and selects the new member. Returns true once the caller
 // can safely clear its inputs / close its modal.
+// Iterative Levenshtein edit distance — the member list is small enough (cast/crew, not
+// customers) that this plain-JS version is plenty fast; no need for a library.
+function levenshteinDistance(a, b) {
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = a[i - 1] === b[j - 1]
+        ? prev[j - 1]
+        : 1 + Math.min(prev[j - 1], prev[j], cur[j - 1]);
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+// 0 (nothing alike) .. 1 (identical) — normalized so it's comparable across names of different
+// lengths, unlike a raw edit-distance count.
+function nameSimilarity(a, b) {
+  const maxLen = Math.max(a.length, b.length);
+  return maxLen ? 1 - levenshteinDistance(a, b) / maxLen : 1;
+}
+
+const FUZZY_NAME_MATCH_THRESHOLD = 0.75;
+
 async function addOrSelectTabMember(rawName, rawEmail) {
   const name = rawName.trim();
   const email = rawEmail.trim();
   if (!name) { toast('Enter a member name', 'error'); return false; }
-  const dupe = _tabMembers.find(m => m.name.toLowerCase() === name.toLowerCase());
+  const nameLower = name.toLowerCase();
+
+  const dupe = _tabMembers.find(m => m.name.toLowerCase() === nameLower);
   if (dupe) {
     selectTabMember(dupe.id);
     toast(`"${dupe.name}" already exists — selected instead`, 'info');
     return true;
   }
+
+  // Fuzzy check — catches a typo'd or differently-spelled near-match (an exact-match miss) so
+  // whoever's adding this gets a chance to say "yes, same person" instead of the list quietly
+  // growing a second entry for someone who's already on it.
+  let closest = null, closestScore = 0;
+  for (const m of _tabMembers) {
+    const score = nameSimilarity(nameLower, m.name.toLowerCase());
+    if (score > closestScore) { closestScore = score; closest = m; }
+  }
+  if (closest && closestScore >= FUZZY_NAME_MATCH_THRESHOLD) {
+    const sameMember = confirm(
+      `"${closest.name}" already exists — is this the same person as "${name}"?\n\n` +
+      `OK = same person, use the existing entry\nCancel = different person, add as new`
+    );
+    if (sameMember) {
+      selectTabMember(closest.id);
+      toast(`Using existing member "${closest.name}"`, 'info');
+      return true;
+    }
+  }
+
   const ref = await db.collection('showdrinks_tabMembers').add({
     name, email, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
   });
@@ -1398,7 +1459,9 @@ function renderTabGrid() {
     const style = cell.color
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
     const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
-    return `<button class="pos-btn" style="${style}" data-idx="${i}">
+    // Same key handleTabPosBtn uses to add this cell to the basket.
+    const hasQty = cell.type === 'item' && _tabBasket[cell.label || cell.menuItemId]?.qty > 0;
+    return `<button class="pos-btn${hasQty ? ' has-qty' : ''}" style="${style}" data-idx="${i}">
       <span class="pb-lbl">${escHtml(cell.label || '')}</span>
       ${price ? `<span class="pb-price">${price}</span>` : ''}
     </button>`;
@@ -1512,20 +1575,20 @@ function wirePosLongPress(container, onPress) {
   });
 }
 
+// Same simplification as the customer ordering screen's Category List mode: every item already
+// shows its own qty (a POS grid tap re-selects it for +/-, a list-mode card has its own stepper),
+// so an itemized breakdown here would just repeat that — a trolley + count + running total is
+// all this needs to add.
 function renderTabBasket() {
   const el = document.getElementById('tabBasket');
   if (!el) return;
   const items = Object.values(_tabBasket);
-  if (!items.length) { el.innerHTML = '<span style="color:var(--text-muted)">No drinks added yet</span>'; return; }
+  const count = items.reduce((s, i) => s + i.qty, 0);
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-  el.innerHTML = items.map(i =>
-    `<div style="display:flex;justify-content:space-between">
-       <span>${i.qty}× ${escHtml(i.name)}</span>
-       <span>${fmtCurrency(i.price * i.qty)}</span>
-     </div>`).join('') +
-    `<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:4px;font-weight:700;display:flex;justify-content:space-between">
-       <span>Total</span><span>${fmtCurrency(total)}</span>
-     </div>`;
+  el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between">
+    <span class="basket-badge">🛒<span class="count">${count}</span></span>
+    <span style="font-weight:800;font-size:19px">${fmtCurrency(total)}</span>
+  </div>`;
 }
 
 window.handleTabPosBtn = function(idx, isLongPress) {
@@ -1544,15 +1607,15 @@ window.handleTabPosBtn = function(idx, isLongPress) {
     if (!isLongPress) _tabStack = ['root'];
     renderTabGrid(); renderTabBasket();
   } else if (cell.type === 'clear') {
-    _tabBasket = {}; _tabSelectedKey = null; renderTabBasket();
+    _tabBasket = {}; _tabSelectedKey = null; renderTabGrid(); renderTabBasket();
   } else if (cell.type === 'plus') {
     if (!_tabSelectedKey || !_tabBasket[_tabSelectedKey]) { toast('Select an item first', 'error'); return; }
-    _tabBasket[_tabSelectedKey].qty += 1; renderTabBasket();
+    _tabBasket[_tabSelectedKey].qty += 1; renderTabGrid(); renderTabBasket();
   } else if (cell.type === 'minus') {
     if (!_tabSelectedKey || !_tabBasket[_tabSelectedKey]) { toast('Select an item first', 'error'); return; }
     _tabBasket[_tabSelectedKey].qty -= 1;
     if (_tabBasket[_tabSelectedKey].qty <= 0) { delete _tabBasket[_tabSelectedKey]; _tabSelectedKey = null; }
-    renderTabBasket();
+    renderTabGrid(); renderTabBasket();
   } else if (cell.type === 'grid') {
     if (cell.targetGridId && _posGrids[cell.targetGridId]) {
       _tabStack.push(cell.targetGridId); renderTabGrid();

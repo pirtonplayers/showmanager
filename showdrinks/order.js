@@ -415,7 +415,9 @@ function renderPosGrid() {
     const style = cell.color
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
     const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
-    return `<button class="pos-btn" style="${style}" data-idx="${i}">
+    const menuItem = cell.type === 'item' ? state.menuItems.find(mi => mi.id === cell.menuItemId) : null;
+    const hasQty = !!(menuItem && state.basket[menuItem.name]?.quantity > 0);
+    return `<button class="pos-btn${hasQty ? ' has-qty' : ''}" style="${style}" data-idx="${i}">
       <span class="pb-lbl">${escHtml(cell.label || '')}</span>
       ${price ? `<span class="pb-price">${price}</span>` : ''}
     </button>`;
@@ -473,18 +475,18 @@ window.handlePosBtn = function(idx, isLongPress) {
   } else if (cell.type === 'clear') {
     if (!confirm('Clear all items?')) return;
     state.basket = {}; state.selectedBasketKey = null;
-    renderOrderGrid(); updateBottomBar();
+    renderPosGrid(); renderOrderGrid(); updateBottomBar();
   } else if (cell.type === 'plus') {
     const key = state.selectedBasketKey;
     if (!key || !state.basket[key]) { toast('Select an item first', 'error'); return; }
     state.basket[key].quantity += 1;
-    renderOrderGrid(); updateBottomBar();
+    renderPosGrid(); renderOrderGrid(); updateBottomBar();
   } else if (cell.type === 'minus') {
     const key = state.selectedBasketKey;
     if (!key || !state.basket[key]) { toast('Select an item first', 'error'); return; }
     state.basket[key].quantity -= 1;
     if (state.basket[key].quantity <= 0) { delete state.basket[key]; state.selectedBasketKey = null; }
-    renderOrderGrid(); updateBottomBar();
+    renderPosGrid(); renderOrderGrid(); updateBottomBar();
   } else if (cell.type === 'grid') {
     if (cell.targetGridId && state.posGrids[cell.targetGridId]) {
       state.posGridStack.push(cell.targetGridId);
@@ -614,7 +616,7 @@ window.selectListCat = function(encodedCat) {
 
 function listMenuItemHtml(item) {
   const qty = state.basket[item.name]?.quantity || 0;
-  return `<div class="menu-item-card">
+  return `<div class="menu-item-card${qty > 0 ? ' has-qty' : ''}">
     <span class="mic-name">${escHtml(item.name)}</span>
     <span class="mic-price">${fmtCurrency(item.price)}</span>
     <div class="qty-control">

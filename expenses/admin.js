@@ -184,9 +184,15 @@ document.getElementById('changePasswordForm').addEventListener('submit', async (
 
 document.getElementById('menuBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  document.getElementById('mainMenuDropdown').classList.toggle('open');
+  const open = document.getElementById('mainMenuDropdown').classList.toggle('open');
+  // See body.menu-open in style.css — a full-viewport tap target, so there's always somewhere
+  // to tap to close this even when the menu itself runs taller than the screen on a phone.
+  document.body.classList.toggle('menu-open', open);
 });
-document.addEventListener('click', () => { document.getElementById('mainMenuDropdown').classList.remove('open'); });
+document.addEventListener('click', () => {
+  document.getElementById('mainMenuDropdown').classList.remove('open');
+  document.body.classList.remove('menu-open');
+});
 
 // The nav buttons exist twice — once in the mobile dropdown, once in the desktop sidebar —
 // sharing the same data-tab values, so switching via either keeps both in sync. Pulled out into

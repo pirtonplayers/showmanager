@@ -177,6 +177,12 @@ input[type="file"].form-control { padding: 7px 10px; }
 .dropdown-menu .tab-btn.active { color: var(--primary); background: var(--primary-light); }
 .dropdown-divider { height: 1px; background: var(--border); margin: 6px 2px; }
 
+/* Full-viewport tap target while the main nav menu is open — on a phone the menu can run taller
+   than the screen (nothing below it left exposed to tap), so this guarantees there's always an
+   "outside" to close it with. Sits under the menu's own z-index (50) so taps on the menu itself
+   still land on it; anything else bubbles up to the click-listener that closes the menu. */
+body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
+
 .admin-content { padding: 24px; max-width: 1300px; margin: 0 auto; }
 
 /* ── Desktop sidebar nav (hidden on mobile — the header hamburger/dropdown covers that) ── */
