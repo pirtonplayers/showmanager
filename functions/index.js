@@ -226,21 +226,22 @@ exports.listExpensesUsers = onCall({ region: 'europe-west1' }, async (request) =
   return { ok: true, users };
 });
 
-// Grants/revokes just access.expenses on an existing account — expensesAdmin-scoped (unlike the
-// portal's general users/{uid} update, which is Manager-only). Deliberately can't touch
-// access.expensesAdmin itself (or isManager, or any other app) — granting admin rights stays a
-// Manager-only action in the portal, so an expenses admin can't promote anyone (including
-// themselves) to expensesAdmin from this screen.
+// Edits just name + access.expenses on an existing account — expensesAdmin-scoped (unlike the
+// portal's general users/{uid} update, which is Manager-only). Deliberately can't touch email,
+// access.expensesAdmin itself, isManager, or any other app — an expenses admin can't promote
+// anyone (including themselves) beyond that, or touch anything not editable from this screen.
 exports.setExpensesUserAccess = onCall({ region: 'europe-west1' }, async (request) => {
   await requireAppAccess(request, 'expensesAdmin');
-  const { uid, value } = request.data || {};
+  const { uid, value, name } = request.data || {};
   if (!uid || typeof value !== 'boolean') {
     throw new HttpsError('invalid-argument', 'uid and a boolean value are required.');
   }
   if (uid === request.auth.uid && value === false) {
     throw new HttpsError('failed-precondition', "You can't remove your own Expenses access this way.");
   }
-  await db.collection('users').doc(uid).update({ 'access.expenses': value });
+  const update = { 'access.expenses': value };
+  if (typeof name === 'string' && name.trim()) update.name = name.trim();
+  await db.collection('users').doc(uid).update(update);
   return { ok: true };
 });
 

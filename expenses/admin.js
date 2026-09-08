@@ -13,6 +13,7 @@ function escapeHtml(str) {
 // suite) — used in place of a text label for the common Delete/Remove row actions. (Copy link's
 // icon is inlined directly in admin.html's static markup, not rendered from here.)
 const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>';
 
 function money(n) {
   return `£${Number(n).toFixed(2)}`;
@@ -242,7 +243,7 @@ async function loadShows() {
     const snap = await db.collection('expenses_shows').get();
     shows = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (b.showDate || '').localeCompare(a.showDate || ''));
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   } catch (err) {
     showToast(err.message, 'error');
     return;
@@ -266,7 +267,6 @@ function renderShowList() {
   el.innerHTML = shows.map(s => `
     <div class="item-row ${s.active ? '' : 'inactive'}">
       <div class="item-name">${escapeHtml(s.name)}</div>
-      <div class="item-sub">${s.showDate || ''}</div>
       <div class="item-actions">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px">
           <input type="checkbox" data-toggle-show="${s.id}" ${s.active ? 'checked' : ''}> Active
@@ -278,19 +278,31 @@ function renderShowList() {
   `).join('') || '<p class="empty-state">No shows yet — add one above.</p>';
 }
 
+window.openAddShowModal = function() {
+  document.getElementById('addShowForm').reset();
+  document.getElementById('addShowModal').style.display = 'flex';
+  document.getElementById('newShowName').focus();
+};
+
+window.closeAddShowModal = function() {
+  document.getElementById('addShowModal').style.display = 'none';
+};
+
+document.getElementById('addShowModal').addEventListener('click', (e) => {
+  if (e.target.id === 'addShowModal') closeAddShowModal();
+});
+
 document.getElementById('addShowForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = document.getElementById('newShowName').value.trim();
-  const showDate = document.getElementById('newShowDate').value || null;
   if (!name) return;
   try {
     await db.collection('expenses_shows').add({
       name,
-      showDate,
       active: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    e.target.reset();
+    closeAddShowModal();
     showToast('Show added', 'success');
     await loadShows();
   } catch (err) {
@@ -969,27 +981,77 @@ function closeSendLinkModal() {
   document.getElementById('newUserLinkModal').style.display = 'none';
 }
 
+// One modal, two modes — _editingExpensesUserId null means "add", set means "edit that user".
+let _editingExpensesUserId = null;
+
+window.openAddExpensesUserModal = function() {
+  _editingExpensesUserId = null;
+  document.getElementById('userModalTitle').textContent = 'Add a user';
+  document.getElementById('addUserBtn').textContent = '+ Add user';
+  document.getElementById('addUserForm').reset();
+  document.getElementById('newUserCreateOnlyFields').style.display = '';
+  document.getElementById('editUserAccessGroup').style.display = 'none';
+  document.getElementById('addUserError').textContent = '';
+  document.getElementById('addUserModal').style.display = 'flex';
+  document.getElementById('newUserName').focus();
+};
+
+window.openEditExpensesUserModal = function(id) {
+  const user = expensesUsers.find(u => u.id === id);
+  if (!user) return;
+  _editingExpensesUserId = id;
+  document.getElementById('userModalTitle').textContent = 'Edit user';
+  document.getElementById('addUserBtn').textContent = 'Save changes';
+  document.getElementById('addUserForm').reset();
+  document.getElementById('newUserName').value = user.name || '';
+  document.getElementById('newUserCreateOnlyFields').style.display = 'none';
+  document.getElementById('editUserAccessGroup').style.display = '';
+  document.getElementById('editUserExpensesAccess').checked = !!user.access.expenses;
+  document.getElementById('addUserError').textContent = '';
+  document.getElementById('addUserModal').style.display = 'flex';
+  document.getElementById('newUserName').focus();
+};
+
+window.closeAddExpensesUserModal = function() {
+  document.getElementById('addUserModal').style.display = 'none';
+  _editingExpensesUserId = null;
+};
+
 document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const errorEl = document.getElementById('addUserError');
   const btn = document.getElementById('addUserBtn');
   errorEl.textContent = '';
   const name = document.getElementById('newUserName').value.trim();
-  const email = document.getElementById('newUserEmail').value.trim();
-  const password = document.getElementById('newUserPassword').value.trim();
+  if (!name) { errorEl.textContent = 'Enter a name.'; return; }
 
   btn.disabled = true;
   try {
-    await functionsRegion.httpsCallable('createExpensesUser')({ name, email, password });
-    showSendLinkModal(name, email);
-    document.getElementById('addUserForm').reset();
-    showToast(`Account created for ${name} — pass on the temporary password`, 'success');
+    if (_editingExpensesUserId) {
+      const value = document.getElementById('editUserExpensesAccess').checked;
+      await functionsRegion.httpsCallable('setExpensesUserAccess')({ uid: _editingExpensesUserId, value, name });
+      closeAddExpensesUserModal();
+      showToast('Updated', 'success');
+    } else {
+      const email = document.getElementById('newUserEmail').value.trim();
+      const password = document.getElementById('newUserPassword').value.trim();
+      if (!email) { errorEl.textContent = 'Enter an email.'; btn.disabled = false; return; }
+      if (!password || password.length < 6) { errorEl.textContent = 'Enter a temporary password (6+ characters).'; btn.disabled = false; return; }
+      await functionsRegion.httpsCallable('createExpensesUser')({ name, email, password });
+      closeAddExpensesUserModal();
+      showSendLinkModal(name, email);
+      showToast(`Account created for ${name} — pass on the temporary password`, 'success');
+    }
     await loadExpensesUsers();
   } catch (err) {
     errorEl.textContent = err.message;
   } finally {
     btn.disabled = false;
   }
+});
+
+document.getElementById('addUserModal').addEventListener('click', (e) => {
+  if (e.target.id === 'addUserModal') closeAddExpensesUserModal();
 });
 
 // All users with any expenses-related access (listExpensesUsers — expensesAdmin-scoped, returns
@@ -1019,30 +1081,14 @@ function renderExpensesUserList() {
         <div class="item-sub">${escapeHtml(u.email)}${u.access.expensesAdmin ? ' · Expenses admin' : ''}</div>
       </div>
       <div class="item-actions">
-        <label style="display:flex;align-items:center;gap:5px;font-size:12px">
-          <input type="checkbox" data-toggle-expenses="${u.id}" ${u.access.expenses ? 'checked' : ''}> Expenses access
-        </label>
         <button type="button" class="btn btn-secondary btn-sm" data-view-user-expenses="${escapeHtml(u.email)}">View expenses</button>
         <button type="button" class="btn btn-secondary btn-sm" data-send-link="${u.id}">Send link</button>
+        <button type="button" class="icon-btn" data-edit-expenses-user="${u.id}" title="Edit" aria-label="Edit">${ICON_EDIT}</button>
       </div>
     </div>
   `).join('') || '<p class="empty-state">No users yet.</p>';
 }
 document.getElementById('expensesUserSearchInput').addEventListener('input', renderExpensesUserList);
-
-document.getElementById('expensesUserList').addEventListener('change', async (e) => {
-  const uid = e.target.getAttribute('data-toggle-expenses');
-  if (!uid) return;
-  const checked = e.target.checked;
-  try {
-    await functionsRegion.httpsCallable('setExpensesUserAccess')({ uid, value: checked });
-    showToast('Updated', 'success');
-    await loadExpensesUsers();
-  } catch (err) {
-    e.target.checked = !checked;
-    showToast(err.message, 'error');
-  }
-});
 
 document.getElementById('expensesUserList').addEventListener('click', (e) => {
   const uid = e.target.getAttribute('data-send-link');
@@ -1052,7 +1098,9 @@ document.getElementById('expensesUserList').addEventListener('click', (e) => {
     return;
   }
   const email = e.target.getAttribute('data-view-user-expenses');
-  if (email) openUserExpenses(email);
+  if (email) { openUserExpenses(email); return; }
+  const editBtn = e.target.closest('[data-edit-expenses-user]'); // icon-btn's <svg> is the actual click target
+  if (editBtn) openEditExpensesUserModal(editBtn.getAttribute('data-edit-expenses-user'));
 });
 
 // Jumps to the Expenses tab pre-filtered to just this person (every status, not just Unpaid,

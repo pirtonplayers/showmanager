@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.108"></script>
+  <script src="../shared/embed.js?v=1.0.109"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#92400e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Pirton Players Expenses — Manager</title>
   <link rel="manifest" href="admin-manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-admin.png">
-  <link rel="stylesheet" href="style.css?v=1.0.108">
+  <link rel="stylesheet" href="style.css?v=1.0.109">
 </head>
 <body class="theme-admin">
 
@@ -168,22 +168,26 @@
 
     <!-- ── SHOWS ── -->
     <div id="tab-shows" class="tab-panel">
-      <div class="section-header"><h2>Shows</h2></div>
+      <div class="section-header">
+        <h2>Shows</h2>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openAddShowModal()">+ Add show</button>
+      </div>
 
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-header"><h2>Add a show</h2></div>
-        <div class="card-body">
-          <form id="addShowForm" class="form-row add-show-row">
-            <div class="form-group" style="margin-bottom:0">
-              <label for="newShowName">Show name</label>
-              <input type="text" id="newShowName" class="form-control" required>
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-              <label for="newShowDate">Date (optional)</label>
-              <input type="date" id="newShowDate" class="form-control">
-            </div>
-            <button type="submit" class="btn btn-primary" style="height:38px">+ Add show</button>
-          </form>
+      <div id="addShowModal" class="modal-backdrop" style="display:none">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>Add a show</h3>
+            <button type="button" class="modal-close-btn" onclick="closeAddShowModal()" aria-label="Close">×</button>
+          </div>
+          <div class="modal-body">
+            <form id="addShowForm">
+              <div class="form-group">
+                <label for="newShowName">Show name</label>
+                <input type="text" id="newShowName" class="form-control" required>
+              </div>
+              <button type="submit" class="btn btn-primary btn-full">+ Add show</button>
+            </form>
+          </div>
         </div>
       </div>
 
@@ -254,29 +258,47 @@
 
     <!-- ── USERS (expenses-only — broader access changes still go through the portal) ── -->
     <div id="tab-users" class="tab-panel">
-      <div class="section-header"><h2>Users</h2></div>
+      <div class="section-header">
+        <h2>Users</h2>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openAddExpensesUserModal()">+ Add user</button>
+      </div>
 
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-header"><h2>Add a user</h2></div>
-        <div class="card-body">
-          <form id="addUserForm">
-            <div class="form-row add-user-row">
-              <div class="form-group" style="margin-bottom:0">
+      <!-- One modal, two modes (see openAddExpensesUserModal/openEditExpensesUserModal in
+           admin.js) — email/name are only editable when adding (creating the Firebase Auth
+           account); editing an existing user is just their name and Expenses access, the only
+           two things this expensesAdmin-scoped screen can change (broader access/permissions
+           stay a portal-only action — see setExpensesUserAccess's own comment). -->
+      <div id="addUserModal" class="modal-backdrop" style="display:none">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 id="userModalTitle">Add a user</h3>
+            <button type="button" class="modal-close-btn" onclick="closeAddExpensesUserModal()" aria-label="Close">×</button>
+          </div>
+          <div class="modal-body">
+            <form id="addUserForm">
+              <div class="form-group">
                 <label for="newUserName">Name</label>
                 <input type="text" id="newUserName" class="form-control" required autocomplete="off">
               </div>
-              <div class="form-group" style="margin-bottom:0">
-                <label for="newUserEmail">Email</label>
-                <input type="email" id="newUserEmail" class="form-control" required autocomplete="off">
+              <div id="newUserCreateOnlyFields">
+                <div class="form-group">
+                  <label for="newUserEmail">Email</label>
+                  <input type="email" id="newUserEmail" class="form-control" autocomplete="off">
+                </div>
+                <div class="form-group">
+                  <label for="newUserPassword">Temporary password</label>
+                  <input type="text" id="newUserPassword" class="form-control" minlength="6" autocomplete="off">
+                </div>
               </div>
-              <div class="form-group" style="margin-bottom:0">
-                <label for="newUserPassword">Temporary password</label>
-                <input type="text" id="newUserPassword" class="form-control" required minlength="6" autocomplete="off">
+              <div class="form-group" id="editUserAccessGroup" style="display:none">
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+                  <input type="checkbox" id="editUserExpensesAccess"> Expenses access
+                </label>
               </div>
-              <button type="submit" class="btn btn-primary" id="addUserBtn" style="height:38px">+ Add user</button>
-            </div>
-            <p id="addUserError" class="muted" style="color:var(--danger);margin-top:12px"></p>
-          </form>
+              <p id="addUserError" class="muted" style="color:var(--danger);margin-bottom:12px"></p>
+              <button type="submit" class="btn btn-primary btn-full" id="addUserBtn">+ Add user</button>
+            </form>
+          </div>
         </div>
       </div>
 
@@ -324,7 +346,6 @@
       <div class="card">
         <div class="card-header"><h2>Expense notification emails</h2></div>
         <div class="card-body">
-          <p class="muted" style="margin-bottom:14px">Everyone here is emailed on a new submission; the submitter is emailed separately once it's paid.</p>
           <form id="addNotifyEmailForm" class="form-row" style="align-items:end;grid-template-columns:1fr auto">
             <div class="form-group" style="margin-bottom:0">
               <label for="newNotifyEmail">Add an email</label>
@@ -339,12 +360,6 @@
       <div class="card" style="margin-top:20px">
         <div class="card-header"><h2>Sender email</h2></div>
         <div class="card-body">
-          <p class="muted" style="margin-bottom:14px">
-            The "from" address on both emails above (new-expense notifications and paid
-            acknowledgements). <strong>Must be a sender already verified in Brevo</strong> — an
-            unverified address will fail to send, or land in spam, rather than notify anyone.
-            Leave blank to fall back to the SMTP_FROM secret set at deploy time.
-          </p>
           <form id="fromEmailForm" class="form-row" style="align-items:end;grid-template-columns:1fr auto">
             <div class="form-group" style="margin-bottom:0">
               <label for="fromEmailInput">Sends from</label>
@@ -358,10 +373,6 @@
       <div class="card" style="margin-top:20px">
         <div class="card-header"><h2>Default link message</h2></div>
         <div class="card-body">
-          <p class="muted" style="margin-bottom:14px">
-            Pre-fills the message box on Users → Send link — still editable per person before
-            it's sent, this just saves retyping the usual note each time.
-          </p>
           <form id="defaultLinkMessageForm">
             <div class="form-group">
               <label for="defaultLinkMessageInput">Message</label>
@@ -378,10 +389,6 @@
           <button class="btn btn-secondary btn-sm" id="checkStorageUsageBtn">Check usage</button>
         </div>
         <div class="card-body">
-          <p class="muted" style="margin-bottom:4px">
-            Receipt photos only — this project is on the Blaze (pay-as-you-go) plan, so there's
-            no fixed quota to run out of, just cost, which scales with how much is stored.
-          </p>
           <p id="storageUsageResult" class="muted"></p>
         </div>
       </div>
@@ -443,10 +450,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="../shared/version.js?v=1.0.108"></script>
-<script src="../shared/firebase-config.js?v=1.0.108"></script>
-<script src="../shared/auth.js?v=1.0.108"></script>
-<script src="../shared/suite-nav.js?v=1.0.108"></script>
-<script src="admin.js?v=1.0.108"></script>
+<script src="../shared/version.js?v=1.0.109"></script>
+<script src="../shared/firebase-config.js?v=1.0.109"></script>
+<script src="../shared/auth.js?v=1.0.109"></script>
+<script src="../shared/suite-nav.js?v=1.0.109"></script>
+<script src="admin.js?v=1.0.109"></script>
 </body>
 </html>
