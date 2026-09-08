@@ -93,10 +93,9 @@
   <div id="tab-show" class="tab-panel">
     <div class="section-header">
       <h2>Show &amp; Sessions</h2>
-      <button class="btn btn-primary" id="saveShowBtn">Save Changes</button>
     </div>
 
-    <div class="card" style="margin-bottom:20px">
+    <div class="card">
       <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
         <h2>Shows</h2>
         <button class="btn btn-primary btn-sm" id="addShowBtn">+ New Show</button>
@@ -108,8 +107,16 @@
         <div class="item-list" id="showsList"></div>
       </div>
     </div>
+  </div>
 
-    <div id="showEditorWrap" style="display:none">
+  <!-- ── SHOW EDITOR (reached from the Shows list above — not its own nav entry) ── -->
+  <div id="tab-showEditor" class="tab-panel">
+    <div class="section-header">
+      <button class="btn btn-secondary btn-sm" onclick="backToShowsList()">← Back to Shows</button>
+      <button class="btn btn-primary" id="saveShowBtn">Save Changes</button>
+    </div>
+
+    <div id="showEditorWrap">
       <div class="card" style="margin-bottom:20px">
         <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
           <h2>Show Details</h2>
@@ -371,6 +378,7 @@
   <div id="tab-tabmembers" class="tab-panel">
     <div class="section-header">
       <h2>Bar Tabs Admin</h2>
+      <button class="btn btn-primary btn-sm" onclick="openAddTabMemberModal()">+ Add Member</button>
       <div style="position:relative">
         <button class="btn btn-secondary btn-sm" onclick="toggleTabsMenu(event)">⋯</button>
         <div id="tabsMenuDropdown" class="dropdown-menu">
@@ -381,19 +389,15 @@
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:20px">
-      <div class="card-header"><h2>Add Member</h2></div>
-      <div class="card-body">
-        <div style="display:flex;gap:8px;max-width:640px">
-          <input type="text" id="newTabMemberName" class="form-control" placeholder="Cast/crew member name">
-          <input type="email" id="newTabMemberEmail" class="form-control" placeholder="Email (optional)">
-          <button class="btn btn-primary" id="addTabMemberBtn">Add</button>
-        </div>
-      </div>
-    </div>
-
     <div class="card">
-      <div class="card-header"><h2>Members &amp; Totals</h2></div>
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+        <h2>Members &amp; Totals</h2>
+        <label class="switch-label">
+          <input type="checkbox" id="tabShowAllMembersToggle">
+          <span class="switch"></span>
+          <span>Show all</span>
+        </label>
+      </div>
       <div class="card-body">
         <div class="item-list" id="tabMembersList">
           <p style="color:var(--text-muted);font-size:14px">No tab members yet.</p>
@@ -586,7 +590,7 @@
 <div id="addTabMemberModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px;margin:20px">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
-      <h2>Add Member</h2>
+      <h2 id="tabMemberModalTitle">Add Member</h2>
       <button onclick="closeAddTabMemberModal()" style="background:none;border:none;font-size:20px;cursor:pointer">×</button>
     </div>
     <div class="card-body">

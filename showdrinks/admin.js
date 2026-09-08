@@ -46,17 +46,25 @@ const DEFAULT_EMAIL_TEMPLATE_BODY =
 
 // ── Tab switching ──────────────────────────────────────────────────────────
 
+// navTabId lets a panel with no nav entry of its own (the Show Editor "page", reached only from
+// the Shows list) still highlight its parent's nav button instead of leaving none active.
+function activateAdminTab(tabId, navTabId) {
+  navTabId = navTabId || tabId;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === navTabId));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+  document.getElementById('mainMenuDropdown').classList.remove('open');
+  document.body.classList.remove('menu-open');
+}
+
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    activateAdminTab(btn.dataset.tab);
     if (btn.dataset.tab === 'orders') loadOrders();
     if (btn.dataset.tab === 'tabs') loadShowTabs();
     if (btn.dataset.tab === 'tabmembers') loadTabMembersData();
     if (btn.dataset.tab === 'pos') loadPosGrids();
-    document.getElementById('mainMenuDropdown').classList.remove('open');
+    if (btn.dataset.tab === 'show') renderShowsList();
   });
 });
 
@@ -117,16 +125,23 @@ function renderShowsList() {
       <span class="item-name">${escHtml(s.name || '(untitled show)')}${s.isCurrent ? ' <span class="badge badge-success">Current</span>' : ''}</span>
       <div class="item-actions">
         ${s.isCurrent ? '' : `<button class="btn btn-secondary btn-sm" onclick="setCurrentShow('${s.id}')">Set as current</button>`}
-        <button class="btn btn-secondary btn-sm" onclick="selectShow('${s.id}')">${s.id === _selectedShowId ? 'Editing' : 'Edit'}</button>
+        <button class="btn btn-secondary btn-sm" onclick="selectShow('${s.id}')">Edit</button>
         <button class="icon-btn icon-btn-danger" onclick="deleteShow('${s.id}')" title="Delete" aria-label="Delete">${ICON_TRASH}</button>
       </div>
     </div>`).join('') : '<p style="color:var(--text-muted);font-size:14px">No shows yet — add one to get started.</p>';
 }
 
+// Opens the Show Editor "page" for one show — reached only from here (its nav highlight is
+// "show", the Shows list it came from — see activateAdminTab).
 window.selectShow = function(id) {
   _selectedShowId = id;
-  renderShowsList();
   renderShowEditor();
+  activateAdminTab('showEditor', 'show');
+};
+
+window.backToShowsList = function() {
+  renderShowsList();
+  activateAdminTab('show');
 };
 
 // id defaults to whichever show is open in the editor (the editor's own "Set as Current"
@@ -156,19 +171,21 @@ window.deleteShow = async function(id) {
     await db.collection('showdrinks_shows').doc(id).delete();
     _shows = _shows.filter(s => s.id !== id);
     if (_selectedShowId === id) _selectedShowId = (_shows[0] || {}).id || null;
-    renderShowsList();
-    renderShowEditor();
     updateHeaderShowName();
     toast('Show deleted', 'info');
+    // Deleting from the editor page (its own Delete button) leaves nothing there to keep editing
+    // — back to the list. Deleting from the list's own row just re-renders that same list.
+    if (document.getElementById('tab-showEditor').classList.contains('active')) backToShowsList();
+    else renderShowsList();
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
   }
 };
 
-// Just adds a row — every other detail (name, dates, sessions, payment) is already editable
-// right below in the same table/editor once it's selected, so there's nothing worth a prompt()
-// interrupting for first. Opens straight into the editor with the name field selected, ready to
-// type over "New show".
+// Just adds a row — every other detail (name, dates, sessions, payment) is editable on its own
+// Show Editor page once it's created, so there's nothing worth a prompt() interrupting for
+// first. Opens straight into that editor with the name field selected, ready to type over
+// "New show".
 document.getElementById('addShowBtn').addEventListener('click', async () => {
   try {
     const doc = {
@@ -181,8 +198,8 @@ document.getElementById('addShowBtn').addEventListener('click', async () => {
     const ref = await db.collection('showdrinks_shows').add(doc);
     _shows.push({ id: ref.id, ...doc, isCurrent: doc.isCurrent });
     _selectedShowId = ref.id;
-    renderShowsList();
     renderShowEditor();
+    activateAdminTab('showEditor', 'show');
     updateHeaderShowName();
     const nameInput = document.getElementById('showName');
     nameInput.focus();
@@ -1406,38 +1423,47 @@ async function addOrSelectTabMember(rawName, rawEmail) {
   return true;
 }
 
-document.getElementById('addTabMemberBtn').addEventListener('click', async () => {
-  const input = document.getElementById('newTabMemberName');
-  const emailInput = document.getElementById('newTabMemberEmail');
-  try {
-    if (await addOrSelectTabMember(input.value, emailInput.value)) {
-      input.value = ''; emailInput.value = '';
-    }
-  } catch(e) {
-    toast('Failed: ' + e.message, 'error');
-  }
-});
+// ── Add/Edit member modal — one modal, two modes ────────────────────────────
+// Opened from: Bar Tabs Admin's "+ Add Member" button, a row's "✏ Edit", or the Bar Tabs POS
+// member picker's "+ Add a member…" option. _editingTabMemberId null = adding, set = editing.
 
-// ── Add-member modal (Show Tabs member picker → "+ Add a member…") ─────────
+let _editingTabMemberId = null;
 
 window.openAddTabMemberModal = function() {
+  _editingTabMemberId = null;
+  document.getElementById('tabMemberModalTitle').textContent = 'Add Member';
+  document.getElementById('addTabMemberModalSaveBtn').textContent = 'Add';
   document.getElementById('newMemberModalName').value = '';
   document.getElementById('newMemberModalEmail').value = '';
   document.getElementById('addTabMemberModal').style.display = 'flex';
   document.getElementById('newMemberModalName').focus();
 };
 
+window.openEditTabMemberModal = function(id) {
+  const member = _tabMembers.find(m => m.id === id);
+  if (!member) return;
+  _editingTabMemberId = id;
+  document.getElementById('tabMemberModalTitle').textContent = 'Edit Member';
+  document.getElementById('addTabMemberModalSaveBtn').textContent = 'Save Changes';
+  document.getElementById('newMemberModalName').value = member.name || '';
+  document.getElementById('newMemberModalEmail').value = member.email || '';
+  document.getElementById('addTabMemberModal').style.display = 'flex';
+  document.getElementById('newMemberModalName').focus();
+};
+
 window.closeAddTabMemberModal = function() {
   document.getElementById('addTabMemberModal').style.display = 'none';
+  _editingTabMemberId = null;
 };
 
 document.getElementById('addTabMemberModalSaveBtn').addEventListener('click', async () => {
   const nameInput = document.getElementById('newMemberModalName');
   const emailInput = document.getElementById('newMemberModalEmail');
   try {
-    if (await addOrSelectTabMember(nameInput.value, emailInput.value)) {
-      closeAddTabMemberModal();
-    }
+    const ok = _editingTabMemberId
+      ? await updateTabMember(_editingTabMemberId, nameInput.value, emailInput.value)
+      : await addOrSelectTabMember(nameInput.value, emailInput.value);
+    if (ok) closeAddTabMemberModal();
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
   }
@@ -1446,6 +1472,42 @@ document.getElementById('addTabMemberModalSaveBtn').addEventListener('click', as
 document.getElementById('addTabMemberModal').addEventListener('click', function(e) {
   if (e.target === this) closeAddTabMemberModal();
 });
+
+// Same duplicate-name safety net as adding (see addOrSelectTabMember), minus the member's own
+// current name (so saving with no name change, or just fixing a typo, doesn't flag itself).
+async function updateTabMember(id, rawName, rawEmail) {
+  const name = rawName.trim();
+  const email = rawEmail.trim();
+  if (!name) { toast('Enter a member name', 'error'); return false; }
+  const nameLower = name.toLowerCase();
+  const others = _tabMembers.filter(m => m.id !== id);
+
+  const dupe = others.find(m => m.name.toLowerCase() === nameLower);
+  if (dupe) { toast(`"${dupe.name}" already uses that name`, 'error'); return false; }
+
+  let closest = null, closestScore = 0;
+  for (const m of others) {
+    const score = nameSimilarity(nameLower, m.name.toLowerCase());
+    if (score > closestScore) { closestScore = score; closest = m; }
+  }
+  if (closest && closestScore >= FUZZY_NAME_MATCH_THRESHOLD) {
+    if (!confirm(`This is similar to an existing member, "${closest.name}" — rename to "${name}" anyway?`)) return false;
+  }
+
+  try {
+    await db.collection('showdrinks_tabMembers').doc(id).update({ name, email });
+    const member = _tabMembers.find(m => m.id === id);
+    if (member) { member.name = name; member.email = email; }
+    _tabMembers.sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
+    renderTabMemberSelect();
+    renderTabMembersList();
+    toast('Member updated', 'success');
+    return true;
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+    return false;
+  }
+}
 
 function renderTabGrid() {
   const gridId = _tabStack[_tabStack.length - 1];
@@ -1686,16 +1748,30 @@ function fmtDateTime(ts) {
   return `${dd} ${mon} ${h}:${m}${ampm}`;
 }
 
+// Whether Members & Totals shows everyone or just members who currently owe money — the "Show
+// all" switch in its header.
+let _tabShowAllMembers = false;
+
 function renderTabMembersList() {
   const el = document.getElementById('tabMembersList');
   if (!_tabMembers.length) { el.innerHTML = '<p style="color:var(--text-muted);font-size:14px">No tab members yet.</p>'; return; }
 
-  el.innerHTML = _tabMembers.map(m => {
-    const orders  = _tabOrders.filter(o => o.memberId === m.id);
-    const total   = orders.reduce((s, o) => s + (o.totalAmount || 0), 0);
-    const unpaid  = orders.filter(o => !o.paid).reduce((s, o) => s + (o.totalAmount || 0), 0);
+  const rows = _tabMembers.map(m => {
+    const orders = _tabOrders.filter(o => o.memberId === m.id);
+    const total  = orders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+    const unpaid = orders.filter(o => !o.paid).reduce((s, o) => s + (o.totalAmount || 0), 0);
+    return { m, orders, total, unpaid };
+  }).filter(r => _tabShowAllMembers || r.unpaid > 0);
+
+  if (!rows.length) {
+    el.innerHTML = `<p style="color:var(--text-muted);font-size:14px">${_tabShowAllMembers ? 'No tab members yet.' : 'Nobody currently owes anything.'}</p>`;
+    return;
+  }
+
+  el.innerHTML = rows.map(({ m, orders, total, unpaid }) => {
     const expanded = _tabExpandedMemberId === m.id;
     const isActive = _tabSelectedMemberId === m.id;
+    const menuOpen = _openMemberRowMenuId === m.id;
     const ordersHtml = expanded ? orders.map(o => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--border);font-size:13px">
         <div>
@@ -1710,26 +1786,62 @@ function renderTabMembersList() {
     return `
       <div class="item-row tab-member-row ${isActive ? 'active' : ''}" style="flex-direction:column;align-items:stretch;gap:8px"
            onclick="selectTabMember('${m.id}')">
-        <button class="card-corner-btn" title="Delete" onclick="event.stopPropagation();deleteTabMember('${m.id}')">×</button>
-        <div style="display:flex;align-items:center;gap:12px;width:100%;padding-right:24px">
+        <div style="display:flex;align-items:center;gap:12px;width:100%">
           <span class="item-name">${escHtml(m.name)}</span>
           <span style="font-size:13px;color:var(--text-muted)">Total ${fmtCurrency(total)}</span>
           ${unpaid > 0
             ? `<span class="badge badge-warning">Owes ${fmtCurrency(unpaid)}</span>`
             : `<span class="badge badge-success">Settled</span>`}
+          <span style="margin-left:auto"></span>
+          <details class="row-menu" data-mid="${m.id}" ${menuOpen ? 'open' : ''} onclick="event.stopPropagation()">
+            <summary title="More actions">⋯</summary>
+            <div class="row-menu-list">
+              <button class="btn btn-secondary btn-sm" onclick="openEditTabMemberModal('${m.id}')">✏ Edit</button>
+              ${m.email ? `<button class="btn btn-secondary btn-sm" onclick="sendMemberEmail('${m.id}')">✉ Email</button>` : ''}
+              <button class="btn btn-danger btn-sm" onclick="deleteTabMember('${m.id}')">🗑 Delete</button>
+            </div>
+          </details>
         </div>
-        <div style="font-size:12px;color:var(--text-muted)" onclick="event.stopPropagation();promptEditMemberEmail('${m.id}')">
-          ${m.email ? `✉ ${escHtml(m.email)}` : '+ Add email'}
-        </div>
+        <div style="font-size:12px;color:var(--text-muted)">${m.email ? `✉ ${escHtml(m.email)}` : 'No email on file'}</div>
         <div class="item-actions" onclick="event.stopPropagation()">
           <button class="btn btn-secondary btn-sm" onclick="toggleTabMemberOrders('${m.id}')">${expanded ? 'Hide' : 'View'} Orders</button>
           ${unpaid > 0 ? `<button class="btn btn-primary btn-sm" onclick="markMemberPaid('${m.id}')">Mark Paid</button>` : ''}
-          ${m.email ? `<button class="btn btn-secondary btn-sm" onclick="sendMemberEmail('${m.id}')">✉ Email</button>` : ''}
         </div>
         ${ordersHtml}
       </div>`;
   }).join('');
 }
+
+document.getElementById('tabShowAllMembersToggle').addEventListener('change', (e) => {
+  _tabShowAllMembers = e.target.checked;
+  renderTabMembersList();
+});
+
+// Per-row "⋯" menu (<details>) — same open-tracking/close-on-outside-click pattern as the
+// portal's Users permissions dropdown: a capture-phase 'toggle' listener on the stable list
+// container survives renderTabMembersList() replacing its children, and _openMemberRowMenuId
+// (restored into the `open` attribute above) keeps whichever menu was open across a re-render
+// instead of every render silently closing it.
+let _openMemberRowMenuId = null;
+
+document.getElementById('tabMembersList').addEventListener('toggle', (e) => {
+  if (!e.target.matches?.('.row-menu')) return;
+  const mid = e.target.getAttribute('data-mid');
+  if (e.target.open) {
+    _openMemberRowMenuId = mid;
+    document.querySelectorAll('#tabMembersList .row-menu[open]').forEach(d => {
+      if (d !== e.target) d.removeAttribute('open');
+    });
+  } else if (_openMemberRowMenuId === mid) {
+    _openMemberRowMenuId = null;
+  }
+}, true);
+
+document.addEventListener('click', (e) => {
+  if (!_openMemberRowMenuId || e.target.closest('.row-menu')) return;
+  document.querySelectorAll('#tabMembersList .row-menu[open]').forEach(d => d.removeAttribute('open'));
+  _openMemberRowMenuId = null;
+});
 
 window.toggleTabMemberOrders = function(id) {
   _tabExpandedMemberId = _tabExpandedMemberId === id ? null : id;
@@ -1765,20 +1877,6 @@ window.deleteTabMember = async function(id) {
     renderTabMemberSelect();
     renderTabMembersList();
     toast('Member removed', 'info');
-  } catch(e) {
-    toast('Failed: ' + e.message, 'error');
-  }
-};
-
-window.promptEditMemberEmail = async function(id) {
-  const member = _tabMembers.find(m => m.id === id);
-  if (!member) return;
-  const email = prompt(`Email address for ${member.name}:`, member.email || '');
-  if (email === null) return;
-  try {
-    await db.collection('showdrinks_tabMembers').doc(id).update({ email: email.trim() });
-    member.email = email.trim();
-    renderTabMembersList();
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
   }
