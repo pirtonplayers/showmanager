@@ -127,11 +127,11 @@
                 <label for="newUserName">Name</label>
                 <input type="text" id="newUserName" class="form-control" required autocomplete="off">
               </div>
+              <div class="form-group">
+                <label for="newUserEmail">Email</label>
+                <input type="email" id="newUserEmail" class="form-control" autocomplete="off">
+              </div>
               <div id="newUserCreateOnlyFields">
-                <div class="form-group">
-                  <label for="newUserEmail">Email</label>
-                  <input type="email" id="newUserEmail" class="form-control" autocomplete="off">
-                </div>
                 <div class="form-group">
                   <label for="newUserPassword">Temporary password</label>
                   <input type="text" id="newUserPassword" class="form-control" minlength="6" autocomplete="off">
@@ -196,18 +196,21 @@
       </div>
 
       <div class="card">
-        <div class="card-header" style="flex-wrap:wrap">
+        <div class="card-header">
           <h2>All users</h2>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-secondary btn-sm" id="openAddUserBtn">+ Add user</button>
-            <button class="btn btn-secondary btn-sm" id="openDefaultLinkMessageBtn">Default link message</button>
-            <button class="btn btn-secondary btn-sm" id="resyncClaimsBtn">Sync permissions</button>
-          </div>
+          <button class="btn btn-primary btn-sm" id="openAddUserBtn">+ Add user</button>
         </div>
         <div class="card-body">
           <input type="text" id="userSearchInput" class="form-control" placeholder="Search by name or email" style="margin-bottom:14px">
           <div class="item-list" id="userList"></div>
         </div>
+      </div>
+
+      <!-- Sticky rather than in the card header above — these two are occasional/whole-list
+           actions, not something you need reachable while scrolling past any particular row. -->
+      <div class="sticky-actions-bar">
+        <button class="btn btn-secondary btn-sm" id="openDefaultLinkMessageBtn">Default link message</button>
+        <button class="btn btn-secondary btn-sm" id="resyncClaimsBtn">Sync permissions</button>
       </div>
     </div>
 

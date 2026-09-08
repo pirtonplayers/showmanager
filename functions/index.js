@@ -137,6 +137,40 @@ exports.createUser = onCall({ region: 'europe-west1' }, async (request) => {
   return { ok: true, uid: userRecord.uid };
 });
 
+// Edit an existing login's name/email/permissions — Manager-only, same as createUser. Email
+// lives on the Firebase Auth record, not just the users/{uid} doc, so this needs the Admin SDK
+// rather than a plain Firestore write (which is all changing just the name or permissions would
+// otherwise need). The target still needs to sign out/in to see a changed email reflected in
+// their own session.
+exports.updateUserProfile = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireManager(request);
+
+  const { uid, name, email, isManager, access } = request.data || {};
+  if (!uid || !name || !email) {
+    throw new HttpsError('invalid-argument', 'uid, name and email are required.');
+  }
+
+  try {
+    await getAuth().updateUser(uid, { email, displayName: name });
+  } catch (err) {
+    throw new HttpsError('already-exists', err.message);
+  }
+
+  await db.collection('users').doc(uid).update({
+    name,
+    email,
+    isManager: isManager === true,
+    access: {
+      expenses: access?.expenses === true,
+      expensesAdmin: access?.expensesAdmin === true,
+      showdrinksAdmin: access?.showdrinksAdmin === true,
+      budget: access?.budget === true,
+    },
+  });
+
+  return { ok: true };
+});
+
 // Create a player login scoped to expenses only (access.expenses, nothing else — never
 // isManager, never another app) — expensesAdmin-only, not full-Manager-only like createUser.
 // Lets an expenses admin onboard a cast/crew member for expense submission on the spot, from

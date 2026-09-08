@@ -374,9 +374,9 @@ function renderUserList() {
 document.getElementById('userSearchInput').addEventListener('input', renderUserList);
 
 // One modal, two modes — _editingUserId null means "add", set means "edit that user". Reused
-// rather than a separate edit form since the fields (name + access picker) are the same; only
-// the create-only fields (email, temp password — meaningless once the Firebase Auth account
-// already exists) and the submit action differ.
+// rather than a separate edit form since the fields (name, email, access picker) are the same;
+// only the temp password (meaningless once the Firebase Auth account already exists) and the
+// submit action differ.
 let _editingUserId = null;
 
 function openAddUserModal() {
@@ -399,6 +399,7 @@ function openEditUserModal(id) {
   document.getElementById('addUserBtn').textContent = 'Save changes';
   document.getElementById('addUserForm').reset();
   document.getElementById('newUserName').value = user.name || '';
+  document.getElementById('newUserEmail').value = user.email || '';
   document.getElementById('newUserCreateOnlyFields').style.display = 'none';
   document.getElementById('newUserAccessList').innerHTML = accessPickerHtml('newUser',
     { ...user.access, isManager: user.isManager },
@@ -413,9 +414,11 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   const btn = document.getElementById('addUserBtn');
   errorEl.textContent = '';
   const name = document.getElementById('newUserName').value.trim();
+  const email = document.getElementById('newUserEmail').value.trim();
   const isManager = document.getElementById('newUser-isManager').checked;
   const access = readAccessPicker('newUser');
   if (!name) { errorEl.textContent = 'Enter a name.'; return; }
+  if (!email) { errorEl.textContent = 'Enter an email.'; return; }
 
   btn.disabled = true;
   try {
@@ -428,13 +431,11 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
           return;
         }
       }
-      await db.collection('users').doc(_editingUserId).update({ name, isManager, access });
+      await functionsRegion.httpsCallable('updateUserProfile')({ uid: _editingUserId, name, email, isManager, access });
       document.getElementById('addUserModal').style.display = 'none';
       showToast('Updated', 'success');
     } else {
-      const email = document.getElementById('newUserEmail').value.trim();
       const password = document.getElementById('newUserPassword').value.trim();
-      if (!email) { errorEl.textContent = 'Enter an email.'; btn.disabled = false; return; }
       if (!password || password.length < 6) { errorEl.textContent = 'Enter a temporary password (6+ characters).'; btn.disabled = false; return; }
       await functionsRegion.httpsCallable('createUser')({ name, email, password, isManager, access });
       document.getElementById('addUserModal').style.display = 'none';

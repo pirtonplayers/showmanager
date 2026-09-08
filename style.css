@@ -151,6 +151,13 @@ input[type="file"].form-control { padding: 7px 10px; }
    (see .shell-frame), would otherwise leave it well below the fold instead of visible at the
    bottom of the screen. .shell-frame/.admin-content both leave room for its height below. */
 .footer-version { position: fixed; left: 0; right: 0; bottom: 0; height: 28px; line-height: 28px; text-align: center; color: var(--text-muted); font-size: 11px; background: var(--bg); border-top: 1px solid var(--border); z-index: 90; }
+
+/* Sticky bar for a work-pane's occasional/whole-list actions (e.g. Users' Default link
+   message / Sync permissions) — sticks to the bottom of the viewport (above .footer-version)
+   once its normal position would scroll past that, rather than living in a card header where
+   it'd be out of reach while scrolled down a long list. Scoped to whatever pane renders it
+   (nested in that pane's own markup), not a global fixed element. */
+.sticky-actions-bar { position: sticky; bottom: 28px; margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); }
 .hamburger-btn { background: none; border: none; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; }
 .hamburger-btn:hover { opacity: .8; }
 /* Same look as .hamburger-btn but visible on desktop too (unlike .hamburger-btn, which the

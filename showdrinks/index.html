@@ -96,7 +96,10 @@
     .pulse { animation: pulse 2s infinite; }
     @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.6; } }
 
-    #updateBanner { display:none; position:fixed; top:0; left:0; right:0; z-index:9999; background:#1e1b4b; color:#fff; padding:10px 16px; align-items:center; justify-content:center; gap:14px; font-size:14px; font-weight:500; }
+    /* padding-top adds the safe-area inset on top of the banner's own padding, rather than
+       replacing it — on a notched/status-bar phone, position:fixed;top:0 alone put its content
+       (including the tap target) right under that unsafe area, hard or impossible to tap. */
+    #updateBanner { display:none; position:fixed; top:0; left:0; right:0; z-index:9999; background:#1e1b4b; color:#fff; padding:calc(10px + env(safe-area-inset-top)) 16px 10px; align-items:center; justify-content:center; gap:14px; font-size:14px; font-weight:500; flex-wrap:wrap; }
     #updateBanner.visible { display:flex; }
 
     /* Compact hero on sub-screens */
