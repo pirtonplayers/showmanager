@@ -586,7 +586,7 @@ function renderOrders(orders) {
     <div class="stat"><div class="snum">${fmtCurrency(totalRevenue)}</div><div class="slabel">Revenue</div></div>`;
 
   if (!orders.length) {
-    container.innerHTML = '<p style="color:var(--text-muted);font-size:14px">No orders found for this filter.</p>';
+    container.innerHTML = '';
     return;
   }
 
@@ -1546,7 +1546,7 @@ window.selectTabListCat = function(encodedCat) {
 };
 
 window.tabListIncItem = function(menuItemId) {
-  if (!_tabSelectedMemberId) { toast('Select a member first', 'error'); return; }
+  if (!_tabSelectedMemberId) return; // list stays visible but inactive until a member is picked — matches handleTabPosBtn
   const item = _allMenuItems.find(i => i.id === menuItemId);
   if (!item) return;
   const key = item.name;
@@ -1621,7 +1621,7 @@ window.handleTabPosBtn = function(idx, isLongPress) {
   if (!cell || cell.type === 'empty') return;
   if (cell.type === 'item') {
     const liveItem = _allMenuItems.find(mi => mi.id === cell.menuItemId);
-    if (liveItem && liveItem.onSale === false) { toast('Item not available', 'error'); return; }
+    if (liveItem && liveItem.onSale === false) return; // shouldn't be reachable — button is disabled — but no error pill either way
     const key = cell.label || cell.menuItemId;
     if (!_tabBasket[key]) _tabBasket[key] = { name: cell.label, price: cell.menuItemPrice || 0, qty: 0 };
     _tabBasket[key].qty += 1;
@@ -1633,10 +1633,10 @@ window.handleTabPosBtn = function(idx, isLongPress) {
   } else if (cell.type === 'clear') {
     _tabBasket = {}; _tabSelectedKey = null; renderTabGrid(); renderTabBasket();
   } else if (cell.type === 'plus') {
-    if (!_tabSelectedKey || !_tabBasket[_tabSelectedKey]) { toast('Select an item first', 'error'); return; }
+    if (!_tabSelectedKey || !_tabBasket[_tabSelectedKey]) return;
     _tabBasket[_tabSelectedKey].qty += 1; renderTabGrid(); renderTabBasket();
   } else if (cell.type === 'minus') {
-    if (!_tabSelectedKey || !_tabBasket[_tabSelectedKey]) { toast('Select an item first', 'error'); return; }
+    if (!_tabSelectedKey || !_tabBasket[_tabSelectedKey]) return;
     _tabBasket[_tabSelectedKey].qty -= 1;
     if (_tabBasket[_tabSelectedKey].qty <= 0) { delete _tabBasket[_tabSelectedKey]; _tabSelectedKey = null; }
     renderTabGrid(); renderTabBasket();
@@ -1656,10 +1656,11 @@ window.handleTabPosBtn = function(idx, isLongPress) {
 wirePosLongPress(document.getElementById('tabPosGrid'), handleTabPosBtn);
 
 async function commitTabOrder() {
-  if (!_tabSelectedMemberId) { toast('Select a member first', 'error'); return; }
+  // No error pill here — the button itself is disabled (see openTabBasketReview) until a member
+  // is selected and the basket total is > 0, so this is just a defensive no-op, not a user-facing case.
   const items = Object.values(_tabBasket).map(i => ({ name: i.name, price: i.price, quantity: i.qty }));
-  if (!items.length) { toast('Add at least one drink', 'error'); return; }
   const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  if (!_tabSelectedMemberId || !items.length || totalAmount <= 0) return;
   const member = _tabMembers.find(m => m.id === _tabSelectedMemberId);
   try {
     await db.collection('showdrinks_tabOrders').add({
@@ -1671,7 +1672,10 @@ async function commitTabOrder() {
     _tabBasket = {}; _tabSelectedKey = null; _tabStack = ['root'];
     renderTabOrderEntry(); renderTabBasket();
     closeTabBasketReview();
-    openTabFinishModal(totalAmount, member?.name || '');
+    // A lightweight auto-dismissing pill rather than a modal needing an "OK" tap — this is a
+    // fast-paced POS screen, not somewhere worth stopping to confirm.
+    toast(`Added ${fmtCurrency(totalAmount)} to ${member?.name || 'member'}'s tab`);
+    selectTabMember(null); // back to a clean dropdown for the next customer
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
   }
@@ -1689,7 +1693,10 @@ window.openTabBasketReview = function() {
         <span>${fmtCurrency(i.price * i.qty)}</span>
       </div>`).join('')
     : '<p style="color:var(--text-muted);font-size:14px">No drinks added yet.</p>';
-  document.getElementById('tabBasketReviewTotal').textContent = fmtCurrency(items.reduce((s, i) => s + i.price * i.qty, 0));
+  const total = items.reduce((s, i) => s + i.price * i.qty, 0);
+  document.getElementById('tabBasketReviewTotal').textContent = fmtCurrency(total);
+  // Disabled rather than tappable-then-errored — no member selected, or nothing to charge.
+  document.getElementById('tabCommitBtn').disabled = !_tabSelectedMemberId || total <= 0;
   document.getElementById('tabBasketReviewModal').style.display = 'flex';
 };
 
@@ -1699,26 +1706,6 @@ window.closeTabBasketReview = function() {
 
 document.getElementById('tabBasketReviewModal').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeTabBasketReview();
-});
-
-// ── Order-added confirmation modal ──────────────────────────────────────────
-
-function openTabFinishModal(totalAmount, memberName) {
-  document.getElementById('tabFinishAmount').textContent = fmtCurrency(totalAmount);
-  document.getElementById('tabFinishMessage').textContent = `Added to ${memberName}'s tab`;
-  document.getElementById('tabFinishModal').style.display = 'flex';
-}
-
-// Clearing back to blank (rather than just hiding the modal) is the point — it's what lets
-// the next customer be picked from a clean dropdown without an extra manual step.
-window.closeTabFinishModal = function() {
-  document.getElementById('tabFinishModal').style.display = 'none';
-  selectTabMember(null);
-};
-
-document.getElementById('tabFinishOkBtn').addEventListener('click', closeTabFinishModal);
-document.getElementById('tabFinishModal').addEventListener('click', function(e) {
-  if (e.target === this) closeTabFinishModal();
 });
 
 let _tabExpandedMemberId = null;

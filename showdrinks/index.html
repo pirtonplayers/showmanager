@@ -132,6 +132,7 @@
        as a distinct, obviously-tappable button rather than blending into the header. Shows the
        running total, not an item count — nothing here needs a per-item badge. */
     .list-screen #heroBasketBtn { display:flex; flex-direction:column; align-items:center; gap:1px; justify-self:end; background:#fff; color:var(--primary); border:none; border-radius:999px; padding:6px 20px; cursor:pointer; }
+    .list-screen #heroBasketBtn:disabled { opacity:.5; cursor:not-allowed; }
     .hero-basket-row { display:flex; align-items:center; gap:8px; }
     .hero-basket-svg { width:26px; height:26px; display:block; }
     .hero-basket-total-text { font-size:20px; font-weight:800; }
@@ -311,7 +312,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="../shared/version.js?v=1.0.116"></script>
+<script src="../shared/version.js?v=1.0.117"></script>
 <script src="../shared/firebase-config.js"></script>
 <script src="../shared/a2hs.js"></script>
 <script src="order.js"></script>

@@ -426,7 +426,10 @@ function renderPosGrid() {
     // just vanish — the layout itself is meaningful/memorised).
     const offSale = !!(menuItem && menuItem.onSale === false);
     const hasQty = !!(menuItem && !offSale && state.basket[menuItem.name]?.quantity > 0);
-    return `<button class="pos-btn${hasQty ? ' has-qty' : ''}${offSale ? ' unavailable' : ''}" style="${style}" data-idx="${i}" ${offSale ? 'disabled' : ''}>
+    // Finish: disabled rather than tappable-then-errored when there's nothing in the basket yet.
+    const finishDisabled = cell.type === 'finish' && basketCount() === 0;
+    const disabled = offSale || finishDisabled;
+    return `<button class="pos-btn${hasQty ? ' has-qty' : ''}${disabled ? ' unavailable' : ''}" style="${style}" data-idx="${i}" ${disabled ? 'disabled' : ''}>
       <span class="pb-lbl">${escHtml(cell.label || '')}</span>
       ${price ? `<span class="pb-price">${price}</span>` : ''}
     </button>`;
@@ -470,7 +473,7 @@ window.handlePosBtn = function(idx, isLongPress) {
   if (!cell || cell.type === 'empty') return;
   if (cell.type === 'item') {
     const menuItem = state.menuItems.find(i => i.id === cell.menuItemId);
-    if (!menuItem || menuItem.onSale === false) { toast('Item not available', 'error'); return; }
+    if (!menuItem || menuItem.onSale === false) return; // shouldn't be reachable — button is disabled — but no error pill either way
     const key = menuItem.name;
     if (!state.basket[key]) state.basket[key] = { name: menuItem.name, price: menuItem.price, quantity: 0 };
     state.basket[key].quantity += 1;
@@ -487,12 +490,12 @@ window.handlePosBtn = function(idx, isLongPress) {
     renderPosGrid(); renderOrderGrid(); updateBottomBar();
   } else if (cell.type === 'plus') {
     const key = state.selectedBasketKey;
-    if (!key || !state.basket[key]) { toast('Select an item first', 'error'); return; }
+    if (!key || !state.basket[key]) return;
     state.basket[key].quantity += 1;
     renderPosGrid(); renderOrderGrid(); updateBottomBar();
   } else if (cell.type === 'minus') {
     const key = state.selectedBasketKey;
-    if (!key || !state.basket[key]) { toast('Select an item first', 'error'); return; }
+    if (!key || !state.basket[key]) return;
     state.basket[key].quantity -= 1;
     if (state.basket[key].quantity <= 0) { delete state.basket[key]; state.selectedBasketKey = null; }
     renderPosGrid(); renderOrderGrid(); updateBottomBar();
@@ -508,7 +511,7 @@ window.handlePosBtn = function(idx, isLongPress) {
       goTo(0); renderHomeScreen();
     }
   } else if (cell.type === 'finish') {
-    if (basketCount() === 0) { toast('Add at least one item', 'error'); return; }
+    if (basketCount() === 0) return; // shouldn't be reachable — button is disabled — but no error pill either way
     goTo(2); renderReview();
   }
 };
@@ -563,10 +566,12 @@ function updateHeroBasket() {
   const totalEl = document.getElementById('heroBasketTotal');
   if (!totalEl) return;
   totalEl.textContent = fmtCurrency(basketTotal());
+  const btn = document.getElementById('heroBasketBtn');
+  if (btn) btn.disabled = basketCount() === 0;
 }
 
 window.goToListBasket = function() {
-  if (basketCount() === 0) { toast('Add at least one item', 'error'); return; }
+  if (basketCount() === 0) return; // shouldn't be reachable — button is disabled — but no error pill either way
   goTo(2); renderReview();
 };
 

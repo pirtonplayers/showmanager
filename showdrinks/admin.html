@@ -577,20 +577,8 @@
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary" style="flex:1" onclick="closeTabBasketReview()">← Back</button>
-        <button class="btn btn-primary" style="flex:1" onclick="commitTabOrder()">Add to Show Tab</button>
+        <button class="btn btn-primary" style="flex:1" id="tabCommitBtn" onclick="commitTabOrder()">Add to Show Tab</button>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- Order-added confirmation (Show Tabs "Finish") — shows the total added to the member's tab,
-     then clears the member picker back to blank so the next customer can be selected. -->
-<div id="tabFinishModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center">
-  <div class="card" style="width:100%;max-width:340px;margin:20px;text-align:center">
-    <div class="card-body">
-      <div id="tabFinishAmount" style="font-size:40px;font-weight:800;margin-bottom:8px">£0.00</div>
-      <div id="tabFinishMessage" style="font-size:15px;color:var(--text-muted);margin-bottom:20px"></div>
-      <button class="btn btn-primary btn-full" id="tabFinishOkBtn">OK</button>
     </div>
   </div>
 </div>
@@ -667,7 +655,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="../shared/version.js?v=1.0.116"></script>
+<script src="../shared/version.js?v=1.0.117"></script>
 <script src="../shared/firebase-config.js"></script>
 <script src="../shared/auth.js"></script>
 <script src="../shared/suite-nav.js"></script>

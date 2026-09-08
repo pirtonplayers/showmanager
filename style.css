@@ -143,8 +143,9 @@ input[type="file"].form-control { padding: 7px 10px; }
 
 /* ════════════════════════ ADMIN LAYOUT ════════════════════════ */
 .admin-header { background: var(--primary); color: #fff; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 16px; box-shadow: var(--shadow-md); position: sticky; top: 0; z-index: 100; }
-/* Sits inline next to the logo inside the same link now, not centered across the whole header. */
-.header-title { font-size: 15px; font-weight: 600; }
+/* Centered across the whole header — .admin-header's own position:sticky makes it the
+   positioning context, so this doesn't need position:relative added just for this. */
+.header-title { position: absolute; left: 0; right: 0; text-align: center; font-size: 15px; font-weight: 600; color: inherit; text-decoration: none; pointer-events: auto; }
 /* Fixed to the actual bottom of the viewport, not just the end of the page's content — a
    native pane with little content, or an app iframe sized to fill the screen below the header
    (see .shell-frame), would otherwise leave it well below the fold instead of visible at the

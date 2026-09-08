@@ -211,6 +211,13 @@ input, textarea, select, [contenteditable] {
   display: none !important;
 }
 .embedded .admin-content { margin-left: 0 !important; }
+/* .orders-sticky-ribbon and .menu-cat-bar stick at top:60px to clear the real .admin-header —
+   but that header is hidden above, so with no 60px of header actually there, a sticky top of
+   60px is *more* than this page's natural top offset and clamps the bar 60px lower than its own
+   reserved space in the flow, permanently overlapping the content right after it (the first
+   order card / menu row) even before any scrolling happens. With nothing to clear when embedded,
+   this just needs to stick at the very top instead. */
+.embedded .orders-sticky-ribbon, .embedded .menu-cat-bar { top: 0; }
 
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
@@ -242,8 +249,11 @@ input, textarea, select, [contenteditable] {
 /* ── Orders ── */
 /* Sticky below .admin-header (which is itself sticky top:0, height 60px, z-index 100) — stays
    visible while scrolling a long orders list, at a lower z-index so the header stays on top of
-   it rather than the reverse during the scroll transition. */
-.orders-sticky-ribbon { position: sticky; top: 60px; z-index: 60; background: var(--bg); padding: 12px 0; margin-bottom: 12px; display: flex; flex-direction: column; gap: 12px; }
+   it rather than the reverse during the scroll transition. The negative margin cancels
+   .admin-content's own padding so this sits flush against the header with no gap (matched by
+   negative horizontal margins too, since .admin-content's padding is the same on all sides —
+   see the 600px media query below for the mobile padding's own value). */
+.orders-sticky-ribbon { position: sticky; top: 60px; z-index: 60; background: var(--bg); margin: -24px -24px 12px; padding: 12px 24px; display: flex; flex-direction: column; gap: 12px; }
 .orders-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .order-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden; }
 .order-card.prepared { border-color: var(--success); }
@@ -435,6 +445,7 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 /* ── Responsive ── */
 @media (max-width: 600px) {
   .admin-content { padding: 16px; }
+  .orders-sticky-ribbon { margin: -16px -16px 12px; padding: 12px 16px; }
   .form-row { grid-template-columns: 1fr; }
   .orders-toolbar { flex-direction: column; align-items: stretch; }
   .order-card-header { flex-wrap: wrap; }
