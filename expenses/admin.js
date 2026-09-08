@@ -511,13 +511,6 @@ function filteredExpenses() {
 let selectedExpenseIds = new Set();
 
 function renderExpenseList() {
-  // "Mark expenses as paid" only makes sense once the table's actually narrowed to one person —
-  // paying "everyone currently shown" isn't a real action — and only if that person actually has
-  // something outstanding (a submitter picked while viewing Paid-only history, say, wouldn't).
-  const filteredEmail = document.getElementById('filterUser').value;
-  const hasOutstanding = filteredEmail && outstandingByPerson().some(p => p.email === filteredEmail);
-  document.getElementById('openMarkPaidBtn').style.display = hasOutstanding ? '' : 'none';
-
   // Bulk delete is for cleaning up old paid records — an unpaid expense doesn't even get a
   // checkbox, so there's no way to select (and so no risk of bulk-deleting) one by mistake.
   selectedExpenseIds = new Set([...selectedExpenseIds].filter(id => allExpenses.some(r => r.id === id && r.paid)));
@@ -546,7 +539,10 @@ function renderExpenseList() {
             <div class="eu-name">${escapeHtml(g.name)}</div>
             <div class="eu-email">${escapeHtml(g.email)}</div>
           </div>
-          <div class="eu-total">${money(g.total)}</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="eu-total">${money(g.total)}</div>
+            ${g.rows.some(r => !r.paid) ? `<button type="button" class="btn btn-primary btn-sm" data-mark-paid-email="${escapeHtml(g.email)}" style="white-space:nowrap">Mark as paid</button>` : ''}
+          </div>
         </div>
         ${g.rows.map(r => `
           <div class="expense-row">
@@ -647,7 +643,10 @@ document.getElementById('expenseGroupedList').addEventListener('click', async (e
   if (e.target.matches('[data-view-receipt]')) {
     e.preventDefault();
     viewReceipt(e.target.getAttribute('data-view-receipt'));
+    return;
   }
+  const markPaidBtn = e.target.closest('[data-mark-paid-email]');
+  if (markPaidBtn) openMarkPaidModalFor(markPaidBtn.getAttribute('data-mark-paid-email'));
 });
 
 // ── Export ───────────────────────────────────────────────────────────────
@@ -977,7 +976,7 @@ function updateMarkPaidTotal() {
   submitBtn.disabled = checkedIds.length === 0;
 }
 
-// Shared by the person <select>'s own change handler and openMarkPaidBtn below (which
+// Shared by the person <select>'s own change handler and openMarkPaidModalFor below (which
 // pre-selects whichever person the outer Expenses filter is already narrowed to, since that's
 // the whole reason the button appeared in the first place — no need to make them choose again).
 function selectMarkPaidPerson(email) {
@@ -1004,7 +1003,10 @@ function selectMarkPaidPerson(email) {
   updateMarkPaidTotal();
 }
 
-document.getElementById('openMarkPaidBtn').addEventListener('click', () => {
+// Shared by each group's own "Mark as paid" button (renderExpenseList) — jumps straight to that
+// person's list instead of making them choose again from the modal's own (otherwise-empty)
+// person picker.
+function openMarkPaidModalFor(email) {
   const people = outstandingByPerson();
   document.getElementById('markPaidPersonSelect').innerHTML = '<option value="">Choose a person…</option>' +
     people.map(p => `<option value="${escapeHtml(p.email)}">${escapeHtml(p.name)} (${money(p.total)})</option>`).join('');
@@ -1012,11 +1014,8 @@ document.getElementById('openMarkPaidBtn').addEventListener('click', () => {
   document.getElementById('markPaidTotalRow').style.display = 'none';
   document.getElementById('markPaidSubmitBtn').style.display = 'none';
   document.getElementById('markPaidModal').style.display = 'flex';
-  // The button only ever shows once the outer Expenses filter has narrowed to one submitter
-  // (see renderExpenseList) — jump straight to their list instead of asking again.
-  const filteredEmail = document.getElementById('filterUser').value;
-  if (filteredEmail) selectMarkPaidPerson(filteredEmail);
-});
+  if (email) selectMarkPaidPerson(email);
+}
 
 document.getElementById('markPaidCloseBtn').addEventListener('click', closeMarkPaidModal);
 document.getElementById('markPaidModal').addEventListener('click', (e) => {
