@@ -384,7 +384,19 @@ let newReceiptFiles = []; // File objects picked in receiptInput but not yet upl
 // The showmanager portal shell checks this (see canLeaveActiveApp in portal.js) before switching
 // away to a different app/Home/Users — same-origin iframes let it just call this directly,
 // no postMessage needed. Named generically so any app can opt into the same convention.
-window.hasUnsavedChanges = () => pendingExpenses.length > 0;
+// Covers both: expenses already staged (pendingExpenses) *and* a fresh "Add expense" form
+// that's been typed into but not even added to that list yet — editingPendingId is only set
+// when the modal's open to edit an *existing* pending item, which pendingExpenses already covers.
+window.hasUnsavedChanges = () => {
+  if (pendingExpenses.length > 0) return true;
+  const modal = document.getElementById('expenseModal');
+  if (modal.style.display !== 'none' && editingPendingId === null) {
+    const desc = document.getElementById('descInput').value.trim();
+    const amount = document.getElementById('amountInput').value.trim();
+    if (desc || amount || newReceiptFiles.length) return true;
+  }
+  return false;
+};
 
 // Closing the tab/refreshing with expenses staged-but-not-submitted would lose them (they only
 // exist in pendingExpenses until Submit all actually writes them) — the browser's own generic
@@ -442,7 +454,8 @@ function renderPendingList() {
     return;
   }
   section.style.display = 'block';
-  document.getElementById('pendingTotalText').textContent = money(pendingExpenses.reduce((sum, p) => sum + p.amount, 0));
+  const total = pendingExpenses.reduce((sum, p) => sum + p.amount, 0);
+  document.getElementById('submitAllBtn').textContent = `Submit all (${money(total)})`;
   list.innerHTML = pendingExpenses.map(p => `
     <div class="pending-item">
       <div class="pec-info">

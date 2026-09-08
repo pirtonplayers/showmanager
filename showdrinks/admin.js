@@ -1,5 +1,63 @@
 'use strict';
 
+// ── Temporary load-time diagnostics ─────────────────────────────────────────
+// Investigating a reported ~15s open time for this page. performance.now() is already relative
+// to navigation start, so marking here (the last script in the load chain — see admin.html's
+// <script> tags) captures the cumulative cost of everything before it: HTML parse, the four
+// Firebase compat scripts, shared/*.js. Remove this whole block (and #perfReportPanel in
+// admin.html) once that's diagnosed.
+const _perfMarks = [{ label: 'admin.js executing', t: performance.now() }];
+function markPerf(label) { _perfMarks.push({ label, t: performance.now() }); }
+
+function showPerfReport() {
+  const resources = performance.getEntriesByType('resource')
+    .filter(r => r.initiatorType === 'script' || r.initiatorType === 'link' || r.initiatorType === 'css')
+    .sort((a, b) => b.duration - a.duration)
+    .slice(0, 12);
+  const nav = performance.getEntriesByType('navigation')[0];
+  const lines = [
+    `ShowDrinks Bar Manager load timing — v${typeof APP_VERSION !== 'undefined' ? APP_VERSION : '?'}`,
+    `User agent: ${navigator.userAgent}`,
+    '',
+  ];
+  if (nav) {
+    lines.push(
+      'Page fetch (ms since navigation start):',
+      `  ${nav.responseEnd.toFixed(0).padStart(6)}  HTML received (server + network)`,
+      `  ${nav.domContentLoadedEventEnd.toFixed(0).padStart(6)}  DOM content loaded`,
+      `  ${nav.loadEventEnd.toFixed(0).padStart(6)}  window load event`,
+      '',
+    );
+  }
+  lines.push(
+    'Milestones (ms since navigation start):',
+    ..._perfMarks.map(m => `  ${m.t.toFixed(0).padStart(6)}  ${m.label}`),
+    '',
+    'Slowest scripts/stylesheets loaded (ms):',
+    ...resources.map(r => `  ${r.duration.toFixed(0).padStart(6)}  ${r.name.replace(location.origin, '')}`),
+  );
+  const text = lines.join('\n');
+  const panel = document.getElementById('perfReportPanel');
+  if (!panel) { console.log(text); return; }
+  document.getElementById('perfReportText').value = text;
+  panel.style.display = 'flex';
+}
+
+document.getElementById('perfReportCopyBtn')?.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(document.getElementById('perfReportText').value);
+    document.getElementById('perfReportCopyBtn').textContent = 'Copied!';
+    setTimeout(() => { document.getElementById('perfReportCopyBtn').textContent = 'Copy'; }, 1500);
+  } catch(e) {
+    // Clipboard API needs a permission the browser may not have granted — the text is already
+    // selected/visible in the textarea either way, so manual copy still works.
+    document.getElementById('perfReportText').select();
+  }
+});
+document.getElementById('perfReportCloseBtn')?.addEventListener('click', () => {
+  document.getElementById('perfReportPanel').style.display = 'none';
+});
+
 // Shared .icon-btn glyphs (Feather-style, matching the outline icons used elsewhere in the
 // suite) — used in place of a text label/emoji for common row actions and the Bar Tabs POS
 // basket bar (ICON_TROLLEY — the same icon the customer app's own basket button uses).
@@ -2090,11 +2148,13 @@ let _appInitialized = false;
 // isManager or access.showdrinksAdmin gets in; anyone else signed in but lacking that flag is
 // bounced back out with an explanation rather than landing on a blank admin screen.
 firebase.auth().onAuthStateChanged(async user => {
+  markPerf('onAuthStateChanged fired');
   const loginScreen = document.getElementById('loginScreen');
   const adminApp = document.getElementById('adminApp');
   const errEl = document.getElementById('loginError');
   if (user) {
     const allowed = await checkAccess(user.uid, 'showdrinksAdmin').catch(() => null);
+    markPerf('checkAccess resolved');
     if (!allowed) {
       await firebase.auth().signOut();
       errEl.textContent = 'This account does not have ShowDrinks admin access — ask a manager to grant it from the showmanager portal.';
@@ -2189,8 +2249,11 @@ async function init() {
     // loadOrders() included since Orders is the default tab now — otherwise it'd sit empty
     // until the user clicked away and back (every other tab's own data only loads on click).
     await Promise.all([loadShows(), loadMenuItems(), loadLocations(), loadSettings(), loadOrders()]);
+    markPerf('init() data loaded (Shows/Menu/Locations/Settings/Orders)');
   } catch(e) {
     document.getElementById('headerShowName').textContent = 'Firebase not configured';
     toast('Firebase not configured – edit firebase-config.js', 'error');
+    markPerf('init() failed: ' + e.message);
   }
+  showPerfReport();
 }

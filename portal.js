@@ -64,12 +64,17 @@ function activatePane(key) {
 // iframes let this just call straight into the iframe's own window — no postMessage round trip
 // needed. Any app can opt in by defining window.hasUnsavedChanges() on itself; apps that don't
 // (or aren't even loaded yet) are simply always safe to leave.
+//
+// A hard block, not a "leave anyway?" confirm — an unsubmitted expense (say) must not be
+// leavable by mis-tapping through a dialog. Wired into every escape route out of the shell: the
+// tile grid, nav menu, Home button, Switch user, and the header's Pirton Players website link.
 function canLeaveActiveApp() {
   const check = frames[activeKey]?.contentWindow?.hasUnsavedChanges;
   if (typeof check !== 'function') return true;
   let unsaved = false;
   try { unsaved = !!check(); } catch { /* treat as safe to leave if the check itself errors */ }
-  return !unsaved || confirm('You have unsaved work here that will be lost if you leave. Leave anyway?');
+  if (unsaved) alert('You have unsaved work here — finish or cancel it before leaving this page.');
+  return !unsaved;
 }
 
 function activateApp(key) {
@@ -155,6 +160,12 @@ document.getElementById('shellNavSidebar').addEventListener('click', handleNavCl
 document.getElementById('shellNavDropdown').addEventListener('click', handleNavClick);
 
 document.getElementById('homeBtn').addEventListener('click', () => activateApp('dashboard'));
+
+// Opens in a new tab (this one keeps running either way), but blocked the same as every other
+// escape route while there's unsaved work — see canLeaveActiveApp.
+document.getElementById('pirtonPlayersLink').addEventListener('click', (e) => {
+  if (!canLeaveActiveApp()) e.preventDefault();
+});
 
 document.getElementById('menuBtn').addEventListener('click', (e) => {
   e.stopPropagation();

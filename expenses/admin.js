@@ -391,7 +391,8 @@ document.getElementById('showList').addEventListener('click', (e) => {
 function openShowExpenses(showId) {
   document.getElementById('filterShow').value = showId;
   document.getElementById('filterUser').value = '';
-  document.getElementById('filterPaid').value = '';
+  document.getElementById('filterUnpaidCheck').checked = true;
+  document.getElementById('filterPaidCheck').checked = true;
   renderExpenseTable();
   activateTab('dashboard');
 }
@@ -472,10 +473,11 @@ function renderSummary() {
 function filteredExpenses() {
   const showId = document.getElementById('filterShow').value;
   const user = document.getElementById('filterUser').value; // an email now, not free text — see renderUserFilter()
-  const paid = document.getElementById('filterPaid').value;
+  const showUnpaid = document.getElementById('filterUnpaidCheck').checked;
+  const showPaid = document.getElementById('filterPaidCheck').checked;
   return allExpenses.filter(e => {
     if (showId && e.showId !== showId) return false;
-    if (paid !== '' && String(e.paid ? 1 : 0) !== paid) return false;
+    if (e.paid ? !showPaid : !showUnpaid) return false;
     if (user && e.userEmail !== user) return false;
     return true;
   });
@@ -558,7 +560,7 @@ document.getElementById('deleteSelectedBtn').addEventListener('click', async () 
   }
 });
 
-['filterShow', 'filterUser', 'filterPaid'].forEach(id => {
+['filterShow', 'filterUser', 'filterUnpaidCheck', 'filterPaidCheck'].forEach(id => {
   document.getElementById(id).addEventListener('input', renderExpenseTable);
   document.getElementById(id).addEventListener('change', renderExpenseTable);
 });
@@ -1142,7 +1144,8 @@ document.getElementById('expensesUserList').addEventListener('click', (e) => {
 function openUserExpenses(email) {
   document.getElementById('filterShow').value = '';
   document.getElementById('filterUser').value = email;
-  document.getElementById('filterPaid').value = '';
+  document.getElementById('filterUnpaidCheck').checked = true;
+  document.getElementById('filterPaidCheck').checked = true;
   renderExpenseTable();
   activateTab('dashboard');
 }
