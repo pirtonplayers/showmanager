@@ -33,23 +33,29 @@ function receiptPathsOf(r) {
 // links, which stops scaling once there's more than a couple.
 function receiptLinksHtml(r) {
   const paths = receiptPathsOf(r);
-  if (!paths.length) return '—';
+  if (!paths.length) return '';
   if (paths.length === 1) {
-    return `<a href="#" class="receipt-link" data-view-receipt="${escapeHtml(paths[0])}">View</a>`;
+    return `<a href="#" class="receipt-link" data-view-receipt="${escapeHtml(paths[0])}" title="View receipt" aria-label="View receipt">🧾</a>`;
   }
   const options = paths.map((p, i) => `<option value="${escapeHtml(p)}">Receipt ${i + 1}</option>`).join('');
   return `
-    <select class="form-control" data-view-receipt-select style="width:auto;min-width:0;padding:4px 22px 4px 8px;font-size:13px">
-      <option value="" selected>${paths.length} receipts…</option>
+    <select class="form-control" data-view-receipt-select style="width:auto;min-width:0;padding:2px 20px 2px 6px;font-size:12px" title="View receipts">
+      <option value="" selected>🧾 ${paths.length}</option>
       ${options}
     </select>`;
 }
 
 async function viewReceipt(path) {
+  // Opened synchronously — within the click that got us here — rather than after the getDownloadURL()
+  // await below: browsers (Safari in particular) only allow window.open() to bypass the popup
+  // blocker inside a real, still-live user-gesture call stack, which an await has already left by
+  // the time it'd otherwise run. Point this already-open tab at the real URL once it resolves.
+  const win = window.open('', '_blank');
   try {
     const url = await storage.ref(path).getDownloadURL();
-    window.open(url, '_blank');
+    if (win) win.location.href = url; else window.open(url, '_blank');
   } catch (err) {
+    if (win) win.close();
     showToast(err.message, 'error');
   }
 }
@@ -393,7 +399,7 @@ function openShowExpenses(showId) {
   document.getElementById('filterUser').value = '';
   document.getElementById('filterUnpaidCheck').checked = true;
   document.getElementById('filterPaidCheck').checked = true;
-  renderExpenseTable();
+  renderExpenseList();
   activateTab('dashboard');
 }
 
@@ -441,7 +447,7 @@ function subscribeExpenses() {
       .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
     renderUserFilter();
     renderSummary();
-    renderExpenseTable();
+    renderExpenseList();
     renderReports();
   }, err => {
     console.error(err);
@@ -480,7 +486,7 @@ window.showUnpaidOnly = function() {
   document.getElementById('filterUser').value = '';
   document.getElementById('filterUnpaidCheck').checked = true;
   document.getElementById('filterPaidCheck').checked = false;
-  renderExpenseTable();
+  renderExpenseList();
 };
 
 function filteredExpenses() {
@@ -504,7 +510,7 @@ function filteredExpenses() {
 // no-op — but there's no reason to let it accumulate).
 let selectedExpenseIds = new Set();
 
-function renderExpenseTable() {
+function renderExpenseList() {
   // "Mark expenses as paid" only makes sense once the table's actually narrowed to one person —
   // paying "everyone currently shown" isn't a real action — and only if that person actually has
   // something outstanding (a submitter picked while viewing Paid-only history, say, wouldn't).
@@ -516,28 +522,52 @@ function renderExpenseTable() {
   // checkbox, so there's no way to select (and so no risk of bulk-deleting) one by mistake.
   selectedExpenseIds = new Set([...selectedExpenseIds].filter(id => allExpenses.some(r => r.id === id && r.paid)));
   const rows = filteredExpenses();
-  const tbody = document.getElementById('expenseTableBody');
-  // data-label feeds each cell's ::before on mobile, where the table becomes stacked cards (one
-  // field per line) instead of a 9-column row too wide for a phone to show without horizontal
-  // scrolling — see the max-width:600px block in style.css. Left off the checkbox/delete cells,
-  // which don't need a label to make sense.
-  tbody.innerHTML = rows.map(r => `
-    <tr>
-      <td>${r.paid ? `<input type="checkbox" data-select-expense="${r.id}" ${selectedExpenseIds.has(r.id) ? 'checked' : ''}>` : ''}</td>
-      <td data-label="Show">${escapeHtml(r.showName || '—')}</td>
-      <td data-label="Description">${escapeHtml(r.description)}</td>
-      <td data-label="Submitted by">${escapeHtml(r.userName)}<br><span class="muted">${escapeHtml(r.userEmail)}</span></td>
-      <td data-label="Receipt">${receiptLinksHtml(r)}</td>
-      <td data-label="Date">${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : ''}</td>
-      <td class="amount-cell${r.paid ? '' : ' unpaid'}" data-label="Amount">${money(r.amount)}</td>
-      <td data-label="Paid"><span class="badge ${r.paid ? 'badge-success' : 'badge-warning'}">${r.paid ? 'Paid' : 'Unpaid'}</span></td>
-      <td><button class="icon-btn icon-btn-danger" data-delete-expense="${r.id}" title="Delete" aria-label="Delete">${ICON_TRASH}</button></td>
-    </tr>
-  `).join('') || `<tr><td colspan="9" class="empty-state">No expenses match these filters.</td></tr>`;
+  const container = document.getElementById('expenseGroupedList');
+
+  if (!rows.length) {
+    container.innerHTML = '<p class="empty-state" style="padding:16px;text-align:center">No expenses match these filters.</p>';
+  } else {
+    // Grouped by submitter (email — always unique, unlike name) so a long mixed list doesn't have
+    // to be scanned row by row to find one person's expenses; each group keeps filteredExpenses()'
+    // own most-recent-first order (allExpenses is sorted that way once, in subscribeExpenses).
+    const groups = new Map();
+    rows.forEach(r => {
+      if (!groups.has(r.userEmail)) groups.set(r.userEmail, { name: r.userName, email: r.userEmail, rows: [], total: 0 });
+      const g = groups.get(r.userEmail);
+      g.rows.push(r);
+      g.total += Number(r.amount);
+    });
+    const sortedGroups = [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+
+    container.innerHTML = sortedGroups.map(g => `
+      <div class="expense-user-group">
+        <div class="expense-user-header">
+          <div>
+            <div class="eu-name">${escapeHtml(g.name)}</div>
+            <div class="eu-email">${escapeHtml(g.email)}</div>
+          </div>
+          <div class="eu-total">${money(g.total)}</div>
+        </div>
+        ${g.rows.map(r => `
+          <div class="expense-row">
+            <div class="er-main">${r.showName ? `<span class="er-show">${escapeHtml(r.showName)}</span> · ` : ''}${escapeHtml(r.description)}</div>
+            <div class="er-line">
+              <span class="er-date">${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : ''}</span>
+              <span class="er-amount${r.paid ? '' : ' unpaid'}">${money(r.amount)}</span>
+              <span class="badge ${r.paid ? 'badge-success' : 'badge-warning'}">${r.paid ? 'Paid' : 'Unpaid'}</span>
+              ${receiptLinksHtml(r)}
+              ${r.paid ? `<input type="checkbox" data-select-expense="${r.id}" ${selectedExpenseIds.has(r.id) ? 'checked' : ''} title="Select" style="margin-left:auto">` : ''}
+              <button class="icon-btn icon-btn-danger" data-delete-expense="${r.id}" title="Delete" aria-label="Delete" style="${r.paid ? '' : 'margin-left:auto'}">${ICON_TRASH}</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+  }
 
   const paidRows = rows.filter(r => r.paid);
   const selectAll = document.getElementById('expenseSelectAll');
-  selectAll.style.visibility = paidRows.length ? '' : 'hidden'; // nothing to select against the default Unpaid-only filter
+  selectAll.closest('label').style.visibility = paidRows.length ? '' : 'hidden'; // nothing to select against the default Unpaid-only filter
   selectAll.checked = paidRows.length > 0 && paidRows.every(r => selectedExpenseIds.has(r.id));
   updateDeleteSelectedBtn();
 }
@@ -552,7 +582,7 @@ document.getElementById('expenseSelectAll').addEventListener('change', (e) => {
   filteredExpenses().filter(r => r.paid).forEach(r => {
     if (e.target.checked) selectedExpenseIds.add(r.id); else selectedExpenseIds.delete(r.id);
   });
-  renderExpenseTable();
+  renderExpenseList();
 });
 
 document.getElementById('deleteSelectedBtn').addEventListener('click', async () => {
@@ -578,11 +608,11 @@ document.getElementById('deleteSelectedBtn').addEventListener('click', async () 
 });
 
 ['filterShow', 'filterUser', 'filterUnpaidCheck', 'filterPaidCheck'].forEach(id => {
-  document.getElementById(id).addEventListener('input', renderExpenseTable);
-  document.getElementById(id).addEventListener('change', renderExpenseTable);
+  document.getElementById(id).addEventListener('input', renderExpenseList);
+  document.getElementById(id).addEventListener('change', renderExpenseList);
 });
 
-document.getElementById('expenseTableBody').addEventListener('change', (e) => {
+document.getElementById('expenseGroupedList').addEventListener('change', (e) => {
   if (e.target.matches('[data-select-expense]')) {
     const id = e.target.getAttribute('data-select-expense');
     if (e.target.checked) selectedExpenseIds.add(id); else selectedExpenseIds.delete(id);
@@ -599,7 +629,7 @@ document.getElementById('expenseTableBody').addEventListener('change', (e) => {
   if (path) viewReceipt(path);
 });
 
-document.getElementById('expenseTableBody').addEventListener('click', async (e) => {
+document.getElementById('expenseGroupedList').addEventListener('click', async (e) => {
   const deleteBtn = e.target.closest('[data-delete-expense]'); // icon-btn's <svg> is the actual click target
   if (deleteBtn) {
     if (!confirm('Delete this expense? This cannot be undone.')) return;
@@ -983,7 +1013,7 @@ document.getElementById('openMarkPaidBtn').addEventListener('click', () => {
   document.getElementById('markPaidSubmitBtn').style.display = 'none';
   document.getElementById('markPaidModal').style.display = 'flex';
   // The button only ever shows once the outer Expenses filter has narrowed to one submitter
-  // (see renderExpenseTable) — jump straight to their list instead of asking again.
+  // (see renderExpenseList) — jump straight to their list instead of asking again.
   const filteredEmail = document.getElementById('filterUser').value;
   if (filteredEmail) selectMarkPaidPerson(filteredEmail);
 });
@@ -1180,7 +1210,7 @@ function openUserExpenses(email) {
   document.getElementById('filterUser').value = email;
   document.getElementById('filterUnpaidCheck').checked = true;
   document.getElementById('filterPaidCheck').checked = true;
-  renderExpenseTable();
+  renderExpenseList();
   activateTab('dashboard');
 }
 

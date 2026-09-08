@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.144"></script>
+  <script src="../shared/embed.js?v=1.0.145"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#92400e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Pirton Players Expenses — Manager</title>
   <link rel="manifest" href="admin-manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-admin.png">
-  <link rel="stylesheet" href="style.css?v=1.0.144">
+  <link rel="stylesheet" href="style.css?v=1.0.145">
 </head>
 <body class="theme-admin">
 
@@ -150,24 +150,12 @@
       </div>
 
       <div class="card">
-        <div class="expense-table-wrap">
-          <table class="expense-table">
-            <thead>
-              <tr>
-                <th style="width:32px"><input type="checkbox" id="expenseSelectAll"></th>
-                <th>Show</th>
-                <th>Description</th>
-                <th>Submitted by</th>
-                <th>Receipt</th>
-                <th>Date</th>
-                <th class="amount-cell">Amount</th>
-                <th>Paid</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="expenseTableBody"></tbody>
-          </table>
+        <div class="card-header">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer">
+            <input type="checkbox" id="expenseSelectAll"> Select all paid
+          </label>
         </div>
+        <div class="card-body" id="expenseGroupedList" style="padding:0"></div>
       </div>
     </div>
 
@@ -452,11 +440,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.144"></script>
-<script src="../shared/load-script.js?v=1.0.144"></script>
-<script src="../shared/firebase-config.js?v=1.0.144"></script>
-<script src="../shared/auth.js?v=1.0.144"></script>
-<script src="../shared/suite-nav.js?v=1.0.144"></script>
-<script src="admin.js?v=1.0.144"></script>
+<script src="../shared/version.js?v=1.0.145"></script>
+<script src="../shared/load-script.js?v=1.0.145"></script>
+<script src="../shared/firebase-config.js?v=1.0.145"></script>
+<script src="../shared/auth.js?v=1.0.145"></script>
+<script src="../shared/suite-nav.js?v=1.0.145"></script>
+<script src="admin.js?v=1.0.145"></script>
 </body>
 </html>
