@@ -57,7 +57,23 @@ function activatePane(key) {
   Object.entries(frames).forEach(([k, frame]) => frame.classList.toggle('active', k === key));
 }
 
+// Gives whichever app is currently active a chance to say "not yet" before the shell switches
+// away from it — e.g. expenses' own staged-but-unsubmitted list, which lives only in that
+// iframe's memory and would otherwise be lost with no warning (its own beforeunload only covers
+// closing/refreshing the whole tab, not switching to a different app in here). Same-origin
+// iframes let this just call straight into the iframe's own window — no postMessage round trip
+// needed. Any app can opt in by defining window.hasUnsavedChanges() on itself; apps that don't
+// (or aren't even loaded yet) are simply always safe to leave.
+function canLeaveActiveApp() {
+  const check = frames[activeKey]?.contentWindow?.hasUnsavedChanges;
+  if (typeof check !== 'function') return true;
+  let unsaved = false;
+  try { unsaved = !!check(); } catch { /* treat as safe to leave if the check itself errors */ }
+  return !unsaved || confirm('You have unsaved work here that will be lost if you leave. Leave anyway?');
+}
+
 function activateApp(key) {
+  if (key !== activeKey && !canLeaveActiveApp()) return;
   activeKey = key;
   if (key === 'dashboard' || key === 'users') {
     activatePane(key);
@@ -126,7 +142,7 @@ function renderShellNav() {
 
 function handleNavClick(e) {
   if (e.target.closest('[data-action="switch-user"]')) {
-    if (confirm('Sign out and switch to a different login?')) firebase.auth().signOut();
+    if (canLeaveActiveApp() && confirm('Sign out and switch to a different login?')) firebase.auth().signOut();
   } else {
     const btn = e.target.closest('[data-pane],[data-subtab]');
     if (!btn) return;

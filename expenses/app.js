@@ -381,11 +381,16 @@ let editingPendingId = null; // id of the pending item currently loaded into the
 let editingRemovedReceiptPaths = []; // its receipts marked for removal, not yet actually deleted
 let newReceiptFiles = []; // File objects picked in receiptInput but not yet uploaded/submitted
 
+// The showmanager portal shell checks this (see canLeaveActiveApp in portal.js) before switching
+// away to a different app/Home/Users — same-origin iframes let it just call this directly,
+// no postMessage needed. Named generically so any app can opt into the same convention.
+window.hasUnsavedChanges = () => pendingExpenses.length > 0;
+
 // Closing the tab/refreshing with expenses staged-but-not-submitted would lose them (they only
 // exist in pendingExpenses until Submit all actually writes them) — the browser's own generic
-// confirm dialog lets the user cancel and stay. Doesn't fire for switching tabs/apps within the
-// showmanager shell itself (the iframe isn't unloaded, just hidden), only for an actual page
-// unload — exactly the case where pendingExpenses would really be lost.
+// confirm dialog lets the user cancel and stay. This part only covers an actual page unload
+// (tab close/refresh/typing a new URL) — switching tabs/apps within the showmanager shell itself
+// doesn't unload this iframe at all, that's what hasUnsavedChanges above is for.
 window.addEventListener('beforeunload', (e) => {
   if (!pendingExpenses.length) return;
   e.preventDefault();
