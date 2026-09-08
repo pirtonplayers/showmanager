@@ -91,7 +91,6 @@ const DEFAULT_SESSIONS = {
 
 let _shows = [];
 let _selectedShowId = null;
-let showDates = [];
 
 async function loadShows() {
   try {
@@ -182,15 +181,13 @@ window.deleteShow = async function(id) {
   }
 };
 
-// Just adds a row — every other detail (name, dates, sessions, payment) is editable on its own
-// Show Editor page once it's created, so there's nothing worth a prompt() interrupting for
-// first. Opens straight into that editor with the name field selected, ready to type over
-// "New show".
+// Just adds a row — every other detail (name, sessions, payment) is editable on its own Show
+// Editor page once it's created, so there's nothing worth a prompt() interrupting for first.
+// Opens straight into that editor with the name field selected, ready to type over "New show".
 document.getElementById('addShowBtn').addEventListener('click', async () => {
   try {
     const doc = {
       name: 'New show',
-      dates: [],
       isCurrent: _shows.length === 0,
       sessions: DEFAULT_SESSIONS,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -219,8 +216,6 @@ function renderShowEditor() {
   wrap.style.display = '';
 
   document.getElementById('showName').value = show.name || '';
-  showDates = show.dates || [];
-  renderDates();
 
   const setCurBtn = document.getElementById('setCurrentShowBtn');
   setCurBtn.disabled = !!show.isCurrent;
@@ -238,32 +233,6 @@ function renderShowEditor() {
     document.getElementById(`${id}Enabled`).value = d.enabled !== false ? 'true' : 'false';
   });
 }
-
-function renderDates() {
-  const el = document.getElementById('datesList');
-  el.innerHTML = showDates.length
-    ? showDates.map(d => `
-        <span class="date-chip">
-          ${fmtDate(d)}
-          <button onclick="removeDate('${d}')" title="Remove">×</button>
-        </span>`).join('')
-    : '<span style="color:var(--text-muted);font-size:13px">No dates added yet</span>';
-}
-
-window.removeDate = function(d) {
-  showDates = showDates.filter(x => x !== d);
-  renderDates();
-};
-
-document.getElementById('addDateBtn').addEventListener('click', () => {
-  const val = document.getElementById('newDateInput').value;
-  if (!val) return;
-  if (showDates.includes(val)) { toast('Date already added', 'error'); return; }
-  showDates.push(val);
-  showDates.sort();
-  renderDates();
-  document.getElementById('newDateInput').value = '';
-});
 
 document.getElementById('saveShowBtn').addEventListener('click', async () => {
   if (!_selectedShowId) { toast('Add or select a show first', 'error'); return; }
@@ -285,13 +254,12 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
 
   try {
     await db.collection('showdrinks_shows').doc(_selectedShowId).update({
-      name, dates: showDates, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode,
+      name, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode,
     });
     const show = _shows.find(s => s.id === _selectedShowId);
-    if (show) { Object.assign(show, { name, dates: showDates, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode }); }
+    if (show) { Object.assign(show, { name, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode }); }
     renderShowsList();
     updateHeaderShowName();
-    populateDateFilter();
     toast('Show & sessions saved', 'success');
   } catch(e) {
     console.error(e);
@@ -496,18 +464,9 @@ async function loadLocations() {
   }).join('');
 }
 
-document.getElementById('addLocationBtn').addEventListener('click', async () => {
-  const name = document.getElementById('locationName').value.trim();
-  if (!name) { toast('Enter a location name', 'error'); return; }
-  try {
-    await db.collection('showdrinks_locations').add({ name, active: true });
-    document.getElementById('locationName').value = '';
-    loadLocations();
-    toast('Location added', 'success');
-  } catch(e) {
-    toast('Failed: ' + e.message, 'error');
-  }
-});
+window.addLocation = function() {
+  openModal('Add Location', { id: null, name: '', type: 'location' });
+};
 
 window.deleteLocation = async function(id) {
   if (!confirm('Delete this location?')) return;
@@ -551,7 +510,11 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
 
   try {
     if (_modalCtx.type === 'location') {
-      await db.collection('showdrinks_locations').doc(_modalCtx.id).update({ name });
+      if (_modalCtx.id) {
+        await db.collection('showdrinks_locations').doc(_modalCtx.id).update({ name });
+      } else {
+        await db.collection('showdrinks_locations').add({ name, active: true });
+      }
       loadLocations();
       closeModal();
     }
@@ -576,27 +539,14 @@ async function loadLocationsCache() {
   _locations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-async function populateDateFilter() {
-  const snap = await db.collection('showdrinks_shows').where('isCurrent', '==', true).limit(1).get();
-  const dates = snap.empty ? [] : (snap.docs[0].data().dates || []);
-  const sel = document.getElementById('filterDate');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">All dates</option>' +
-    dates.map(d => `<option value="${d}">${fmtDate(d)}</option>`).join('');
-  if (current) sel.value = current;
-}
-
 async function loadOrders() {
   if (_ordersUnsubscribe) { _ordersUnsubscribe(); _ordersUnsubscribe = null; }
   await loadLocationsCache();
-  await populateDateFilter();
 
-  const date = document.getElementById('filterDate').value;
   const session = document.getElementById('filterSession').value;
   const status = document.getElementById('filterStatus').value;
 
   let query = db.collection('showdrinks_orders');
-  if (date)    query = query.where('showDate',  '==', date);
   if (session) query = query.where('sessionId', '==', session);
   query = query.orderBy('createdAt', 'asc');
 
@@ -615,7 +565,20 @@ async function loadOrders() {
   });
 }
 
+// Orders that have been actioned (ready/collected) collapse their items/location by default —
+// nothing left to prepare, so the card only needs to show status/total at a glance — but stay
+// expandable per-order via the header's chevron. _orderExpandedIds tracks the exceptions;
+// _lastOrders lets the toggle re-render without waiting on the next snapshot.
+let _orderExpandedIds = new Set();
+let _lastOrders = [];
+
+window.toggleOrderExpanded = function(id) {
+  if (_orderExpandedIds.has(id)) _orderExpandedIds.delete(id); else _orderExpandedIds.add(id);
+  renderOrders(_lastOrders);
+};
+
 function renderOrders(orders) {
+  _lastOrders = orders;
   const container = document.getElementById('ordersContainer');
   const summary = document.getElementById('ordersSummary');
 
@@ -625,10 +588,10 @@ function renderOrders(orders) {
   const totalRevenue = orders.reduce((s, o) => s + (o.totalAmount || 0), 0);
 
   summary.innerHTML = `
-    <div class="summary-card"><div class="snum">${total}</div><div class="slabel">Total Orders</div></div>
-    <div class="summary-card"><div class="snum" style="color:var(--warning)">${pending}</div><div class="slabel">Pending</div></div>
-    <div class="summary-card"><div class="snum" style="color:var(--success)">${ready}</div><div class="slabel">Ready</div></div>
-    <div class="summary-card"><div class="snum">${fmtCurrency(totalRevenue)}</div><div class="slabel">Revenue</div></div>`;
+    <div class="stat"><div class="snum">${total}</div><div class="slabel">Orders</div></div>
+    <div class="stat"><div class="snum" style="color:var(--warning)">${pending}</div><div class="slabel">Pending</div></div>
+    <div class="stat"><div class="snum" style="color:var(--success)">${ready}</div><div class="slabel">Ready</div></div>
+    <div class="stat"><div class="snum">${fmtCurrency(totalRevenue)}</div><div class="slabel">Revenue</div></div>`;
 
   if (!orders.length) {
     container.innerHTML = '<p style="color:var(--text-muted);font-size:14px">No orders found for this filter.</p>';
@@ -650,6 +613,15 @@ function renderOrders(orders) {
         ? `<button class="btn btn-primary btn-sm" onclick="markCollected('${o.id}')">✓ Collected</button>
            <button class="btn btn-secondary btn-sm" onclick="markPending('${o.id}')">↩ Pending</button>`
         : `<button class="btn btn-success btn-sm" onclick="markReady('${o.id}')">✓ Mark Ready</button>`;
+
+    // Ready/collected orders have nothing left to prepare, so they collapse their items/location
+    // by default — expandable per-order via the chevron below. Pending ones always show in full.
+    const actioned = isReady || isCollected;
+    const collapsed = actioned && !_orderExpandedIds.has(o.id);
+    const toggleBtn = actioned
+      ? `<button class="btn btn-secondary btn-sm" onclick="toggleOrderExpanded('${o.id}')" title="${collapsed ? 'Expand' : 'Collapse'}">${collapsed ? '▾' : '▴'}</button>`
+      : '';
+
     return `
       <div class="order-card ${isReady ? 'prepared' : ''} ${isCollected ? 'order-collected' : ''}" id="order-${o.id}">
         <div class="order-card-header">
@@ -657,9 +629,10 @@ function renderOrders(orders) {
           <div class="order-customer">${escHtml(o.customerName)}</div>
           ${statusBadge}
           <span class="badge badge-primary">${escHtml(sessionLabel)}</span>
-          <span style="font-size:12px;color:var(--text-muted)">${fmtDate(o.showDate)}</span>
           <div class="order-total">${fmtCurrency(o.totalAmount || 0)}</div>
+          ${toggleBtn}
         </div>
+        ${collapsed ? '' : `
         <div class="order-items">
           ${(o.items || []).map(item => `
             <div class="order-item-row">
@@ -668,12 +641,14 @@ function renderOrders(orders) {
               <span class="iprice">${fmtCurrency(item.price * item.quantity)}</span>
             </div>`).join('')}
         </div>
-        <div class="order-card-footer">
+        <div class="order-card-footer-loc">
           <select class="form-control" style="max-width:200px" id="loc-${o.id}" onchange="setOrderLocation('${o.id}',this.value)">
             <option value="">Set location…</option>
             ${locationOptions}
           </select>
           ${o.locationId ? `<span class="badge badge-primary">📍 ${escHtml(o.locationName || '')}</span>` : ''}
+        </div>`}
+        <div class="order-card-footer">
           ${actionBtns}
           <span style="font-size:12px;color:var(--text-muted);margin-left:auto">
             ${o.paymentMode === 'bar' ? '💵 Pay at bar' : '💳 Paid online'}
@@ -743,7 +718,6 @@ window.setOrderLocation = async function(id, locationId) {
 };
 
 document.getElementById('refreshOrdersBtn').addEventListener('click', loadOrders);
-document.getElementById('filterDate').addEventListener('change', loadOrders);
 document.getElementById('filterSession').addEventListener('change', loadOrders);
 document.getElementById('filterStatus').addEventListener('change', loadOrders);
 
@@ -772,16 +746,6 @@ async function loadSettings() {
     const doc = await db.collection('showdrinks_config').doc('settings').get();
     _systemSettings = doc.exists ? doc.data() : {};
     const d = _systemSettings;
-    // Carried over as-is from the old standalone showdrinks project during the showmanager
-    // migration (collection rename only, values untouched) — that old bare URL is stale now
-    // that this site lives under /showmanager/showdrinks, so treat it as unset rather than
-    // keep pointing customers' QR codes at the old site. Leaving it blank falls back to
-    // wherever this page is actually being served from (see generateQrBtn below).
-    const isStaleMigratedUrl = /^https?:\/\/antonjung\.github\.io\/showdrinks\/?$/i.test(d.siteUrl || '');
-    document.getElementById('siteUrl').value = isStaleMigratedUrl ? '' : (d.siteUrl || '');
-    if (isStaleMigratedUrl) {
-      db.collection('showdrinks_config').doc('settings').update({ siteUrl: '' }).catch(() => {});
-    }
     document.getElementById('sumupMerchantCode').value = d.sumupMerchantCode || '';
     document.getElementById('sumupApiKey').value = d.sumupApiKey || '';
     document.getElementById('paymentMode').value = d.paymentMode || 'bar';
@@ -795,7 +759,6 @@ async function loadSettings() {
 
 document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
   const settings = {
-    siteUrl: document.getElementById('siteUrl').value.trim(),
     sumupMerchantCode: document.getElementById('sumupMerchantCode').value.trim(),
     sumupApiKey: document.getElementById('sumupApiKey').value.trim(),
     paymentMode: document.getElementById('paymentMode').value,
@@ -815,7 +778,7 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
 let _qrInstance = null;
 
 document.getElementById('generateQrBtn').addEventListener('click', () => {
-  const baseUrl = document.getElementById('siteUrl').value.trim() || window.location.origin + window.location.pathname.replace('admin.html', '');
+  const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', '');
   const orderUrl = baseUrl.replace(/\/$/, '') + '/index.html';
   document.getElementById('qrUrl').textContent = orderUrl;
 

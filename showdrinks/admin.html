@@ -126,21 +126,9 @@
           </div>
         </div>
         <div class="card-body">
-          <div class="form-group">
+          <div class="form-group" style="margin-bottom:0">
             <label for="showName">Show Name</label>
             <input type="text" id="showName" class="form-control" placeholder="e.g. Summer Concert 2026">
-          </div>
-          <div class="form-group">
-            <label>Show Dates</label>
-            <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 8px">
-              Optional — used to filter the Orders tab by date. The customer PWA always orders for
-              today; it doesn't ask customers to pick a date.
-            </p>
-            <div style="display:flex;gap:8px;margin-bottom:8px">
-              <input type="date" id="newDateInput" class="form-control">
-              <button class="btn btn-primary" id="addDateBtn">Add</button>
-            </div>
-            <div class="dates-list" id="datesList"></div>
           </div>
         </div>
       </div>
@@ -284,18 +272,9 @@
   <div id="tab-locations" class="tab-panel">
     <div class="section-header">
       <h2>Collection Locations</h2>
-    </div>
-    <div class="card" style="margin-bottom:20px">
-      <div class="card-header"><h2>Add Location</h2></div>
-      <div class="card-body">
-        <div style="display:flex;gap:8px">
-          <input type="text" id="locationName" class="form-control" placeholder="e.g. Bar, Foyer, Stage Left">
-          <button class="btn btn-primary" id="addLocationBtn">Add</button>
-        </div>
-      </div>
+      <button class="btn btn-primary btn-sm" onclick="addLocation()">+ Add Location</button>
     </div>
     <div class="card">
-      <div class="card-header"><h2>Locations</h2></div>
       <div class="card-body">
         <div class="item-list" id="locationsList">
           <p style="color:var(--text-muted);font-size:14px">No locations yet.</p>
@@ -312,39 +291,32 @@
       <button class="btn btn-danger btn-sm" id="clearAllOrdersBtn">Clear All Orders</button>
     </div>
 
-    <div class="orders-toolbar">
-      <div class="form-group" style="margin:0;flex:1;min-width:160px">
-        <label for="filterDate">Date</label>
-        <select id="filterDate" class="form-control">
-          <option value="">All dates</option>
-        </select>
+    <div class="orders-sticky-ribbon">
+      <div class="orders-toolbar">
+        <div class="form-group" style="margin:0;flex:1;min-width:160px">
+          <select id="filterSession" class="form-control">
+            <option value="">All</option>
+            <option value="before">Before Show</option>
+            <option value="interval">Interval</option>
+            <option value="after">After Show</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;flex:1;min-width:160px">
+          <label for="filterStatus">Status</label>
+          <select id="filterStatus" class="form-control">
+            <option value="">Active (not collected)</option>
+            <option value="pending">Pending</option>
+            <option value="ready">Ready</option>
+            <option value="collected">Collected</option>
+            <option value="all">All orders</option>
+          </select>
+        </div>
       </div>
-      <div class="form-group" style="margin:0;flex:1;min-width:160px">
-        <label for="filterSession">Session</label>
-        <select id="filterSession" class="form-control">
-          <option value="">All sessions</option>
-          <option value="before">Before Show</option>
-          <option value="interval">Interval</option>
-          <option value="after">After Show</option>
-        </select>
-      </div>
-      <div class="form-group" style="margin:0;flex:1;min-width:160px">
-        <label for="filterStatus">Status</label>
-        <select id="filterStatus" class="form-control">
-          <option value="">Active (not collected)</option>
-          <option value="pending">Pending</option>
-          <option value="ready">Ready</option>
-          <option value="collected">Collected</option>
-          <option value="all">All orders</option>
-        </select>
-      </div>
+
+      <div class="orders-stats-card" id="ordersSummary"></div>
     </div>
 
-    <div class="summary-grid" id="ordersSummary"></div>
-
-    <div id="ordersContainer">
-      <p style="color:var(--text-muted);font-size:14px">Select a date to see orders.</p>
-    </div>
+    <div id="ordersContainer"></div>
   </div>
 
   <!-- ── SHOW TABS ── -->
@@ -456,31 +428,15 @@
     </div>
 
     <div class="card" style="margin-bottom:20px">
-      <div class="card-header"><h2>Site URL</h2></div>
-      <div class="card-body">
-        <div class="form-group">
-          <label for="siteUrl">Base URL (where this site is hosted)</label>
-          <input type="url" id="siteUrl" class="form-control" placeholder="https://antonjung.github.io/showmanager/showdrinks">
-        </div>
-        <p style="font-size:13px;color:var(--text-muted)">Used to generate the QR code customers scan to open the ordering PWA.</p>
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom:20px">
       <div class="card-header"><h2>Ordering Method</h2></div>
       <div class="card-body">
-        <div class="form-group">
+        <div class="form-group" style="margin-bottom:0">
           <label for="orderingMode">Customer ordering screen</label>
           <select id="orderingMode" class="form-control">
             <option value="pos">POS Grid (buttons laid out in POS Layout)</option>
             <option value="list">Category List (every item, grouped by category, with +/− quantity)</option>
           </select>
         </div>
-        <p style="font-size:13px;color:var(--text-muted)">
-          POS Grid uses the custom button layout from the <strong>POS Layout</strong> tab. Category
-          List needs no layout work — it lists every menu item under its category heading with a
-          price and a quantity stepper, in the order set on the <strong>Menu Items</strong> tab.
-        </p>
       </div>
     </div>
 
@@ -517,12 +473,8 @@
     </div>
 
     <div class="card" style="margin-bottom:20px">
-      <div class="card-header"><h2>Show Tabs Email Template</h2></div>
+      <div class="card-header"><h2>Bar Tabs Email Template</h2></div>
       <div class="card-body">
-        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
-          Used by the ✉ button on a Show Tabs member's card. Placeholders:
-          <code>[name]</code>, <code>[drinks]</code> (their unpaid items), <code>[total]</code> (amount owed).
-        </p>
         <div class="form-group">
           <label for="emailTemplateSubject">Subject</label>
           <input type="text" id="emailTemplateSubject" class="form-control">
@@ -537,9 +489,6 @@
     <div class="card">
       <div class="card-header"><h2>Customer QR Code</h2></div>
       <div class="card-body" style="text-align:center">
-        <p style="font-size:14px;color:var(--text-muted);margin-bottom:16px">
-          Customers scan this to open the drink ordering page.
-        </p>
         <div id="qrcode" style="display:inline-block;margin:0 auto 16px"></div>
         <div>
           <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:8px">
@@ -694,7 +643,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="../shared/version.js?v=1.0.106"></script>
+<script src="../shared/version.js?v=1.0.107"></script>
 <script src="../shared/firebase-config.js"></script>
 <script src="../shared/auth.js"></script>
 <script src="../shared/suite-nav.js"></script>

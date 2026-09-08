@@ -239,7 +239,11 @@ input, textarea, select, [contenteditable] {
 .session-tag.after { background: #d1fae5; color: #059669; }
 
 /* ── Orders ── */
-.orders-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+/* Sticky below .admin-header (which is itself sticky top:0, height 60px, z-index 100) — stays
+   visible while scrolling a long orders list, at a lower z-index so the header stays on top of
+   it rather than the reverse during the scroll transition. */
+.orders-sticky-ribbon { position: sticky; top: 60px; z-index: 60; background: var(--bg); padding-top: 12px; margin: -12px 0 20px; display: flex; flex-direction: column; gap: 12px; }
+.orders-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .order-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden; }
 .order-card.prepared { border-color: var(--success); }
 .order-card.order-collected { opacity: .6; }
@@ -252,17 +256,18 @@ input, textarea, select, [contenteditable] {
 .order-item-row .qty { font-weight: 700; min-width: 24px; text-align: center; color: var(--primary); }
 .order-item-row .iname { flex: 1; }
 .order-item-row .iprice { color: var(--text-muted); font-size: 13px; }
+.order-card-footer-loc { display: flex; align-items: center; gap: 12px; padding: 0 16px 12px; flex-wrap: wrap; }
 .order-card-footer { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border); flex-wrap: wrap; }
 
 /* ── QR Code ── */
 #qrcode { display: inline-block; padding: 16px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); }
 #qrcode canvas, #qrcode img { display: block; }
 
-/* ── Summary grid ── */
-.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
-.summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; }
-.summary-card .snum { font-size: 32px; font-weight: 700; color: var(--primary); }
-.summary-card .slabel { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+/* ── Orders stats — one card, four inline stats (was four separate .summary-cards) ── */
+.orders-stats-card { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-around; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.orders-stats-card .stat { text-align: center; }
+.orders-stats-card .stat .snum { font-size: 22px; font-weight: 700; color: var(--primary); }
+.orders-stats-card .stat .slabel { font-size: 11px; color: var(--text-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .03em; }
 
 /* ════════════════════════ PWA (order.html) ════════════════════════ */
 .pwa-body { min-height: 100vh; background: var(--primary); display: flex; flex-direction: column; }
