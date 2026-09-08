@@ -206,7 +206,8 @@ input, textarea, select, [contenteditable] {
 
 /* ── Embedded in the showmanager shell's iframe (shared/embed.js sets this on <html> before
    first paint) — this page's own chrome is redundant with the shell's one strip. ── */
-.embedded #authGate, .embedded .admin-header, .embedded .admin-sidebar, .embedded .sidebar-toggle {
+.embedded #authGate, .embedded #loginScreen,
+.embedded .admin-header, .embedded .admin-sidebar, .embedded .sidebar-toggle {
   display: none !important;
 }
 .embedded .admin-content { margin-left: 0 !important; }

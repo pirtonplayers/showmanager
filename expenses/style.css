@@ -144,7 +144,7 @@ input[type="file"].form-control { padding: 7px 10px; }
    first paint) — this page's own chrome is redundant with the shell's one strip, so hide all
    of it: header/sidebar/toggle for the admin-style page, hero/sidebar/toggle for the PWA entry
    page, and the auth gate (the shell's own gate already covered the login flash). ── */
-.embedded #authGate,
+.embedded #authGate, .embedded #loginScreen, .embedded #changePasswordScreen,
 .embedded .admin-header, .embedded .admin-sidebar, .embedded .sidebar-toggle,
 .embedded .pwa-hero, .embedded #pwaSidebar, .embedded #pwaSidebarToggleBtn {
   display: none !important;
