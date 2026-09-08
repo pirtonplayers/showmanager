@@ -207,6 +207,7 @@ function renderShowEditor() {
   document.getElementById('showPaymentMode').value       = show.paymentMode || '';
   document.getElementById('showSumupMerchantCode').value = show.sumupMerchantCode || '';
   document.getElementById('showSumupApiKey').value        = show.sumupApiKey || '';
+  document.getElementById('showOrderingMode').value       = show.orderingMode || '';
 
   const sessions = show.sessions || {};
   ['before','interval','after'].forEach(id => {
@@ -258,13 +259,14 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
   const paymentMode       = document.getElementById('showPaymentMode').value;
   const sumupMerchantCode = document.getElementById('showSumupMerchantCode').value.trim();
   const sumupApiKey       = document.getElementById('showSumupApiKey').value.trim();
+  const orderingMode      = document.getElementById('showOrderingMode').value;
 
   try {
     await db.collection('showdrinks_shows').doc(_selectedShowId).update({
-      name, dates: showDates, sessions, paymentMode, sumupMerchantCode, sumupApiKey,
+      name, dates: showDates, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode,
     });
     const show = _shows.find(s => s.id === _selectedShowId);
-    if (show) { Object.assign(show, { name, dates: showDates, sessions, paymentMode, sumupMerchantCode, sumupApiKey }); }
+    if (show) { Object.assign(show, { name, dates: showDates, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode }); }
     renderShowsList();
     updateHeaderShowName();
     populateDateFilter();

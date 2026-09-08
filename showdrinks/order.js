@@ -912,6 +912,7 @@ async function init() {
       ...(currentShow?.paymentMode ? { paymentMode: currentShow.paymentMode } : {}),
       ...(currentShow?.sumupMerchantCode ? { sumupMerchantCode: currentShow.sumupMerchantCode } : {}),
       ...(currentShow?.sumupApiKey ? { sumupApiKey: currentShow.sumupApiKey } : {}),
+      ...(currentShow?.orderingMode ? { orderingMode: currentShow.orderingMode } : {}),
     };
     state.posGrids   = {};
     posSnap.docs.forEach(d => { state.posGrids[d.id] = { id: d.id, ...d.data() }; });

@@ -165,6 +165,24 @@
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Ordering Method (this show)</h2></div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+            Leave as "Use system default" to fall back to whatever's set in
+            <strong>Settings &amp; QR</strong>.
+          </p>
+          <div class="form-group">
+            <label for="showOrderingMode">Customer ordering screen</label>
+            <select id="showOrderingMode" class="form-control">
+              <option value="">Use system default</option>
+              <option value="pos">POS Grid (buttons laid out in POS Layout)</option>
+              <option value="list">Category List (every item, grouped by category, with +/− quantity)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
       <div class="card-header"><h2>Sessions</h2></div>
       <div class="card-body">
