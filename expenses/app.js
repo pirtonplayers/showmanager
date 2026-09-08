@@ -228,7 +228,7 @@ async function loadShows() {
       select.innerHTML = '<option value="">No shows available — contact the manager</option>';
       return;
     }
-    select.innerHTML = shows.map(s =>
+    select.innerHTML = '<option value="">— Select show —</option>' + shows.map(s =>
       `<option value="${s.id}" data-name="${escapeHtml(s.name)}">${escapeHtml(s.name)}${s.showDate ? ' — ' + s.showDate : ''}</option>`
     ).join('');
   } catch (err) {
@@ -380,6 +380,10 @@ let pendingExpenses = [];
 let editingPendingId = null; // id of the pending item currently loaded into the form, or null
 let editingRemovedReceiptPaths = []; // its receipts marked for removal, not yet actually deleted
 let newReceiptFiles = []; // File objects picked in receiptInput but not yet uploaded/submitted
+// Remembered across the whole session (not persisted) so adding several expenses in a row for
+// the same show doesn't mean re-picking it every single time — set once a show's actually been
+// used on a successful add, not just whatever's sitting in the dropdown mid-edit.
+let lastSelectedShowId = '';
 
 // The showmanager portal shell checks this (see canLeaveActiveApp in portal.js) before switching
 // away to a different app/Home/Users — same-origin iframes let it just call this directly,
@@ -512,6 +516,8 @@ function openExpenseModal(id) {
     document.getElementById('showSelect').value = p.showId;
     document.getElementById('descInput').value = p.description;
     document.getElementById('amountInput').value = p.amount;
+  } else if (lastSelectedShowId) {
+    document.getElementById('showSelect').value = lastSelectedShowId;
   }
   renderNewReceiptPreview();
   renderEditingExistingReceipts();
@@ -628,6 +634,7 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
   if (!showId) { statusEl.textContent = 'Please select a show.'; return; }
   if (!description) { statusEl.textContent = 'Please describe the expense.'; return; }
   if (!Number.isFinite(amount) || amount <= 0) { statusEl.textContent = 'Please enter a valid amount.'; return; }
+  lastSelectedShowId = showId;
 
   const wasEditing = editingPendingId;
   submitBtn.disabled = true;
