@@ -164,7 +164,10 @@ input, textarea, select, [contenteditable] {
 
 /* ── Cards ── */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
-.card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* flex-wrap so a long total (Income/Spend) drops to its own line on a narrow phone instead of
+   forcing the header — and with it the whole card — wider than the screen (nothing here clips
+   horizontal overflow, so it would otherwise scroll the whole page sideways). */
+.card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
 .card-header h2 { font-size: 16px; font-weight: 600; }
 .card-body { padding: 20px; }
 
