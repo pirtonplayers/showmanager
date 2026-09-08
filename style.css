@@ -143,9 +143,8 @@ input[type="file"].form-control { padding: 7px 10px; }
 
 /* ════════════════════════ ADMIN LAYOUT ════════════════════════ */
 .admin-header { background: var(--primary); color: #fff; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 16px; box-shadow: var(--shadow-md); position: sticky; top: 0; z-index: 100; }
-/* Absolutely centered regardless of how wide the icon (left) and hamburger (right) each are —
-   plain flex centering would drift off-true since those two aren't the same width. */
-.header-title { position: absolute; left: 0; right: 0; text-align: center; font-size: 14px; opacity: .85; pointer-events: none; }
+/* Sits inline next to the logo inside the same link now, not centered across the whole header. */
+.header-title { font-size: 15px; font-weight: 600; }
 /* Fixed to the actual bottom of the viewport, not just the end of the page's content — a
    native pane with little content, or an app iframe sized to fill the screen below the header
    (see .shell-frame), would otherwise leave it well below the fold instead of visible at the

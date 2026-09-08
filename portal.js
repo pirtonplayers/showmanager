@@ -57,16 +57,8 @@ function activatePane(key) {
   Object.entries(frames).forEach(([k, frame]) => frame.classList.toggle('active', k === key));
 }
 
-// expandedKeys tracks which app's sub-menu is shown open in the nav — independent of activeKey
-// (which app's content is showing in the work area). Exclusive: opening a different app closes
-// whichever other one was expanded. Clicking the already-active app's name again just toggles
-// its own menu without switching the work area.
-const expandedKeys = new Set();
-
 function activateApp(key) {
   activeKey = key;
-  expandedKeys.clear();
-  if (key !== 'dashboard' && key !== 'users') expandedKeys.add(key);
   if (key === 'dashboard' || key === 'users') {
     activatePane(key);
     renderShellNav();
@@ -105,59 +97,48 @@ function activateTab(key, tabId) {
   if (key === activeKey) renderShellNav();
 }
 
+// Two very different menus depending on where you are, not one big list mixing both:
+// - At Dashboard/Users ("the showmanager menu"): just Users (if manager) and Switch user — the
+//   Dashboard's own tile grid is how you reach an app, not this menu.
+// - Inside a specific app: only that app's own tabs (APP_SUBNAV[activeKey]) — nothing else.
+// The header's Home button (not this menu) is how you always get back to Dashboard from inside
+// an app, so there's no "Dashboard" entry to duplicate that here either.
 function renderShellNav() {
   if (!currentAccount) return;
-  const apps = accessibleApps(currentAccount);
-  let html = `<button class="tab-btn nav-app-btn${activeKey === 'dashboard' ? ' active' : ''}" data-pane="dashboard">Dashboard</button>`;
-  if (currentAccount.isManager) {
-    html += `<button class="tab-btn nav-app-btn${activeKey === 'users' ? ' active' : ''}" data-pane="users">Users</button>`;
-  }
-  html += '<div class="dropdown-divider"></div>';
-  for (const app of apps) {
-    // The app name highlights whenever its content is showing (activeKey), regardless of
-    // whether its own sub-menu is currently expanded (expandedKeys) — those are separate, and
-    // more than one app's menu can be open at once.
-    const isActiveContent = app.key === activeKey;
-    const isExpanded = expandedKeys.has(app.key);
-    html += `<button class="tab-btn nav-app-btn${isActiveContent ? ' active' : ''}" data-app="${app.key}">${escapeHtml(app.label)}</button>`;
-    if (isExpanded) {
-      const tabs = APP_SUBNAV[app.key] || [];
-      const current = lastTab[app.key] || tabs[0]?.id;
-      html += '<div class="suite-current-section">' + tabs.map(t => `
-        <button class="tab-btn${t.id === current ? ' active' : ''}" data-app="${app.key}" data-subtab="${t.id}">${escapeHtml(t.label)}</button>
-      `).join('') + '</div>';
+  let html;
+  if (activeKey === 'dashboard' || activeKey === 'users') {
+    html = '';
+    if (currentAccount.isManager) {
+      html += `<button class="tab-btn nav-app-btn${activeKey === 'users' ? ' active' : ''}" data-pane="users">Users</button>`;
+      html += '<div class="dropdown-divider"></div>';
     }
+    html += `<button type="button" class="tab-btn nav-app-btn" data-action="switch-user">Switch user</button>`;
+  } else {
+    const tabs = APP_SUBNAV[activeKey] || [];
+    const current = lastTab[activeKey] || tabs[0]?.id;
+    html = tabs.map(t => `
+      <button class="tab-btn${t.id === current ? ' active' : ''}" data-app="${activeKey}" data-subtab="${t.id}">${escapeHtml(t.label)}</button>
+    `).join('');
   }
   document.getElementById('shellNavSidebar').innerHTML = html;
   document.getElementById('shellNavDropdown').innerHTML = html;
 }
 
 function handleNavClick(e) {
-  const btn = e.target.closest('[data-pane],[data-app]');
-  if (!btn) return;
-  if (btn.dataset.pane) {
-    activateApp(btn.dataset.pane);
-  } else if (btn.dataset.subtab) {
-    activateTab(btn.dataset.app, btn.dataset.subtab);
-  } else if (btn.dataset.app === activeKey) {
-    // Already showing this app's content — clicking its name again just toggles its own menu
-    // open/closed, leaving the work area and every other app's menu exactly as they are.
-    if (expandedKeys.has(btn.dataset.app)) expandedKeys.delete(btn.dataset.app);
-    else expandedKeys.add(btn.dataset.app);
-    renderShellNav();
+  if (e.target.closest('[data-action="switch-user"]')) {
+    if (confirm('Sign out and switch to a different login?')) firebase.auth().signOut();
   } else {
-    // A different app — switch the work area to it. Its menu opens too (activateApp), but
-    // nobody else's closes.
-    activateApp(btn.dataset.app);
+    const btn = e.target.closest('[data-pane],[data-subtab]');
+    if (!btn) return;
+    if (btn.dataset.pane) activateApp(btn.dataset.pane);
+    else activateTab(btn.dataset.app, btn.dataset.subtab);
   }
   document.getElementById('shellNavDropdown').classList.remove('open');
 }
 document.getElementById('shellNavSidebar').addEventListener('click', handleNavClick);
 document.getElementById('shellNavDropdown').addEventListener('click', handleNavClick);
 
-document.getElementById('changeLoginBtn').addEventListener('click', () => {
-  if (confirm('Sign out and switch to a different login?')) firebase.auth().signOut();
-});
+document.getElementById('homeBtn').addEventListener('click', () => activateApp('dashboard'));
 
 document.getElementById('menuBtn').addEventListener('click', (e) => {
   e.stopPropagation();
@@ -282,7 +263,6 @@ firebase.auth().onAuthStateChanged(async user => {
     Object.keys(frames).forEach(k => delete frames[k]);
     Object.keys(lastTab).forEach(k => delete lastTab[k]);
     activeKey = 'dashboard';
-    expandedKeys.clear();
   }
 });
 

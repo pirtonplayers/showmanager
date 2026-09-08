@@ -111,10 +111,16 @@
     .pos-screen .order-grid-pane { flex:0 0 calc(40% - 24px); height:auto; max-height:none; overflow-y:auto; }
     .pos-screen #posGrid { flex:0 0 60%; overflow-y:auto; min-height:0; }
 
-    /* Screen 1 category-list mode — normal scrolling page (not the fixed-viewport POS layout).
-       The itemized cart pane isn't shown here at all (each item already has its own +/- stepper
-       inline below) — instead its header doubles as a mini basket: running total centered,
-       trolley icon top-right that's the only way to reach Review in this mode. */
+    /* Screen 1 category-list mode. The itemized cart pane isn't shown here at all (each item
+       already has its own +/- stepper inline below) — instead the header doubles as a mini
+       basket: running total, trolley icon that's the only way to reach Review in this mode.
+
+       .pwa-content needs an actual bounded height here (like .pos-screen already gets above) for
+       #listCatBar's position:sticky to have any visible effect — .pwa-body is min-height:100vh,
+       not height:100vh, so without this .pwa-content's overflow-y:auto never actually engages;
+       the whole page grows and the *document* scrolls instead, and a sticky element only sticks
+       relative to whichever box is genuinely doing the scrolling the user sees. */
+    .list-screen .pwa-content { height:calc(100vh - env(safe-area-inset-top)); height:calc(100dvh - env(safe-area-inset-top)); box-sizing:border-box; overflow-y:auto; }
     #listMenu { padding-bottom:12px; }
     #listMenu .section-label { margin-top:18px; }
     #listMenu .section-label:first-child { margin-top:0; }
@@ -269,7 +275,7 @@
     <!-- Screen 3: Confirmation & Status -->
     <div class="screen" id="screen3">
       <div class="status-screen" id="orderStatus">
-        <div class="status-icon-wrap pending" id="statusIcon">⏳</div>
+        <div class="status-icon-wrap pending" id="statusIcon"></div>
         <div id="confOrderNum" style="font-size:42px;font-weight:900;color:var(--primary);letter-spacing:-1px;margin-bottom:4px"></div>
         <div class="status-title" id="statusTitle">Order Received!</div>
         <div class="status-sub" id="statusSub">We're getting your drinks ready.</div>
@@ -305,7 +311,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="../shared/version.js?v=1.0.114"></script>
+<script src="../shared/version.js?v=1.0.115"></script>
 <script src="../shared/firebase-config.js"></script>
 <script src="../shared/a2hs.js"></script>
 <script src="order.js"></script>

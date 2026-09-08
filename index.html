@@ -10,7 +10,7 @@
   <title>Pirton Players</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=1.0.114">
+  <link rel="stylesheet" href="style.css?v=1.0.115">
 </head>
 <body class="theme-portal">
 
@@ -74,14 +74,14 @@
 <div id="adminApp" style="display:none">
 
   <header class="admin-header">
-    <a href="https://www.pirtonplayers.org" target="_blank" rel="noopener" title="Pirton Players website" style="flex-shrink:0;line-height:0">
-      <img src="icons/icon-192.png" alt="Pirton Players" width="32" height="32" style="border-radius:7px">
+    <button class="header-icon-btn" id="homeBtn" title="Dashboard" aria-label="Dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+    </button>
+    <a href="https://www.pirtonplayers.org" target="_blank" rel="noopener" title="Pirton Players website" style="flex-shrink:0;line-height:0;display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none">
+      <img src="icons/icon-192.png" alt="Pirton Players" width="32" height="32">
+      <span class="header-title">Pirton Players</span>
     </a>
-    <div class="header-title">Pirton Players</div>
     <div style="display:flex;align-items:center;gap:4px;margin-left:auto">
-      <button class="header-icon-btn" id="changeLoginBtn" title="Change login" aria-label="Change login">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-      </button>
       <div style="position:relative">
         <button class="hamburger-btn" id="menuBtn">☰</button>
         <div id="shellNavDropdown" class="dropdown-menu"></div>
@@ -89,9 +89,9 @@
     </div>
   </header>
 
-  <!-- The one generalised menu for the whole suite — rendered by renderShellNav() in portal.js.
-       Every app you have access to, Dashboard and (managers) Users all live in this single
-       strip; picking one swaps what's showing in the work area below, never a page navigation. -->
+  <!-- Rendered by renderShellNav() in portal.js — Users/Switch user while at Dashboard, or just
+       the current app's own tabs while inside one (see the function for why). The Home button
+       above, not this menu, is how you get back to Dashboard from inside an app. -->
   <nav class="admin-sidebar" id="shellNavSidebar"></nav>
   <button class="sidebar-toggle" id="sidebarToggleBtn" title="Collapse/expand menu">‹</button>
 
@@ -232,11 +232,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="shared/version.js?v=1.0.114"></script>
-<script src="shared/firebase-config.js?v=1.0.114"></script>
-<script src="shared/auth.js?v=1.0.114"></script>
-<script src="shared/suite-nav.js?v=1.0.114"></script>
-<script src="shared/a2hs.js?v=1.0.114"></script>
-<script src="portal.js?v=1.0.114"></script>
+<script src="shared/version.js?v=1.0.115"></script>
+<script src="shared/firebase-config.js?v=1.0.115"></script>
+<script src="shared/auth.js?v=1.0.115"></script>
+<script src="shared/suite-nav.js?v=1.0.115"></script>
+<script src="shared/a2hs.js?v=1.0.115"></script>
+<script src="portal.js?v=1.0.115"></script>
 </body>
 </html>

@@ -377,7 +377,7 @@ window.viewOrder = async function(orderId) {
 
 function renderMenu() {
   const statusTag = state.editingOrderId
-    ? ` · ${state.editingOrderStatus === 'ready' ? '✅ Ready' : state.editingOrderStatus === 'collected' ? '🎉 Collected' : '⏳ Pending'}`
+    ? ` · ${state.editingOrderStatus === 'ready' ? '✅ Ready' : state.editingOrderStatus === 'collected' ? '🎉 Collected' : 'Pending'}`
     : '';
   const numTag = state.editingOrderNumber ? `#${state.editingOrderNumber} · ` : '';
   document.title = `${numTag}${state.sessionName}${statusTag}`;
@@ -710,7 +710,7 @@ function renderReview() {
   if (viewing) {
     const s = state.editingOrderStatus;
     const num = state.editingOrderNumber ? `Order #${state.editingOrderNumber} · ` : '';
-    const label = s === 'ready' ? '✅ Ready to collect' : s === 'collected' ? '🎉 Collected' : '⏳ Being prepared';
+    const label = s === 'ready' ? '✅ Ready to collect' : s === 'collected' ? '🎉 Collected' : 'Being prepared';
     statusEl.innerHTML = `<div class="review-status-row">${num}${label}</div>`;
     statusEl.style.display = '';
   } else {
@@ -805,7 +805,7 @@ function showOrderStatus(order) {
 
   const iconState = isCollected ? 'collected' : isReady ? 'ready' : 'pending';
   document.getElementById('statusIcon').className   = `status-icon-wrap ${iconState}`;
-  document.getElementById('statusIcon').textContent = isCollected ? '🎉' : isReady ? '✅' : '⏳';
+  document.getElementById('statusIcon').textContent = isCollected ? '🎉' : isReady ? '✅' : '';
   document.getElementById('statusTitle').textContent = isCollected ? 'Enjoy your drinks!'
     : isReady ? 'Your drinks are ready!' : 'Order received!';
   document.getElementById('statusSub').textContent = isCollected
