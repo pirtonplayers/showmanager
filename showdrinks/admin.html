@@ -48,10 +48,11 @@
       <div class="dropdown-divider"></div>
       <div class="suite-current-section">
         <button class="tab-btn active" data-tab="orders">Orders</button>
+        <button class="tab-btn" data-tab="tabs">Bar Tabs POS</button>
+        <button class="tab-btn" data-tab="tabmembers">Bar Tabs Admin</button>
         <button class="tab-btn" data-tab="show">Show &amp; Sessions</button>
         <button class="tab-btn" data-tab="menu">Menu Items</button>
         <button class="tab-btn" data-tab="locations">Locations</button>
-        <button class="tab-btn" data-tab="tabs">Show Tabs</button>
         <button class="tab-btn" data-tab="pos">POS Layout</button>
         <button class="tab-btn" data-tab="settings">Settings &amp; QR</button>
       </div>
@@ -75,7 +76,8 @@
     <button class="tab-btn" data-tab="menu">Menu Items</button>
     <button class="tab-btn" data-tab="locations">Locations</button>
     <button class="tab-btn" data-tab="orders">Orders</button>
-    <button class="tab-btn" data-tab="tabs">Show Tabs</button>
+    <button class="tab-btn" data-tab="tabs">Bar Tabs POS</button>
+    <button class="tab-btn" data-tab="tabmembers">Bar Tabs Admin</button>
     <button class="tab-btn" data-tab="pos">POS Layout</button>
     <button class="tab-btn" data-tab="settings">Settings &amp; QR</button>
   </div>
@@ -340,11 +342,36 @@
 
   <!-- ── SHOW TABS ── -->
   <div id="tab-tabs" class="tab-panel">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px;flex-wrap:wrap" id="tabSubNav">
-      <div style="display:flex;gap:8px">
-        <button class="cat-filter-btn active" data-subtab="pos" onclick="selectTabsSubtab('pos')">Point of Sale</button>
-        <button class="cat-filter-btn" data-subtab="members" onclick="selectTabsSubtab('members')">Members &amp; Totals</button>
+    <div class="card">
+      <div class="card-body">
+        <div class="form-group" style="max-width:320px">
+          <select id="tabMemberSelect" class="form-control" onchange="selectTabMember(this.value)">
+            <option value="">— choose a member —</option>
+          </select>
+        </div>
+
+        <div id="tabPosArea" class="tab-pos-split inactive">
+          <div class="tab-pos-buttons">
+            <div id="tabPosGrid"></div>
+            <div id="tabListArea" style="display:none">
+              <div id="tabListCatBar" class="cat-bar" style="display:none;margin-bottom:10px"></div>
+              <div id="tabListMenu"></div>
+            </div>
+          </div>
+          <div class="tab-pos-order">
+            <div id="tabBasket" style="min-height:36px;background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:13px"></div>
+            <button class="btn btn-primary btn-full" id="tabListCommitBtn" style="display:none" onclick="commitTabOrder()">Add to Tab</button>
+          </div>
+          <div class="tab-pos-inactive-hint" id="tabPosInactiveHint">Choose a member above to start an order</div>
+        </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ── BAR TABS ADMIN ── -->
+  <div id="tab-tabmembers" class="tab-panel">
+    <div class="section-header">
+      <h2>Bar Tabs Admin</h2>
       <div style="position:relative">
         <button class="btn btn-secondary btn-sm" onclick="toggleTabsMenu(event)">⋯</button>
         <div id="tabsMenuDropdown" class="dropdown-menu">
@@ -355,51 +382,22 @@
       </div>
     </div>
 
-    <div id="subtab-pos" class="subtab-panel">
-      <div class="card">
-        <div class="card-body">
-          <div class="form-group" style="max-width:320px">
-            <select id="tabMemberSelect" class="form-control" onchange="selectTabMember(this.value)">
-              <option value="">— choose a member —</option>
-            </select>
-          </div>
-
-          <div id="tabPosArea" class="tab-pos-split inactive">
-            <div class="tab-pos-buttons">
-              <div id="tabPosGrid"></div>
-              <div id="tabListArea" style="display:none">
-                <div id="tabListCatBar" class="cat-bar" style="display:none;margin-bottom:10px"></div>
-                <div id="tabListMenu"></div>
-              </div>
-            </div>
-            <div class="tab-pos-order">
-              <div id="tabBasket" style="min-height:36px;background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:13px"></div>
-              <button class="btn btn-primary btn-full" id="tabListCommitBtn" style="display:none" onclick="commitTabOrder()">Add to Tab</button>
-            </div>
-            <div class="tab-pos-inactive-hint" id="tabPosInactiveHint">Choose a member above to start an order</div>
-          </div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><h2>Add Member</h2></div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;max-width:640px">
+          <input type="text" id="newTabMemberName" class="form-control" placeholder="Cast/crew member name">
+          <input type="email" id="newTabMemberEmail" class="form-control" placeholder="Email (optional)">
+          <button class="btn btn-primary" id="addTabMemberBtn">Add</button>
         </div>
       </div>
     </div>
 
-    <div id="subtab-members" class="subtab-panel" style="display:none">
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-header"><h2>Add Member</h2></div>
-        <div class="card-body">
-          <div style="display:flex;gap:8px;max-width:640px">
-            <input type="text" id="newTabMemberName" class="form-control" placeholder="Cast/crew member name">
-            <input type="email" id="newTabMemberEmail" class="form-control" placeholder="Email (optional)">
-            <button class="btn btn-primary" id="addTabMemberBtn">Add</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header"><h2>Members &amp; Totals</h2></div>
-        <div class="card-body">
-          <div class="item-list" id="tabMembersList">
-            <p style="color:var(--text-muted);font-size:14px">No tab members yet.</p>
-          </div>
+    <div class="card">
+      <div class="card-header"><h2>Members &amp; Totals</h2></div>
+      <div class="card-body">
+        <div class="item-list" id="tabMembersList">
+          <p style="color:var(--text-muted);font-size:14px">No tab members yet.</p>
         </div>
       </div>
     </div>

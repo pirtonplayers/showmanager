@@ -54,6 +54,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'orders') loadOrders();
     if (btn.dataset.tab === 'tabs') loadShowTabs();
+    if (btn.dataset.tab === 'tabmembers') loadTabMembersData();
     if (btn.dataset.tab === 'pos') loadPosGrids();
     document.getElementById('mainMenuDropdown').classList.remove('open');
   });
@@ -1255,21 +1256,20 @@ function isPosMode() {
   return mode !== 'list';
 }
 
-window.selectTabsSubtab = function(name) {
-  document.querySelectorAll('#tabSubNav .cat-filter-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.subtab === name));
-  document.getElementById('subtab-pos').style.display     = name === 'pos'     ? '' : 'none';
-  document.getElementById('subtab-members').style.display = name === 'members' ? '' : 'none';
-};
-
-async function loadShowTabs() {
-  if (!Object.keys(_posGrids).length) await loadPosGrids();
+// Shared by both Bar Tabs pages (POS and Admin) — members + their running totals, and the live
+// tabOrders listener renderTabMembersList() needs to compute those totals.
+async function loadTabMembersData() {
   await loadTabMembers();
   if (_tabOrdersUnsubscribe) { _tabOrdersUnsubscribe(); _tabOrdersUnsubscribe = null; }
   _tabOrdersUnsubscribe = db.collection('showdrinks_tabOrders').orderBy('createdAt', 'desc').onSnapshot(snap => {
     _tabOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderTabMembersList();
   }, e => toast('Could not load tabs: ' + e.message, 'error'));
+}
+
+async function loadShowTabs() {
+  if (!Object.keys(_posGrids).length) await loadPosGrids();
+  await loadTabMembersData();
   renderTabOrderEntry();
   renderTabBasket();
 }
@@ -1316,7 +1316,6 @@ window.selectTabMember = function(id) {
   document.getElementById('tabPosInactiveHint').style.display = member ? 'none' : '';
   renderTabOrderEntry();
   renderTabBasket();
-  if (member) selectTabsSubtab('pos');
   renderTabMembersList();
 };
 
