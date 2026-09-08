@@ -345,11 +345,12 @@ input, textarea, select, [contenteditable] {
 .status-location { background: var(--success-light); color: var(--success); padding: 16px; border-radius: var(--radius); font-size: 18px; font-weight: 700; margin-top: 16px; }
 
 /* ── Menu items inline grid (admin) ── */
-.menu-grid-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.menu-grid-table th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); }
-.menu-grid-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.menu-grid-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.menu-grid-table th { padding: 6px 10px; text-align: left; font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); }
+.menu-grid-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .menu-grid-table tr:last-child td { border-bottom: none; }
 .menu-grid-table tr:hover td { background: var(--bg); }
+.menu-grid-table .onsale-checkbox { width: 16px; height: 16px; cursor: pointer; }
 
 /* Menu Items' heading/buttons + category slider stick together as one block while the table
    scrolls under them — same flush-against-the-header treatment as .orders-sticky-ribbon (see

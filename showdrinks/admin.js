@@ -344,12 +344,31 @@ function menuItemRow(id, item) {
     <td>${escHtml(item.category || '—')}</td>
     <td>${escHtml(item.name || '')}</td>
     <td>${fmtCurrency(item.price || 0)}</td>
-    <td>${onSale ? '<span class="badge badge-success">On sale</span>' : '<span class="badge badge-warning">Hidden</span>'}</td>
+    <td style="text-align:center">
+      <input type="checkbox" class="onsale-checkbox" ${onSale ? 'checked' : ''} onchange="toggleMenuItemOnSale('${id}', this)" title="On sale" aria-label="On sale">
+    </td>
     <td style="text-align:center">
       <button type="button" class="icon-btn" onclick="openEditMenuItemModal('${id}')" title="Edit" aria-label="Edit">${ICON_EDIT}</button>
     </td>
   </tr>`;
 }
+
+// The On Sale checkbox edits straight from the table row — no need to open the modal just to
+// flip this one field.
+window.toggleMenuItemOnSale = async function(id, checkboxEl) {
+  const onSale = checkboxEl.checked;
+  try {
+    await db.collection('showdrinks_menuItems').doc(id).update({ onSale });
+    // Keep the local cache in step — _allMenuItems only ever refreshes via loadMenuItems()
+    // (no live listener here), so without this the checkbox's new state would get silently
+    // reverted the next time something else re-renders the table from that stale cache.
+    const item = _allMenuItems.find(i => i.id === id);
+    if (item) item.onSale = onSale;
+  } catch(e) {
+    checkboxEl.checked = !onSale; // the checkbox already flipped itself before this handler ran
+    toast('Failed: ' + e.message, 'error');
+  }
+};
 
 // Prompt for a new category name; update a <select>'s options in place (used by the edit modal's
 // Category field) and optionally run a callback with the new name once chosen.
