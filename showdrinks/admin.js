@@ -1672,16 +1672,18 @@ function renderTabListMenu() {
     <div class="menu-grid">${groups[cat].map(tabListItemHtml).join('')}</div>`).join('');
 }
 
+// Tap the card to add one; once it holds any, a delete button clears it back to 0 rather than
+// stepping down one at a time — there's no separate +/− pair (same pattern as the customer
+// ordering screen's list mode).
 function tabListItemHtml(item) {
   const qty = _tabBasket[item.name]?.qty || 0;
-  return `<div class="menu-item-card">
+  return `<div class="menu-item-card${qty > 0 ? ' has-qty' : ''}" onclick="tabListIncItem('${item.id}')">
     <span class="mic-name">${escHtml(item.name)}</span>
     <span class="mic-price">${fmtCurrency(item.price)}</span>
-    <div class="qty-control">
-      <button onclick="tabListDecItem('${item.id}')" ${qty === 0 ? 'disabled' : ''}>−</button>
-      <span class="qty-num">${qty}</span>
-      <button onclick="tabListIncItem('${item.id}')">+</button>
-    </div>
+    ${qty > 0 ? `<div class="qty-control">
+      <span class="qty-num">${qty}×</span>
+      <button onclick="event.stopPropagation();tabListRemoveItem('${item.id}')" title="Remove">🗑</button>
+    </div>` : ''}
   </div>`;
 }
 
@@ -1701,11 +1703,10 @@ window.tabListIncItem = function(menuItemId) {
   renderTabBasket();
 };
 
-window.tabListDecItem = function(menuItemId) {
+window.tabListRemoveItem = function(menuItemId) {
   const item = _allMenuItems.find(i => i.id === menuItemId);
-  if (!item || !_tabBasket[item.name]) return;
-  _tabBasket[item.name].qty -= 1;
-  if (_tabBasket[item.name].qty <= 0) delete _tabBasket[item.name];
+  if (!item) return;
+  delete _tabBasket[item.name];
   renderTabListMenu();
   renderTabBasket();
 };

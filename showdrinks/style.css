@@ -300,7 +300,7 @@ input, textarea, select, [contenteditable] {
 
 /* ── Menu item cards in PWA ── */
 .menu-grid { display: flex; flex-direction: column; gap: 10px; }
-.menu-item-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); transition: border-color .15s, background-color .15s; }
+.menu-item-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); transition: border-color .15s, background-color .15s; cursor: pointer; }
 .menu-item-card .mic-name { flex: 1; font-weight: 600; font-size: 15px; }
 .menu-item-card .mic-price { font-weight: 700; color: var(--primary); font-size: 15px; min-width: 50px; text-align: right; }
 .menu-item-card.has-qty { border-color: var(--primary); background: var(--primary-light); }

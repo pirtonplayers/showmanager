@@ -641,16 +641,17 @@ window.selectListCat = function(encodedCat) {
   document.querySelector('.pwa-content')?.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
+// Tap the card to add one; once it holds any, a delete button clears it back to 0 rather than
+// stepping down one at a time — there's no separate +/− pair.
 function listMenuItemHtml(item) {
   const qty = state.basket[item.name]?.quantity || 0;
-  return `<div class="menu-item-card${qty > 0 ? ' has-qty' : ''}">
+  return `<div class="menu-item-card${qty > 0 ? ' has-qty' : ''}" onclick="listIncItem('${item.id}')">
     <span class="mic-name">${escHtml(item.name)}</span>
     <span class="mic-price">${fmtCurrency(item.price)}</span>
-    <div class="qty-control">
-      <button onclick="listDecItem('${item.id}')" ${qty === 0 ? 'disabled' : ''}>−</button>
-      <span class="qty-num">${qty}</span>
-      <button onclick="listIncItem('${item.id}')">+</button>
-    </div>
+    ${qty > 0 ? `<div class="qty-control">
+      <span class="qty-num">${qty}×</span>
+      <button onclick="event.stopPropagation();removeFromBasket('${encodeURIComponent(item.name)}')" title="Remove">🗑</button>
+    </div>` : ''}
   </div>`;
 }
 
@@ -660,16 +661,6 @@ window.listIncItem = function(menuItemId) {
   const key = item.name;
   if (!state.basket[key]) state.basket[key] = { name: item.name, price: item.price, quantity: 0 };
   state.basket[key].quantity += 1;
-  renderListMenu();
-  renderOrderGrid();
-  updateBottomBar();
-};
-
-window.listDecItem = function(menuItemId) {
-  const item = state.menuItems.find(i => i.id === menuItemId);
-  if (!item || !state.basket[item.name]) return;
-  state.basket[item.name].quantity -= 1;
-  if (state.basket[item.name].quantity <= 0) delete state.basket[item.name];
   renderListMenu();
   renderOrderGrid();
   updateBottomBar();
