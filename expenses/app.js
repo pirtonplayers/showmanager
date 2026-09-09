@@ -304,17 +304,22 @@ function receiptPathsOf(r) {
 
 function closeExpenseDetail() {
   document.getElementById('expenseDetailModal').style.display = 'none';
+  _detailExpenseId = null;
 }
 document.getElementById('expenseDetailCloseBtn').addEventListener('click', closeExpenseDetail);
 document.getElementById('expenseDetailModal').addEventListener('click', (e) => {
   if (e.target.id === 'expenseDetailModal') closeExpenseDetail();
 });
 
-document.getElementById('myExpenses').addEventListener('click', async (e) => {
-  const card = e.target.closest('[data-expense-detail]');
-  if (!card) return;
-  const r = myExpensesCache.find(x => x.id === card.getAttribute('data-expense-detail'));
+// Which expense the detail modal is currently showing — the "Add a receipt photo" input lives
+// outside #expenseDetailBody (so it isn't torn down/rebuilt every time this reopens) and needs to
+// know which doc to attach the upload to.
+let _detailExpenseId = null;
+
+async function openExpenseDetail(id) {
+  const r = myExpensesCache.find(x => x.id === id);
   if (!r) return;
+  _detailExpenseId = id;
 
   const body = document.getElementById('expenseDetailBody');
   body.innerHTML = `
@@ -324,6 +329,8 @@ document.getElementById('myExpenses').addEventListener('click', async (e) => {
     <div class="detail-row"><span class="dr-label">Date</span><span class="dr-value">${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : '—'}</span></div>
     <div class="detail-row"><span class="dr-label">Status</span><span class="dr-value"><span class="badge ${r.paid ? 'badge-success' : 'badge-warning'}">${r.paid ? 'Paid' : 'Unpaid'}</span></span></div>
   `;
+  document.getElementById('detailReceiptInput').value = '';
+  document.getElementById('detailReceiptStatus').textContent = '';
   document.getElementById('expenseDetailModal').style.display = 'flex';
 
   const paths = receiptPathsOf(r);
@@ -339,6 +346,50 @@ document.getElementById('myExpenses').addEventListener('click', async (e) => {
     } catch (err) {
       console.error(err);
     }
+  }
+}
+
+document.getElementById('myExpenses').addEventListener('click', (e) => {
+  const card = e.target.closest('[data-expense-detail]');
+  if (card) openExpenseDetail(card.getAttribute('data-expense-detail'));
+});
+
+// Adding (not replacing) a receipt photo to an *already-submitted* expense — e.g. a receipt
+// forgotten at submission time, or a second one for the same claim. Firestore rules only let the
+// submitter touch receiptPaths on their own doc (see firestore.rules), nothing else — amount,
+// description, paid status etc. stay locked to expensesAdmin regardless.
+document.getElementById('detailReceiptInput').addEventListener('change', async (e) => {
+  const files = [...e.target.files];
+  const id = _detailExpenseId;
+  if (!files.length || !id) return;
+  const statusEl = document.getElementById('detailReceiptStatus');
+  statusEl.textContent = 'Uploading…';
+  try {
+    const newPaths = [];
+    for (const file of files) {
+      const blob = await compressReceiptImage(file);
+      const compressed = blob !== file;
+      const ext = compressed ? 'jpg' : (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `receipts/${firebase.auth().currentUser.uid}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+      await storage.ref(path).put(blob, compressed ? { contentType: 'image/jpeg' } : undefined);
+      newPaths.push(path);
+    }
+    await db.collection('expenses').doc(id).update({
+      receiptPaths: firebase.firestore.FieldValue.arrayUnion(...newPaths),
+    });
+    statusEl.textContent = '';
+    e.target.value = '';
+    // myExpensesCache updates via the live listener, but not necessarily before this runs —
+    // re-render straight from the doc that was just written to rather than racing it.
+    const doc = await db.collection('expenses').doc(id).get();
+    if (doc.exists) {
+      const idx = myExpensesCache.findIndex(x => x.id === id);
+      const updated = { id, ...doc.data() };
+      if (idx >= 0) myExpensesCache[idx] = updated; else myExpensesCache.push(updated);
+      openExpenseDetail(id);
+    }
+  } catch (err) {
+    statusEl.textContent = 'Could not upload: ' + err.message;
   }
 });
 
