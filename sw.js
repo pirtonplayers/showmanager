@@ -1,14 +1,14 @@
-const CACHE = 'portal-1.0.149';
+const CACHE = 'portal-1.0.150';
 const STATIC = [
   './',
   './index.html',
-  './style.css?v=1.0.149',
-  './portal.js?v=1.0.149',
-  './shared/firebase-config.js?v=1.0.149',
-  './shared/auth.js?v=1.0.149',
-  './shared/suite-nav.js?v=1.0.149',
-  './shared/a2hs.js?v=1.0.149',
-  './shared/version.js?v=1.0.149',
+  './style.css?v=1.0.150',
+  './portal.js?v=1.0.150',
+  './shared/firebase-config.js?v=1.0.150',
+  './shared/auth.js?v=1.0.150',
+  './shared/suite-nav.js?v=1.0.150',
+  './shared/a2hs.js?v=1.0.150',
+  './shared/version.js?v=1.0.150',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',

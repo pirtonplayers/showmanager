@@ -64,7 +64,7 @@ function goTo(screenId) {
 
 // ── Menu ─────────────────────────────────────────────────────────────────
 // Hamburger in the hero, shown only once signed in (see goTo) — switches between the New
-// expense screen and the My expenses screen.
+// expense screen and the Expenses list screen.
 
 document.getElementById('menuBtn').addEventListener('click', (e) => {
   e.stopPropagation();

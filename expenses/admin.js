@@ -46,19 +46,24 @@ function receiptLinksHtml(r) {
 }
 
 async function viewReceipt(path) {
-  // Opened synchronously — within the click that got us here — rather than after the getDownloadURL()
-  // await below: browsers (Safari in particular) only allow window.open() to bypass the popup
-  // blocker inside a real, still-live user-gesture call stack, which an await has already left by
-  // the time it'd otherwise run. Point this already-open tab at the real URL once it resolves.
-  const win = window.open('', '_blank');
+  const img = document.getElementById('receiptViewImg');
+  img.src = '';
+  document.getElementById('receiptViewModal').style.display = 'flex';
   try {
-    const url = await storage.ref(path).getDownloadURL();
-    if (win) win.location.href = url; else window.open(url, '_blank');
+    img.src = await storage.ref(path).getDownloadURL();
   } catch (err) {
-    if (win) win.close();
+    closeReceiptViewModal();
     showToast(err.message, 'error');
   }
 }
+function closeReceiptViewModal() {
+  document.getElementById('receiptViewModal').style.display = 'none';
+  document.getElementById('receiptViewImg').src = '';
+}
+document.getElementById('receiptViewCloseBtn').addEventListener('click', closeReceiptViewModal);
+document.getElementById('receiptViewModal').addEventListener('click', (e) => {
+  if (e.target.id === 'receiptViewModal') closeReceiptViewModal();
+});
 
 function showToast(message, type = 'info') {
   const toast = document.getElementById('toast');

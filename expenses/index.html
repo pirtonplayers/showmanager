@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own hero/sidebar
        never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.149"></script>
+  <script src="../shared/embed.js?v=1.0.150"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0f766e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,7 @@
   <title>Pirton Players Expenses</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=1.0.149">
+  <link rel="stylesheet" href="style.css?v=1.0.150">
 </head>
 <body class="pwa-body">
 
@@ -110,7 +110,7 @@
     <button class="hamburger-btn" id="menuBtn">☰</button>
     <div id="mainMenuDropdown" class="dropdown-menu">
       <button class="tab-btn active" data-screen="screenMain">New expense</button>
-      <button class="tab-btn" data-screen="screenExpenses">My expenses</button>
+      <button class="tab-btn" data-screen="screenExpenses">Expenses list</button>
       <a href="help.html" class="tab-btn">Help</a>
     </div>
   </div>
@@ -122,7 +122,7 @@
      see goTo() in app.js. Shares data-screen buttons/handler with #mainMenuDropdown above. -->
 <nav class="admin-sidebar" id="pwaSidebar" style="display:none">
   <button class="tab-btn active" data-screen="screenMain">New expense</button>
-  <button class="tab-btn" data-screen="screenExpenses">My expenses</button>
+  <button class="tab-btn" data-screen="screenExpenses">Expenses list</button>
   <a href="help.html" class="tab-btn">Help</a>
 </nav>
 <button class="sidebar-toggle" id="pwaSidebarToggleBtn" title="Collapse/expand menu" style="display:none">‹</button>
@@ -148,7 +148,7 @@
   <!-- Screen: expense list -->
   <div id="screenExpenses" class="screen">
     <div class="pwa-section-title" style="display:flex;align-items:center;justify-content:space-between">
-      <span>My expenses</span>
+      <span>Expenses list</span>
       <label class="switch-label">
         <input type="checkbox" id="showAllExpensesToggle">
         <span class="switch"></span>
@@ -235,10 +235,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.149"></script>
-<script src="../shared/firebase-config.js?v=1.0.149"></script>
-<script src="../shared/auth.js?v=1.0.149"></script>
-<script src="../shared/a2hs.js?v=1.0.149"></script>
-<script src="app.js?v=1.0.149"></script>
+<script src="../shared/version.js?v=1.0.150"></script>
+<script src="../shared/firebase-config.js?v=1.0.150"></script>
+<script src="../shared/auth.js?v=1.0.150"></script>
+<script src="../shared/a2hs.js?v=1.0.150"></script>
+<script src="app.js?v=1.0.150"></script>
 </body>
 </html>
