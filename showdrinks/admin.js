@@ -335,17 +335,25 @@ function renderMenuTable() {
     : _allMenuItems.filter(i => i.category === _selectedMenuCat);
 
   tbody.innerHTML = items.length ? items.map(i => menuItemRow(i.id, i)).join('')
-    : '<tr><td colspan="5" style="color:var(--text-muted);padding:20px;text-align:center">No items yet — + Add Item to get started.</td></tr>';
+    : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items yet — + Add Item to get started.</td></tr>';
 }
 
 function menuItemRow(id, item) {
   const onSale = item.onSale !== false;
+  const visibility = item.visibility || 'both';
   return `<tr id="mrow-${id}">
     <td>${escHtml(item.category || '—')}</td>
     <td>${escHtml(item.name || '')}</td>
     <td>${fmtCurrency(item.price || 0)}</td>
     <td style="text-align:center">
       <input type="checkbox" class="onsale-checkbox" ${onSale ? 'checked' : ''} onchange="toggleMenuItemOnSale('${id}', this)" title="On sale" aria-label="On sale">
+    </td>
+    <td>
+      <select class="form-control" style="font-size:13px;padding:4px 6px" onchange="changeMenuItemVisibility('${id}', this)" title="Shows on" aria-label="Shows on">
+        <option value="both" ${visibility === 'both' ? 'selected' : ''}>Both</option>
+        <option value="bar" ${visibility === 'bar' ? 'selected' : ''}>Bar Tabs POS only</option>
+        <option value="customer" ${visibility === 'customer' ? 'selected' : ''}>Customer only</option>
+      </select>
     </td>
     <td style="text-align:center">
       <button type="button" class="icon-btn" onclick="openEditMenuItemModal('${id}')" title="Edit" aria-label="Edit">${ICON_EDIT}</button>
@@ -370,6 +378,31 @@ window.toggleMenuItemOnSale = async function(id, checkboxEl) {
   }
 };
 
+// The Shows On select edits straight from the table row too, same reasoning as On Sale above.
+// 'both' (or a missing field, for items created before this existed) shows everywhere; 'bar'/
+// 'customer' hides it from the other side's POS grid (dimmed, like an off-sale item) and List
+// mode (left out entirely) — see itemVisibleOnBar() and its order.js counterpart.
+window.changeMenuItemVisibility = async function(id, selectEl) {
+  const item = _allMenuItems.find(i => i.id === id);
+  const prevVisibility = item?.visibility || 'both';
+  const visibility = selectEl.value;
+  try {
+    await db.collection('showdrinks_menuItems').doc(id).update({ visibility });
+    if (item) item.visibility = visibility;
+    renderTabGrid();
+    renderTabListMenu();
+  } catch(e) {
+    selectEl.value = prevVisibility;
+    toast('Failed: ' + e.message, 'error');
+  }
+};
+
+// Bar Tabs POS/List only care about items hidden from THIS side ('customer' means hidden from
+// bar); the customer ordering screen (order.js) has its own mirror-image itemVisibleOnCustomer().
+function itemVisibleOnBar(item) {
+  return !item || item.visibility !== 'customer';
+}
+
 // Prompt for a new category name; update a <select>'s options in place (used by the edit modal's
 // Category field) and optionally run a callback with the new name once chosen.
 function promptNewCategory(selectEl, afterCb) {
@@ -385,13 +418,13 @@ function promptNewCategory(selectEl, afterCb) {
 }
 
 window.openAddMenuItemModal = function() {
-  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true });
+  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, visibility: 'both' });
 };
 
 window.openEditMenuItemModal = function(id) {
   const item = _allMenuItems.find(i => i.id === id);
   if (!item) return;
-  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false });
+  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false, visibility: item.visibility || 'both' });
 };
 
 document.getElementById('clearAllMenuBtn').addEventListener('click', async () => {
@@ -463,10 +496,11 @@ function openModal(title, ctx) {
   document.getElementById('editModalTitle').textContent = title;
   document.getElementById('editName').value = ctx.name || '';
 
-  const priceGroup   = document.getElementById('editPriceGroup');
-  const catGroup      = document.getElementById('editCategoryGroup');
-  const onSaleGroup   = document.getElementById('editOnSaleGroup');
-  const deleteBtn     = document.getElementById('editDeleteBtn');
+  const priceGroup      = document.getElementById('editPriceGroup');
+  const catGroup        = document.getElementById('editCategoryGroup');
+  const onSaleGroup     = document.getElementById('editOnSaleGroup');
+  const visibilityGroup = document.getElementById('editVisibilityGroup');
+  const deleteBtn       = document.getElementById('editDeleteBtn');
 
   if (ctx.type === 'menuItem') {
     priceGroup.style.display = '';
@@ -483,11 +517,15 @@ function openModal(title, ctx) {
     onSaleGroup.style.display = '';
     document.getElementById('editOnSale').checked = ctx.onSale !== false;
 
+    visibilityGroup.style.display = '';
+    document.getElementById('editVisibility').value = ctx.visibility || 'both';
+
     deleteBtn.style.display = ctx.id ? '' : 'none';
   } else {
     priceGroup.style.display = 'none';
     catGroup.style.display = 'none';
     onSaleGroup.style.display = 'none';
+    visibilityGroup.style.display = 'none';
     deleteBtn.style.display = 'none';
   }
   const modal = document.getElementById('editModal');
@@ -514,15 +552,16 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
       loadLocations();
       closeModal();
     } else if (_modalCtx.type === 'menuItem') {
-      const catSelect = document.getElementById('editCategory');
-      const category  = catSelect.value === '__new__' ? '' : catSelect.value;
+      const catSelect  = document.getElementById('editCategory');
+      const category   = catSelect.value === '__new__' ? '' : catSelect.value;
       const price      = parseFloat(document.getElementById('editPrice').value) || 0;
       const onSale     = document.getElementById('editOnSale').checked;
+      const visibility = document.getElementById('editVisibility').value;
       if (_modalCtx.id) {
-        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale });
+        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale, visibility });
       } else {
         await db.collection('showdrinks_menuItems').add({
-          name, category, price, onSale, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          name, category, price, onSale, visibility, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
       }
       await loadMenuItems();
@@ -1740,10 +1779,11 @@ function renderTabGrid() {
     const style = cell.color
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
     const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
-    // Live lookup (the cell itself only stores a denormalized label/price) — off-sale items are
-    // dimmed and untappable, but the button stays put; the grid's own layout is meaningful.
+    // Live lookup (the cell itself only stores a denormalized label/price) — off-sale (or, same
+    // treatment, customer-only) items are dimmed and untappable, but the button stays put; the
+    // grid's own layout is meaningful and shared with the customer ordering screen's POS grid.
     const liveItem = cell.type === 'item' ? _allMenuItems.find(mi => mi.id === cell.menuItemId) : null;
-    const offSale = !!(liveItem && liveItem.onSale === false);
+    const offSale = !!(liveItem && (liveItem.onSale === false || !itemVisibleOnBar(liveItem)));
     // Same key handleTabPosBtn uses to add this cell to the basket.
     const hasQty = cell.type === 'item' && !offSale && _tabBasket[cell.label || cell.menuItemId]?.qty > 0;
     return `<button class="pos-btn${hasQty ? ' has-qty' : ''}${offSale ? ' unavailable' : ''}" style="${style}" data-idx="${i}" ${offSale ? 'disabled' : ''}>
@@ -1763,7 +1803,7 @@ function renderTabListMenu() {
   const el = document.getElementById('tabListMenu');
   const barEl = document.getElementById('tabListCatBar');
   if (!el) return;
-  const onSaleItems = _allMenuItems.filter(item => item.onSale !== false);
+  const onSaleItems = _allMenuItems.filter(item => item.onSale !== false && itemVisibleOnBar(item));
   if (!onSaleItems.length) {
     barEl.style.display = 'none';
     el.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No menu items yet.</p>';
@@ -1887,7 +1927,7 @@ window.handleTabPosBtn = function(idx, isLongPress) {
   if (!cell || cell.type === 'empty') return;
   if (cell.type === 'item') {
     const liveItem = _allMenuItems.find(mi => mi.id === cell.menuItemId);
-    if (liveItem && liveItem.onSale === false) return; // shouldn't be reachable — button is disabled — but no error pill either way
+    if (liveItem && (liveItem.onSale === false || !itemVisibleOnBar(liveItem))) return; // shouldn't be reachable — button is disabled — but no error pill either way
     const key = cell.label || cell.menuItemId;
     if (!_tabBasket[key]) _tabBasket[key] = { name: cell.label, price: cell.menuItemPrice || 0, qty: 0 };
     _tabBasket[key].qty += 1;
