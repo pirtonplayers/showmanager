@@ -636,21 +636,22 @@ function renderListMenu() {
       groups[cat].push(item);
     });
 
-  // Sticky category slider along the top — "All" (default) shows every category in one list, as
-  // before; tapping a specific category filters the list down to just that category's items.
+  // No "All" chip, and nothing shown until a category is tapped — every pill fits on screen at
+  // once now (see #listCatBar's flex-wrap:wrap in style.css), so there's no need for an
+  // "everything at once" fallback the way a horizontally-scrolling bar needed one.
   const selected = state.selectedCategory && catOrder.includes(state.selectedCategory)
-    ? state.selectedCategory : 'all';
+    ? state.selectedCategory : null;
   state.selectedCategory = selected;
 
-  barEl.style.display = catOrder.length > 1 ? 'flex' : 'none';
-  barEl.innerHTML = ['all', ...catOrder].map(cat => `
+  barEl.style.display = catOrder.length ? 'flex' : 'none';
+  barEl.innerHTML = catOrder.map(cat => `
     <button type="button" class="cat-btn ${cat === selected ? 'active' : ''}"
-            onclick="selectListCat('${encodeURIComponent(cat)}')">${cat === 'all' ? 'All' : escHtml(cat)}</button>`).join('');
+            onclick="selectListCat('${encodeURIComponent(cat)}')">${escHtml(cat)}</button>`).join('');
 
-  const shownCats = selected === 'all' ? catOrder : [selected];
-  el.innerHTML = shownCats.map(cat => `
-    <div class="section-label">${escHtml(cat)}</div>
-    <div class="menu-grid">${groups[cat].map(listMenuItemHtml).join('')}</div>`).join('');
+  el.innerHTML = selected
+    ? `<div class="section-label">${escHtml(selected)}</div>
+       <div class="menu-grid">${groups[selected].map(listMenuItemHtml).join('')}</div>`
+    : '<p style="color:var(--text-muted);font-size:13px;padding:12px">Choose a category above.</p>';
 }
 
 window.selectListCat = function(encodedCat) {

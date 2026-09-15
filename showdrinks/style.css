@@ -319,6 +319,13 @@ input, textarea, select, [contenteditable] {
    flow spacing, no positioning of its own. */
 #tabListCatBar { padding-top:2px; }
 .cat-btn.active { border-color:var(--primary); background:var(--primary); color:#fff; }
+/* The two ordering screens' category bars (customer list mode, Bar Tabs POS list mode) wrap onto
+   as many rows as needed instead of scrolling horizontally, so every category is on screen at
+   once with no "All" chip needed as a fallback (see renderListMenu/renderTabListMenu, which drop
+   that chip and default to showing nothing until one's tapped). ID selectors so they win over the
+   scrolling .cat-bar rule above without touching Menu Items' own category filter, which keeps the
+   old scrolling behavior. */
+#listCatBar, #tabListCatBar { flex-wrap: wrap; overflow-x: visible; }
 
 /* ── Session & Date selectors ── */
 .selector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

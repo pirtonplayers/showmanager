@@ -1875,19 +1875,22 @@ function renderTabListMenu() {
     groups[cat].push(item);
   });
 
+  // No "All" chip, and nothing shown until a category is tapped — every pill fits on screen at
+  // once now (see #tabListCatBar's flex-wrap:wrap in style.css), so there's no need for an
+  // "everything at once" fallback the way a horizontally-scrolling bar needed one.
   const selected = _tabSelectedCategory && catOrder.includes(_tabSelectedCategory)
-    ? _tabSelectedCategory : 'all';
+    ? _tabSelectedCategory : null;
   _tabSelectedCategory = selected;
 
-  barEl.style.display = catOrder.length > 1 ? 'flex' : 'none';
-  barEl.innerHTML = ['all', ...catOrder].map(cat => `
+  barEl.style.display = catOrder.length ? 'flex' : 'none';
+  barEl.innerHTML = catOrder.map(cat => `
     <button type="button" class="cat-btn ${cat === selected ? 'active' : ''}"
-            onclick="selectTabListCat('${encodeURIComponent(cat)}')">${cat === 'all' ? 'All' : escHtml(cat)}</button>`).join('');
+            onclick="selectTabListCat('${encodeURIComponent(cat)}')">${escHtml(cat)}</button>`).join('');
 
-  const shownCats = selected === 'all' ? catOrder : [selected];
-  el.innerHTML = shownCats.map(cat => `
-    <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">${escHtml(cat)}</div>
-    <div class="menu-grid">${groups[cat].map(tabListItemHtml).join('')}</div>`).join('');
+  el.innerHTML = selected
+    ? `<div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">${escHtml(selected)}</div>
+       <div class="menu-grid">${groups[selected].map(tabListItemHtml).join('')}</div>`
+    : '<p style="color:var(--text-muted);font-size:13px">Choose a category above.</p>';
 }
 
 // Tap the card to add one; once it holds any, a delete button clears it back to 0 rather than
