@@ -285,7 +285,7 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
   }
 });
 
-// ── Menu Items ─────────────────────────────────────────────────────────────
+// ── Menu Items (Price List) ──────────────────────────────────────────────────
 
 let _allMenuItems        = [];
 let _menuCategories      = [];
@@ -435,7 +435,7 @@ window.toggleMenuItemShowOn = function(id, field, checkboxEl) {
 // Missing field (item created before this existed) defaults to true — shows everywhere. Also
 // reads the old three-way 'visibility' field (both/bar/customer) this replaced, so items set to
 // bar/customer-only under that short-lived scheme keep their setting instead of silently
-// reverting to "both" the first time someone reloads the Menu Items tab.
+// reverting to "both" the first time someone reloads the Price List tab.
 function itemShowsOnTab(item) {
   if (!item) return true;
   if (item.showOnTab !== undefined) return item.showOnTab !== false;

@@ -603,7 +603,7 @@ window.goToListBasket = function() {
 
 // ── Screen 1: Category List mode (alternate to the POS grid) ────────────────
 // Every menu item, grouped under its category heading, with a price and a +/- stepper — no POS
-// layout to configure, just whatever's in Menu Items.
+// layout to configure, just whatever's in the Price List.
 
 function renderListMenu() {
   const el = document.getElementById('listMenu');
