@@ -310,43 +310,46 @@ input, textarea, select, [contenteditable] {
 .qty-control .qty-num { font-weight: 700; font-size: 16px; min-width: 24px; text-align: center; }
 
 /* Category chip filter — index.html's PWA duplicates these inline for itself; this copy is the
-   one admin.html's Bar Tabs POS (category-list ordering mode) and Menu Items use.
-   ::before/::after render a small wobbling chevron pinned to whichever edge(s) still have more
-   pills scrolled out of view — position:sticky keeps it in view as a "stuck" first/last flex item
-   while the row scrolls underneath it, same trick as a sticky table column. shared/cat-scroll-
-   hint.js is what toggles the can-scroll-left/can-scroll-right classes that reveal them, since
-   that needs actual scroll position/extent, which CSS alone can't read. */
+   one admin.html's Bar Tabs POS (category-list ordering mode) and Menu Items use. The wobbling
+   "more pills to scroll to" chevron hint isn't styled here — shared/cat-scroll-hint.js creates
+   real .cat-scroll-chevron elements fixed to the actual screen edge (see below), not pinned to
+   this row's own edge, which sits inset by whatever page padding surrounds it. */
 .cat-bar { display:flex; gap:8px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
 .cat-bar::-webkit-scrollbar { display:none; }
-.cat-bar::before, .cat-bar::after {
-  content:'‹';
-  position:sticky;
-  flex:0 0 auto;
-  align-self:center;
-  width:20px; height:20px;
-  display:flex; align-items:center; justify-content:center;
-  border-radius:50%;
-  background:var(--surface);
-  box-shadow:var(--shadow);
-  color:var(--primary);
-  font-size:13px; font-weight:800; line-height:1;
-  pointer-events:none;
-  opacity:0; visibility:hidden;
-  transition:opacity .15s;
-  z-index:2;
-}
-.cat-bar::before { left:0; }
-.cat-bar::after { content:'›'; right:0; }
-.cat-bar.can-scroll-left::before { opacity:1; visibility:visible; animation:catChevronWobbleL 1.3s ease-in-out infinite; }
-.cat-bar.can-scroll-right::after { opacity:1; visibility:visible; animation:catChevronWobbleR 1.3s ease-in-out infinite; }
-@keyframes catChevronWobbleL { 0%,100% { transform:translateX(0); } 50% { transform:translateX(-3px); } }
-@keyframes catChevronWobbleR { 0%,100% { transform:translateX(0); } 50% { transform:translateX(3px); } }
 .cat-btn { flex:0 0 auto; white-space:nowrap; padding:7px 14px; border:2px solid var(--border); border-radius:999px; background:var(--surface); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
 /* Lives in .tab-pos-sticky-header now (a sibling of the member picker/basket bar, not nested in
    the scrolling grid/list below) — that wrapper is what's sticky, so this just needs its own
    flow spacing, no positioning of its own. */
 #tabListCatBar { padding-top:2px; }
 .cat-btn.active { border-color:var(--primary); background:var(--primary); color:#fff; }
+
+/* Wobbling "more pills to scroll to" chevron — one pair of real elements per .cat-bar, created
+   and positioned by shared/cat-scroll-hint.js (top is set inline per-frame to track whichever
+   bar is currently on screen; left/right/visible below are the only static part). Fixed to the
+   actual screen edge rather than the pill row's own edge, so it reads as a carousel's arrows
+   instead of inset UI chrome — env(safe-area-inset-*) keeps it clear of a notch/rounded corner
+   in landscape. */
+.cat-scroll-chevron {
+  position: fixed;
+  transform: translateY(-50%);
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--primary);
+  font-size: 14px; font-weight: 800; line-height: 1;
+  pointer-events: none;
+  opacity: 0; visibility: hidden;
+  transition: opacity .15s;
+  z-index: 90;
+}
+.cat-scroll-chevron.left { left: calc(env(safe-area-inset-left, 0px) + 6px); }
+.cat-scroll-chevron.right { right: calc(env(safe-area-inset-right, 0px) + 6px); }
+.cat-scroll-chevron.visible { opacity: 1; visibility: visible; animation: catChevronWobble 1.3s ease-in-out infinite; }
+.cat-scroll-chevron.right.visible { animation-name: catChevronWobbleRight; }
+@keyframes catChevronWobble { 0%,100% { transform:translateY(-50%) translateX(0); } 50% { transform:translateY(-50%) translateX(-3px); } }
+@keyframes catChevronWobbleRight { 0%,100% { transform:translateY(-50%) translateX(0); } 50% { transform:translateY(-50%) translateX(3px); } }
 
 /* ── Session & Date selectors ── */
 .selector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
