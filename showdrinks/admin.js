@@ -68,6 +68,10 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'tabmembers') loadTabMembersData();
     if (btn.dataset.tab === 'pos') loadPosGrids();
     if (btn.dataset.tab === 'show') renderShowsList();
+    // .menu-sticky-header is display:none (0 height) whenever this isn't the active tab, so
+    // whatever updateMenuTheadStickyTop() computed while loadMenuItems() ran at app init is
+    // wrong until it's recomputed with the panel actually visible.
+    if (btn.dataset.tab === 'menu') updateMenuTheadStickyTop();
   });
 });
 
@@ -286,7 +290,6 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
 let _allMenuItems        = [];
 let _menuCategories      = [];
 let _selectedMenuCat     = 'all';
-let _menuShowOnFilter    = 'all'; // 'all' | 'tab' | 'pos' — see menuShowOnFilter's change handler below
 
 async function loadMenuItems() {
   // Fetch all, sort client-side by category then name
@@ -321,7 +324,22 @@ function renderMenuCategoryBar() {
             onclick="setMenuCat('${escHtml(cat)}')">
       ${cat === 'all' ? 'All' : escHtml(cat)}
     </button>`).join('');
+  updateMenuTheadStickyTop();
 }
+
+// The table's own header row (Category/Name/.../Tab/POS) sticks below .menu-sticky-header (see
+// .menu-grid-table th's position:sticky in style.css) — its "below" offset isn't a fixed number
+// though, since the category bar above it shows/hides depending on whether any items have a
+// category yet, changing .menu-sticky-header's own height. Recomputed instead of hardcoded:
+// 60px admin-header (0 when embedded — see .embedded .admin-header in style.css) plus whatever
+// .menu-sticky-header actually rendered at.
+function updateMenuTheadStickyTop() {
+  const header = document.querySelector('.menu-sticky-header');
+  if (!header) return;
+  const embedded = document.documentElement.classList.contains('embedded');
+  document.documentElement.style.setProperty('--menu-thead-top', ((embedded ? 0 : 60) + header.offsetHeight) + 'px');
+}
+window.addEventListener('resize', updateMenuTheadStickyTop);
 
 window.setMenuCat = function(cat) {
   _selectedMenuCat = cat;
@@ -329,17 +347,21 @@ window.setMenuCat = function(cat) {
   renderMenuTable();
 };
 
-document.getElementById('menuShowOnFilter').addEventListener('change', (e) => {
-  _menuShowOnFilter = e.target.value;
-  renderMenuTable();
-});
+// Header checkboxes (in the Tab/POS <th> cells themselves) filter the rows below by the same
+// itemShowsOnTab()/itemShowsOnPos() checks the rows' own per-item checkboxes write to — checked
+// = include, so unchecking both shows nothing (same as any other "all filters off" state) rather
+// than falling back to unfiltered, since that's the more literal/predictable reading of two
+// independent checkboxes.
+document.getElementById('menuFilterTab').addEventListener('change', renderMenuTable);
+document.getElementById('menuFilterPos').addEventListener('change', renderMenuTable);
 
 function renderMenuTable() {
   const tbody = document.getElementById('menuTableBody');
+  const filterTab = document.getElementById('menuFilterTab').checked;
+  const filterPos = document.getElementById('menuFilterPos').checked;
   const items = _allMenuItems
     .filter(i => _selectedMenuCat === 'all' || i.category === _selectedMenuCat)
-    .filter(i => _menuShowOnFilter === 'all'
-      || (_menuShowOnFilter === 'tab' ? itemShowsOnTab(i) : itemShowsOnPos(i)));
+    .filter(i => (filterTab && itemShowsOnTab(i)) || (filterPos && itemShowsOnPos(i)));
 
   const emptyMsg = _allMenuItems.length
     ? 'No items match this filter.'
@@ -372,38 +394,42 @@ function menuItemRow(id, item) {
 }
 
 // The On Sale checkbox edits straight from the table row — no need to open the modal just to
-// flip this one field.
-window.toggleMenuItemOnSale = async function(id, checkboxEl) {
+// flip this one field. Optimistic: the local cache updates immediately (Firestore write happens
+// in the background) rather than waiting on the round-trip, which on a slow connection made every
+// tap feel laggy for no reason — the checkbox itself already looks flipped the instant you tap it
+// regardless, so the rest of the UI should catch up just as fast, not lag behind it.
+window.toggleMenuItemOnSale = function(id, checkboxEl) {
   const onSale = checkboxEl.checked;
-  try {
-    await db.collection('showdrinks_menuItems').doc(id).update({ onSale });
-    // Keep the local cache in step — _allMenuItems only ever refreshes via loadMenuItems()
-    // (no live listener here), so without this the checkbox's new state would get silently
-    // reverted the next time something else re-renders the table from that stale cache.
-    const item = _allMenuItems.find(i => i.id === id);
-    if (item) item.onSale = onSale;
-  } catch(e) {
-    checkboxEl.checked = !onSale; // the checkbox already flipped itself before this handler ran
+  // Keep the local cache in step — _allMenuItems only ever refreshes via loadMenuItems() (no live
+  // listener here), so without this the checkbox's new state would get silently reverted the next
+  // time something else re-renders the table from that stale cache.
+  const item = _allMenuItems.find(i => i.id === id);
+  if (item) item.onSale = onSale;
+  db.collection('showdrinks_menuItems').doc(id).update({ onSale }).catch(e => {
+    checkboxEl.checked = !onSale;
+    if (item) item.onSale = !onSale;
     toast('Failed: ' + e.message, 'error');
-  }
+  });
 };
 
-// The Tab/POS checkboxes edit straight from the table row too, same reasoning as On Sale above.
-// Unchecking one hides the item from that side's POS grid (dimmed, like an off-sale item) and
-// List mode (left out entirely) — see itemShowsOnTab()/itemShowsOnPos() and order.js's own
-// itemShowsOnPos() (order.js is a separate script, so it can't just call this file's).
-window.toggleMenuItemShowOn = async function(id, field, checkboxEl) {
+// The Tab/POS checkboxes edit straight from the table row too, same reasoning as On Sale above
+// (optimistic — see its comment) plus: unchecking one hides the item from that side's POS grid
+// (dimmed, like an off-sale item) and List mode (left out entirely) — see itemShowsOnTab()/
+// itemShowsOnPos() and order.js's own itemShowsOnPos() (order.js is a separate script, so it
+// can't just call this file's).
+window.toggleMenuItemShowOn = function(id, field, checkboxEl) {
   const value = checkboxEl.checked;
-  try {
-    await db.collection('showdrinks_menuItems').doc(id).update({ [field]: value });
-    const item = _allMenuItems.find(i => i.id === id);
-    if (item) item[field] = value;
+  const item = _allMenuItems.find(i => i.id === id);
+  if (item) item[field] = value;
+  renderTabGrid();
+  renderTabListMenu();
+  db.collection('showdrinks_menuItems').doc(id).update({ [field]: value }).catch(e => {
+    checkboxEl.checked = !value;
+    if (item) item[field] = !value;
     renderTabGrid();
     renderTabListMenu();
-  } catch(e) {
-    checkboxEl.checked = !value;
     toast('Failed: ' + e.message, 'error');
-  }
+  });
 };
 
 // Missing field (item created before this existed) defaults to true — shows everywhere. Also

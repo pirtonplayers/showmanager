@@ -374,7 +374,12 @@ input, textarea, select, [contenteditable] {
 
 /* ── Menu items inline grid (admin) ── */
 .menu-grid-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.menu-grid-table th { padding: 6px 10px; text-align: left; font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); }
+/* Sticks below .menu-sticky-header (which is itself sticky) so the column titles — including the
+   Tab/POS filter checkboxes living in two of them — stay visible while scrolling a long item
+   list. --menu-thead-top is computed in admin.js's updateMenuTheadStickyTop(), since
+   .menu-sticky-header's own height varies (its category bar shows/hides) so this can't be a
+   fixed number; the fallback here only ever shows for an instant before that first runs. */
+.menu-grid-table th { padding: 6px 10px; text-align: left; font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); position: sticky; top: var(--menu-thead-top, 108px); z-index: 5; }
 .menu-grid-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .menu-grid-table tr:last-child td { border-bottom: none; }
 .menu-grid-table tr:hover td { background: var(--bg); }
