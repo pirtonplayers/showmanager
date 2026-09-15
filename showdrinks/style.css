@@ -323,23 +323,26 @@ input, textarea, select, [contenteditable] {
 #tabListCatBar { padding-top:2px; }
 .cat-btn.active { border-color:var(--primary); background:var(--primary); color:#fff; }
 
-/* Wobbling "more pills to scroll to" chevron — one pair of real elements per .cat-bar, created
-   and positioned by shared/cat-scroll-hint.js (top is set inline per-frame to track whichever
-   bar is currently on screen; left/right/visible below are the only static part). Fixed to the
+/* Wobbling "more pills to scroll to" chevron — one pair of real, tappable <button>s per .cat-bar,
+   created and positioned by shared/cat-scroll-hint.js (top is set inline per-frame to track
+   whichever bar is currently on screen; left/right/visible below are the only static part).
+   Tapping one glides the row further that way (see animateScroll in that file). Fixed to the
    actual screen edge rather than the pill row's own edge, so it reads as a carousel's arrows
-   instead of inset UI chrome — env(safe-area-inset-*) keeps it clear of a notch/rounded corner
-   in landscape. */
+   instead of inset UI chrome — env(safe-area-inset-*) keeps it clear of a notch/rounded corner in
+   landscape. visibility:hidden (not just opacity:0) when not .visible doubles as making it
+   untappable then, with no separate pointer-events toggle needed. */
 .cat-scroll-chevron {
   position: fixed;
   transform: translateY(-50%);
   width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
+  border: none; margin: 0; padding: 0; font: inherit; appearance: none; -webkit-appearance: none;
   border-radius: 50%;
   background: var(--surface);
   box-shadow: var(--shadow);
   color: var(--primary);
   font-size: 14px; font-weight: 800; line-height: 1;
-  pointer-events: none;
+  cursor: pointer;
   opacity: 0; visibility: hidden;
   transition: opacity .15s;
   z-index: 90;
@@ -348,6 +351,7 @@ input, textarea, select, [contenteditable] {
 .cat-scroll-chevron.right { right: calc(env(safe-area-inset-right, 0px) + 6px); }
 .cat-scroll-chevron.visible { opacity: 1; visibility: visible; animation: catChevronWobble 1.3s ease-in-out infinite; }
 .cat-scroll-chevron.right.visible { animation-name: catChevronWobbleRight; }
+.cat-scroll-chevron.visible:active { animation: none; transform: translateY(-50%) scale(.9); }
 @keyframes catChevronWobble { 0%,100% { transform:translateY(-50%) translateX(0); } 50% { transform:translateY(-50%) translateX(-3px); } }
 @keyframes catChevronWobbleRight { 0%,100% { transform:translateY(-50%) translateX(0); } 50% { transform:translateY(-50%) translateX(3px); } }
 
