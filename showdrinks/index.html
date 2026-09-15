@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowDrinks</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css?v=1.0.154">
+  <link rel="stylesheet" href="style.css?v=1.0.155">
   <style>
     .pwa-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--primary); }
     .pwa-content { flex: 1; background: var(--bg); border-radius: 24px 24px 0 0; margin-top: 8px; padding: 24px 20px 40px; overflow-y: auto; }
@@ -152,22 +152,35 @@
     .cat-bar::-webkit-scrollbar { display:none; }
     .cat-btn { flex:0 0 auto; white-space:nowrap; padding:7px 14px; border:2px solid var(--border); border-radius:999px; background:var(--surface); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
     .cat-btn.active { border-color:var(--primary); background:var(--primary); color:#fff; }
-    /* A pure-CSS "more chips to scroll to" hint at either edge — see style.css's own .cat-bar for
-       how the local/scroll background-attachment pairing works. Set here (not on the plain
-       .cat-bar rule above) because #listCatBar's own background:var(--bg) needs to win by
-       specificity anyway (it's what makes the sticky bar opaque over the list scrolling under
-       it), so the gradient layers live right alongside it instead of being silently overridden. */
-    .list-screen #listCatBar {
-      position:sticky; top:0; z-index:5; margin:0 -20px 10px; padding:8px 20px 10px;
-      background:
-        linear-gradient(to right, var(--bg) 40%, transparent) left center,
-        linear-gradient(to left,  var(--bg) 40%, transparent) right center,
-        linear-gradient(to right, rgba(15,23,42,.18), transparent) left center,
-        linear-gradient(to left,  rgba(15,23,42,.18), transparent) right center;
-      background-repeat: no-repeat;
-      background-size: 24px 100%, 24px 100%, 10px 100%, 10px 100%;
-      background-attachment: local, local, scroll, scroll;
+    .list-screen #listCatBar { position:sticky; top:0; z-index:5; background:var(--bg); margin:0 -20px 10px; padding:8px 20px 10px; }
+    /* Wobbling chevron "more to scroll" hint — see style.css's own .cat-bar for the full
+       explanation (this app loads that file too, but duplicates the rule here since its
+       #listCatBar override above needs to win the shared background:var(--bg) declaration by
+       specificity, same reason the base .cat-bar rule above is duplicated at all). Kept as its
+       own rule (not merged into .cat-bar above) purely so it reads as one paired unit here. */
+    .cat-bar::before, .cat-bar::after {
+      content:'‹';
+      position:sticky;
+      flex:0 0 auto;
+      align-self:center;
+      width:20px; height:20px;
+      display:flex; align-items:center; justify-content:center;
+      border-radius:50%;
+      background:var(--surface);
+      box-shadow:var(--shadow);
+      color:var(--primary);
+      font-size:13px; font-weight:800; line-height:1;
+      pointer-events:none;
+      opacity:0; visibility:hidden;
+      transition:opacity .15s;
+      z-index:2;
     }
+    .cat-bar::before { left:0; }
+    .cat-bar::after { content:'›'; right:0; }
+    .cat-bar.can-scroll-left::before { opacity:1; visibility:visible; animation:catChevronWobbleL 1.3s ease-in-out infinite; }
+    .cat-bar.can-scroll-right::after { opacity:1; visibility:visible; animation:catChevronWobbleR 1.3s ease-in-out infinite; }
+    @keyframes catChevronWobbleL { 0%,100% { transform:translateX(0); } 50% { transform:translateX(-3px); } }
+    @keyframes catChevronWobbleR { 0%,100% { transform:translateX(0); } 50% { transform:translateX(3px); } }
 
     /* 2-column item grid */
     .items-2col { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
@@ -333,10 +346,11 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="../shared/version.js?v=1.0.154"></script>
-<script src="../shared/firebase-config.js?v=1.0.154"></script>
-<script src="../shared/a2hs.js?v=1.0.154"></script>
-<script src="order.js?v=1.0.154"></script>
+<script src="../shared/version.js?v=1.0.155"></script>
+<script src="../shared/firebase-config.js?v=1.0.155"></script>
+<script src="../shared/a2hs.js?v=1.0.155"></script>
+<script src="../shared/cat-scroll-hint.js?v=1.0.155"></script>
+<script src="order.js?v=1.0.155"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

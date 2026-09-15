@@ -286,6 +286,7 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
 let _allMenuItems        = [];
 let _menuCategories      = [];
 let _selectedMenuCat     = 'all';
+let _menuShowOnFilter    = 'all'; // 'all' | 'tab' | 'pos' — see menuShowOnFilter's change handler below
 
 async function loadMenuItems() {
   // Fetch all, sort client-side by category then name
@@ -328,14 +329,23 @@ window.setMenuCat = function(cat) {
   renderMenuTable();
 };
 
+document.getElementById('menuShowOnFilter').addEventListener('change', (e) => {
+  _menuShowOnFilter = e.target.value;
+  renderMenuTable();
+});
+
 function renderMenuTable() {
   const tbody = document.getElementById('menuTableBody');
-  const items = _selectedMenuCat === 'all'
-    ? _allMenuItems
-    : _allMenuItems.filter(i => i.category === _selectedMenuCat);
+  const items = _allMenuItems
+    .filter(i => _selectedMenuCat === 'all' || i.category === _selectedMenuCat)
+    .filter(i => _menuShowOnFilter === 'all'
+      || (_menuShowOnFilter === 'tab' ? itemShowsOnTab(i) : itemShowsOnPos(i)));
 
+  const emptyMsg = _allMenuItems.length
+    ? 'No items match this filter.'
+    : 'No items yet — + Add Item to get started.';
   tbody.innerHTML = items.length ? items.map(i => menuItemRow(i.id, i)).join('')
-    : '<tr><td colspan="7" style="color:var(--text-muted);padding:20px;text-align:center">No items yet — + Add Item to get started.</td></tr>';
+    : `<tr><td colspan="7" style="color:var(--text-muted);padding:20px;text-align:center">${emptyMsg}</td></tr>`;
 }
 
 function menuItemRow(id, item) {

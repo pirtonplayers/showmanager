@@ -77,7 +77,7 @@ bumpApp({
   dir: 'showdrinks', swCache: 'showdrinks',
   assets: [
     'style.css', 'admin.js', 'order.js',
-    '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/a2hs.js',
+    '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/a2hs.js', '../shared/cat-scroll-hint.js',
   ],
   html: ['index.html', 'admin.html'],
 });
