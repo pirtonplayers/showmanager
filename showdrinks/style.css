@@ -310,8 +310,23 @@ input, textarea, select, [contenteditable] {
 .qty-control .qty-num { font-weight: 700; font-size: 16px; min-width: 24px; text-align: center; }
 
 /* Category chip filter — index.html's PWA duplicates these inline for itself; this copy is the
-   one admin.html's Bar Tabs POS (category-list ordering mode) uses. */
-.cat-bar { display:flex; gap:8px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+   one admin.html's Bar Tabs POS (category-list ordering mode) and Menu Items use.
+   The background layers are a pure-CSS "more chips to scroll to" hint at either edge: a solid
+   cover (background-attachment:local, so it scrolls WITH the chips) sits on top of a shadow
+   (background-attachment:scroll, fixed to the bar's own box) — at rest the two exactly overlap
+   and the shadow is hidden, but scrolling slides the cover out of the way and reveals it. No JS,
+   and it stays correct through category-filter re-renders and window resizes for free. */
+.cat-bar {
+  display:flex; gap:8px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  background:
+    linear-gradient(to right, var(--bg) 40%, transparent) left center,
+    linear-gradient(to left,  var(--bg) 40%, transparent) right center,
+    linear-gradient(to right, rgba(15,23,42,.18), transparent) left center,
+    linear-gradient(to left,  rgba(15,23,42,.18), transparent) right center;
+  background-repeat: no-repeat;
+  background-size: 24px 100%, 24px 100%, 10px 100%, 10px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
 .cat-bar::-webkit-scrollbar { display:none; }
 .cat-btn { flex:0 0 auto; white-space:nowrap; padding:7px 14px; border:2px solid var(--border); border-radius:999px; background:var(--surface); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
 /* Lives in .tab-pos-sticky-header now (a sibling of the member picker/basket bar, not nested in
