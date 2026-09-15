@@ -622,6 +622,12 @@ function renderListMenu() {
     .sort((a, b) => {
       const ca = (a.category || '').toLowerCase(), cb = (b.category || '').toLowerCase();
       if (ca !== cb) return ca < cb ? -1 : 1;
+      // A name that doesn't start with a letter/digit (e.g. "*Chef's Special") sorts after every
+      // plain-named item in its category instead of wherever punctuation happens to fall in
+      // character-code order (usually first) — admin.js has its own copy of this same check
+      // (startsWithSpecialChar), separate scripts so nothing to share it through.
+      const aSpecial = !/^[a-z0-9]/i.test(a.name || ''), bSpecial = !/^[a-z0-9]/i.test(b.name || '');
+      if (aSpecial !== bSpecial) return aSpecial ? 1 : -1;
       return (a.name || '').toLowerCase() < (b.name || '').toLowerCase() ? -1 : 1;
     })
     .forEach(item => {

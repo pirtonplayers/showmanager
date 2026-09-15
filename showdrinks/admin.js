@@ -291,13 +291,23 @@ let _allMenuItems        = [];
 let _menuCategories      = [];
 let _selectedMenuCat     = 'all';
 
+// A name that doesn't start with a letter/digit (e.g. "*Chef's Special", "!86'd soon") sorts
+// after every plain-named item in its category instead of wherever punctuation happens to fall
+// in character-code order (usually first, ahead of "A") — used by loadMenuItems() below and
+// order.js's own copy (renderListMenu), which can't share this since it's a separate script.
+function startsWithSpecialChar(name) {
+  return !/^[a-z0-9]/i.test(name || '');
+}
+
 async function loadMenuItems() {
-  // Fetch all, sort client-side by category then name
+  // Fetch all, sort client-side by category then name (special-char-prefixed names last)
   const snap = await db.collection('showdrinks_menuItems').get();
   _allMenuItems = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => {
       const ca = (a.category || '').toLowerCase(), cb = (b.category || '').toLowerCase();
       if (ca !== cb) return ca < cb ? -1 : 1;
+      const aSpecial = startsWithSpecialChar(a.name), bSpecial = startsWithSpecialChar(b.name);
+      if (aSpecial !== bSpecial) return aSpecial ? 1 : -1;
       return (a.name || '').toLowerCase() < (b.name || '').toLowerCase() ? -1 : 1;
     });
 

@@ -1,11 +1,11 @@
-const CACHE = 'showdrinks-1.0.163';
+const CACHE = 'showdrinks-1.0.164';
 const STATIC = [
   './',
   './index.html',
-  './style.css?v=1.0.163',
-  './order.js?v=1.0.163',
-  '../shared/a2hs.js?v=1.0.163',
-  '../shared/version.js?v=1.0.163',
+  './style.css?v=1.0.164',
+  './order.js?v=1.0.164',
+  '../shared/a2hs.js?v=1.0.164',
+  '../shared/version.js?v=1.0.164',
   './manifest.json',
 ];
 
