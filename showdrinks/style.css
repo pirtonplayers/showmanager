@@ -310,10 +310,9 @@ input, textarea, select, [contenteditable] {
 .qty-control .qty-num { font-weight: 700; font-size: 16px; min-width: 24px; text-align: center; }
 
 /* Category chip filter — index.html's PWA duplicates these inline for itself; this copy is the
-   one admin.html's Bar Tabs POS (category-list ordering mode) and Menu Items use. The wobbling
-   "more pills to scroll to" chevron hint isn't styled here — shared/cat-scroll-hint.js creates
-   real .cat-scroll-chevron elements fixed to the actual screen edge (see below), not pinned to
-   this row's own edge, which sits inset by whatever page padding surrounds it. */
+   one admin.html's Bar Tabs POS (category-list ordering mode) and Menu Items use. No "more to
+   scroll" affordance styled here — shared/cat-scroll-hint.js hints at that ambiently, by slowly
+   sliding the row itself back and forth on its own rather than adding any extra UI to look at. */
 .cat-bar { display:flex; gap:8px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
 .cat-bar::-webkit-scrollbar { display:none; }
 .cat-btn { flex:0 0 auto; white-space:nowrap; padding:7px 14px; border:2px solid var(--border); border-radius:999px; background:var(--surface); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
@@ -322,38 +321,6 @@ input, textarea, select, [contenteditable] {
    flow spacing, no positioning of its own. */
 #tabListCatBar { padding-top:2px; }
 .cat-btn.active { border-color:var(--primary); background:var(--primary); color:#fff; }
-
-/* Wobbling "more pills to scroll to" chevron — one pair of real, tappable <button>s per .cat-bar,
-   created and positioned by shared/cat-scroll-hint.js (top is set inline per-frame to track
-   whichever bar is currently on screen; left/right/visible below are the only static part).
-   Tapping one glides the row further that way (see animateScroll in that file). Fixed to the
-   actual screen edge rather than the pill row's own edge, so it reads as a carousel's arrows
-   instead of inset UI chrome — env(safe-area-inset-*) keeps it clear of a notch/rounded corner in
-   landscape. visibility:hidden (not just opacity:0) when not .visible doubles as making it
-   untappable then, with no separate pointer-events toggle needed. */
-.cat-scroll-chevron {
-  position: fixed;
-  transform: translateY(-50%);
-  width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center;
-  border: none; margin: 0; padding: 0; font: inherit; appearance: none; -webkit-appearance: none;
-  border-radius: 50%;
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  color: var(--primary);
-  font-size: 14px; font-weight: 800; line-height: 1;
-  cursor: pointer;
-  opacity: 0; visibility: hidden;
-  transition: opacity .15s;
-  z-index: 90;
-}
-.cat-scroll-chevron.left { left: calc(env(safe-area-inset-left, 0px) + 6px); }
-.cat-scroll-chevron.right { right: calc(env(safe-area-inset-right, 0px) + 6px); }
-.cat-scroll-chevron.visible { opacity: 1; visibility: visible; animation: catChevronWobble 1.3s ease-in-out infinite; }
-.cat-scroll-chevron.right.visible { animation-name: catChevronWobbleRight; }
-.cat-scroll-chevron.visible:active { animation: none; transform: translateY(-50%) scale(.9); }
-@keyframes catChevronWobble { 0%,100% { transform:translateY(-50%) translateX(0); } 50% { transform:translateY(-50%) translateX(-3px); } }
-@keyframes catChevronWobbleRight { 0%,100% { transform:translateY(-50%) translateX(0); } 50% { transform:translateY(-50%) translateX(3px); } }
 
 /* ── Session & Date selectors ── */
 .selector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
