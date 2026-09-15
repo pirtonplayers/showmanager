@@ -1890,11 +1890,11 @@ function renderTabListMenu() {
 
   barEl.style.display = (catOrder.length || hasOrder) ? 'flex' : 'none';
   barEl.innerHTML =
-    (hasOrder ? `<button type="button" class="cat-btn order-chip ${selected === ORDER_CHIP ? 'active' : ''}"
-            onclick="selectTabListCat('${encodeURIComponent(ORDER_CHIP)}')">Order (${tabBasketCount})</button>` : '') +
     catOrder.map(cat => `
     <button type="button" class="cat-btn ${cat === selected ? 'active' : ''}"
-            onclick="selectTabListCat('${encodeURIComponent(cat)}')">${escHtml(cat)}</button>`).join('');
+            onclick="selectTabListCat('${encodeURIComponent(cat)}')">${escHtml(cat)}</button>`).join('') +
+    (hasOrder ? `<button type="button" class="cat-btn order-chip ${selected === ORDER_CHIP ? 'active' : ''}"
+            onclick="selectTabListCat('${encodeURIComponent(ORDER_CHIP)}')">Order (${tabBasketCount})</button>` : '');
 
   if (selected === ORDER_CHIP) {
     el.innerHTML = tabBasketListHtml();

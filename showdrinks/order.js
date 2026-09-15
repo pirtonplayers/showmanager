@@ -650,11 +650,11 @@ function renderListMenu() {
 
   barEl.style.display = (catOrder.length || hasOrder) ? 'flex' : 'none';
   barEl.innerHTML =
-    (hasOrder ? `<button type="button" class="cat-btn order-chip ${selected === ORDER_CHIP ? 'active' : ''}"
-            onclick="selectListCat('${encodeURIComponent(ORDER_CHIP)}')">Order (${basketCount()})</button>` : '') +
     catOrder.map(cat => `
     <button type="button" class="cat-btn ${cat === selected ? 'active' : ''}"
-            onclick="selectListCat('${encodeURIComponent(cat)}')">${escHtml(cat)}</button>`).join('');
+            onclick="selectListCat('${encodeURIComponent(cat)}')">${escHtml(cat)}</button>`).join('') +
+    (hasOrder ? `<button type="button" class="cat-btn order-chip ${selected === ORDER_CHIP ? 'active' : ''}"
+            onclick="selectListCat('${encodeURIComponent(ORDER_CHIP)}')">Order (${basketCount()})</button>` : '');
 
   if (selected === ORDER_CHIP) {
     el.innerHTML = basketListHtml();
