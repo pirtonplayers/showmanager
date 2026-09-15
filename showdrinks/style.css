@@ -373,13 +373,20 @@ input, textarea, select, [contenteditable] {
 .status-location { background: var(--success-light); color: var(--success); padding: 16px; border-radius: var(--radius); font-size: 18px; font-weight: 700; margin-top: 16px; }
 
 /* ── Menu items inline grid (admin) ── */
+/* Bounded + its own scroll pane (both axes) rather than just overflow-x:auto — position:sticky
+   needs the stuck element and whatever's actually doing the scrolling to be the SAME box.
+   overflow-x:auto alone (needed so the wide table doesn't blow out a phone's width) still makes
+   this a scroll container on both axes per the CSS overflow-computation rules, but with no bound
+   on its own height it never actually scrolled internally, so the thead below never had anything
+   to react to — it just scrolled away with the page instead of sticking. --menu-thead-top
+   (computed in admin.js's updateMenuTheadStickyTop(), since .menu-sticky-header's own height
+   varies as its category bar shows/hides) is what .menu-grid-table th's own top:var(--menu-
+   thead-top,...) used to lean on directly; reusing it here to size the pane instead keeps both
+   in sync from one number instead of two. */
+.menu-table-scroll { overflow: auto; max-height: calc(100vh - var(--menu-thead-top, 108px) - 24px); }
+@media (max-width: 600px) { .menu-table-scroll { max-height: calc(100vh - var(--menu-thead-top, 108px) - 16px); } }
 .menu-grid-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-/* Sticks below .menu-sticky-header (which is itself sticky) so the column titles — including the
-   Tab/POS filter checkboxes living in two of them — stay visible while scrolling a long item
-   list. --menu-thead-top is computed in admin.js's updateMenuTheadStickyTop(), since
-   .menu-sticky-header's own height varies (its category bar shows/hides) so this can't be a
-   fixed number; the fallback here only ever shows for an instant before that first runs. */
-.menu-grid-table th { padding: 6px 10px; text-align: left; font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); position: sticky; top: var(--menu-thead-top, 108px); z-index: 5; }
+.menu-grid-table th { padding: 6px 10px; text-align: left; font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); position: sticky; top: 0; z-index: 5; }
 .menu-grid-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .menu-grid-table tr:last-child td { border-bottom: none; }
 .menu-grid-table tr:hover td { background: var(--bg); }
