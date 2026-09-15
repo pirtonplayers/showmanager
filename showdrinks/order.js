@@ -419,10 +419,15 @@ function posIsLight(hex) {
   return (r*299+g*587+b*114)/1000 > 128;
 }
 
-// The customer ordering screen only cares about items hidden from THIS side ('bar' means hidden
-// from customers); admin.js's Bar Tabs POS/List has its own mirror-image itemVisibleOnBar().
-function itemVisibleOnCustomer(item) {
-  return !item || item.visibility !== 'bar';
+// Missing field (item created before this existed) defaults to true — shows everywhere. Also
+// reads the old three-way 'visibility' field (both/bar/customer) this replaced, so items set to
+// bar/customer-only under that short-lived scheme keep their setting. admin.js's Bar Tabs
+// POS/List has its own mirror-image itemShowsOnTab() (order.js is a separate script).
+function itemShowsOnPos(item) {
+  if (!item) return true;
+  if (item.showOnPos !== undefined) return item.showOnPos !== false;
+  if (item.visibility) return item.visibility !== 'bar';
+  return true;
 }
 
 function renderPosGrid() {
@@ -445,7 +450,7 @@ function renderPosGrid() {
     // Off-sale (or, same treatment, bar-only): dimmed and untappable, but still shown (a
     // staff-placed grid button shouldn't just vanish — the layout itself is meaningful/memorised,
     // and this same layout is shared with the admin's Bar Tabs POS grid).
-    const offSale = !!(menuItem && (menuItem.onSale === false || !itemVisibleOnCustomer(menuItem)));
+    const offSale = !!(menuItem && (menuItem.onSale === false || !itemShowsOnPos(menuItem)));
     const hasQty = !!(menuItem && !offSale && state.basket[menuItem.name]?.quantity > 0);
     // Finish: disabled rather than tappable-then-errored when there's nothing in the basket yet.
     const finishDisabled = cell.type === 'finish' && basketCount() === 0;
@@ -494,7 +499,7 @@ window.handlePosBtn = function(idx, isLongPress) {
   if (!cell || cell.type === 'empty') return;
   if (cell.type === 'item') {
     const menuItem = state.menuItems.find(i => i.id === cell.menuItemId);
-    if (!menuItem || menuItem.onSale === false || !itemVisibleOnCustomer(menuItem)) return; // shouldn't be reachable — button is disabled — but no error pill either way
+    if (!menuItem || menuItem.onSale === false || !itemShowsOnPos(menuItem)) return; // shouldn't be reachable — button is disabled — but no error pill either way
     const key = menuItem.name;
     if (!state.basket[key]) state.basket[key] = { name: menuItem.name, price: menuItem.price, quantity: 0 };
     state.basket[key].quantity += 1;
@@ -604,7 +609,7 @@ function renderListMenu() {
   const el = document.getElementById('listMenu');
   const barEl = document.getElementById('listCatBar');
   if (!el) return;
-  const onSaleItems = state.menuItems.filter(item => item.onSale !== false && itemVisibleOnCustomer(item));
+  const onSaleItems = state.menuItems.filter(item => item.onSale !== false && itemShowsOnPos(item));
   if (!onSaleItems.length) {
     barEl.style.display = 'none';
     el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:12px">No menu items yet.</p>';

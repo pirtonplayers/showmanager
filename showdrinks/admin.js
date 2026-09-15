@@ -335,12 +335,13 @@ function renderMenuTable() {
     : _allMenuItems.filter(i => i.category === _selectedMenuCat);
 
   tbody.innerHTML = items.length ? items.map(i => menuItemRow(i.id, i)).join('')
-    : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items yet — + Add Item to get started.</td></tr>';
+    : '<tr><td colspan="7" style="color:var(--text-muted);padding:20px;text-align:center">No items yet — + Add Item to get started.</td></tr>';
 }
 
 function menuItemRow(id, item) {
   const onSale = item.onSale !== false;
-  const visibility = item.visibility || 'both';
+  const showOnTab = itemShowsOnTab(item);
+  const showOnPos = itemShowsOnPos(item);
   return `<tr id="mrow-${id}">
     <td>${escHtml(item.category || '—')}</td>
     <td>${escHtml(item.name || '')}</td>
@@ -348,12 +349,11 @@ function menuItemRow(id, item) {
     <td style="text-align:center">
       <input type="checkbox" class="onsale-checkbox" ${onSale ? 'checked' : ''} onchange="toggleMenuItemOnSale('${id}', this)" title="On sale" aria-label="On sale">
     </td>
-    <td>
-      <select class="form-control" style="font-size:13px;padding:4px 6px" onchange="changeMenuItemVisibility('${id}', this)" title="Shows on" aria-label="Shows on">
-        <option value="both" ${visibility === 'both' ? 'selected' : ''}>Both</option>
-        <option value="bar" ${visibility === 'bar' ? 'selected' : ''}>Bar Tabs POS only</option>
-        <option value="customer" ${visibility === 'customer' ? 'selected' : ''}>Customer only</option>
-      </select>
+    <td style="text-align:center">
+      <input type="checkbox" ${showOnTab ? 'checked' : ''} onchange="toggleMenuItemShowOn('${id}', 'showOnTab', this)" title="Show on Bar Tabs" aria-label="Show on Bar Tabs">
+    </td>
+    <td style="text-align:center">
+      <input type="checkbox" ${showOnPos ? 'checked' : ''} onchange="toggleMenuItemShowOn('${id}', 'showOnPos', this)" title="Show on Customer POS" aria-label="Show on Customer POS">
     </td>
     <td style="text-align:center">
       <button type="button" class="icon-btn" onclick="openEditMenuItemModal('${id}')" title="Edit" aria-label="Edit">${ICON_EDIT}</button>
@@ -378,29 +378,39 @@ window.toggleMenuItemOnSale = async function(id, checkboxEl) {
   }
 };
 
-// The Shows On select edits straight from the table row too, same reasoning as On Sale above.
-// 'both' (or a missing field, for items created before this existed) shows everywhere; 'bar'/
-// 'customer' hides it from the other side's POS grid (dimmed, like an off-sale item) and List
-// mode (left out entirely) — see itemVisibleOnBar() and its order.js counterpart.
-window.changeMenuItemVisibility = async function(id, selectEl) {
-  const item = _allMenuItems.find(i => i.id === id);
-  const prevVisibility = item?.visibility || 'both';
-  const visibility = selectEl.value;
+// The Tab/POS checkboxes edit straight from the table row too, same reasoning as On Sale above.
+// Unchecking one hides the item from that side's POS grid (dimmed, like an off-sale item) and
+// List mode (left out entirely) — see itemShowsOnTab()/itemShowsOnPos() and order.js's own
+// itemShowsOnPos() (order.js is a separate script, so it can't just call this file's).
+window.toggleMenuItemShowOn = async function(id, field, checkboxEl) {
+  const value = checkboxEl.checked;
   try {
-    await db.collection('showdrinks_menuItems').doc(id).update({ visibility });
-    if (item) item.visibility = visibility;
+    await db.collection('showdrinks_menuItems').doc(id).update({ [field]: value });
+    const item = _allMenuItems.find(i => i.id === id);
+    if (item) item[field] = value;
     renderTabGrid();
     renderTabListMenu();
   } catch(e) {
-    selectEl.value = prevVisibility;
+    checkboxEl.checked = !value;
     toast('Failed: ' + e.message, 'error');
   }
 };
 
-// Bar Tabs POS/List only care about items hidden from THIS side ('customer' means hidden from
-// bar); the customer ordering screen (order.js) has its own mirror-image itemVisibleOnCustomer().
-function itemVisibleOnBar(item) {
-  return !item || item.visibility !== 'customer';
+// Missing field (item created before this existed) defaults to true — shows everywhere. Also
+// reads the old three-way 'visibility' field (both/bar/customer) this replaced, so items set to
+// bar/customer-only under that short-lived scheme keep their setting instead of silently
+// reverting to "both" the first time someone reloads the Menu Items tab.
+function itemShowsOnTab(item) {
+  if (!item) return true;
+  if (item.showOnTab !== undefined) return item.showOnTab !== false;
+  if (item.visibility) return item.visibility !== 'customer';
+  return true;
+}
+function itemShowsOnPos(item) {
+  if (!item) return true;
+  if (item.showOnPos !== undefined) return item.showOnPos !== false;
+  if (item.visibility) return item.visibility !== 'bar';
+  return true;
 }
 
 // Prompt for a new category name; update a <select>'s options in place (used by the edit modal's
@@ -418,13 +428,13 @@ function promptNewCategory(selectEl, afterCb) {
 }
 
 window.openAddMenuItemModal = function() {
-  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, visibility: 'both' });
+  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true });
 };
 
 window.openEditMenuItemModal = function(id) {
   const item = _allMenuItems.find(i => i.id === id);
   if (!item) return;
-  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false, visibility: item.visibility || 'both' });
+  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false, showOnTab: itemShowsOnTab(item), showOnPos: itemShowsOnPos(item) });
 };
 
 document.getElementById('clearAllMenuBtn').addEventListener('click', async () => {
@@ -518,7 +528,8 @@ function openModal(title, ctx) {
     document.getElementById('editOnSale').checked = ctx.onSale !== false;
 
     visibilityGroup.style.display = '';
-    document.getElementById('editVisibility').value = ctx.visibility || 'both';
+    document.getElementById('editShowOnTab').checked = ctx.showOnTab !== false;
+    document.getElementById('editShowOnPos').checked = ctx.showOnPos !== false;
 
     deleteBtn.style.display = ctx.id ? '' : 'none';
   } else {
@@ -556,12 +567,13 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
       const category   = catSelect.value === '__new__' ? '' : catSelect.value;
       const price      = parseFloat(document.getElementById('editPrice').value) || 0;
       const onSale     = document.getElementById('editOnSale').checked;
-      const visibility = document.getElementById('editVisibility').value;
+      const showOnTab  = document.getElementById('editShowOnTab').checked;
+      const showOnPos  = document.getElementById('editShowOnPos').checked;
       if (_modalCtx.id) {
-        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale, visibility });
+        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale, showOnTab, showOnPos });
       } else {
         await db.collection('showdrinks_menuItems').add({
-          name, category, price, onSale, visibility, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          name, category, price, onSale, showOnTab, showOnPos, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
       }
       await loadMenuItems();
@@ -1783,7 +1795,7 @@ function renderTabGrid() {
     // treatment, customer-only) items are dimmed and untappable, but the button stays put; the
     // grid's own layout is meaningful and shared with the customer ordering screen's POS grid.
     const liveItem = cell.type === 'item' ? _allMenuItems.find(mi => mi.id === cell.menuItemId) : null;
-    const offSale = !!(liveItem && (liveItem.onSale === false || !itemVisibleOnBar(liveItem)));
+    const offSale = !!(liveItem && (liveItem.onSale === false || !itemShowsOnTab(liveItem)));
     // Same key handleTabPosBtn uses to add this cell to the basket.
     const hasQty = cell.type === 'item' && !offSale && _tabBasket[cell.label || cell.menuItemId]?.qty > 0;
     return `<button class="pos-btn${hasQty ? ' has-qty' : ''}${offSale ? ' unavailable' : ''}" style="${style}" data-idx="${i}" ${offSale ? 'disabled' : ''}>
@@ -1803,7 +1815,7 @@ function renderTabListMenu() {
   const el = document.getElementById('tabListMenu');
   const barEl = document.getElementById('tabListCatBar');
   if (!el) return;
-  const onSaleItems = _allMenuItems.filter(item => item.onSale !== false && itemVisibleOnBar(item));
+  const onSaleItems = _allMenuItems.filter(item => item.onSale !== false && itemShowsOnTab(item));
   if (!onSaleItems.length) {
     barEl.style.display = 'none';
     el.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No menu items yet.</p>';
@@ -1927,7 +1939,7 @@ window.handleTabPosBtn = function(idx, isLongPress) {
   if (!cell || cell.type === 'empty') return;
   if (cell.type === 'item') {
     const liveItem = _allMenuItems.find(mi => mi.id === cell.menuItemId);
-    if (liveItem && (liveItem.onSale === false || !itemVisibleOnBar(liveItem))) return; // shouldn't be reachable — button is disabled — but no error pill either way
+    if (liveItem && (liveItem.onSale === false || !itemShowsOnTab(liveItem))) return; // shouldn't be reachable — button is disabled — but no error pill either way
     const key = cell.label || cell.menuItemId;
     if (!_tabBasket[key]) _tabBasket[key] = { name: cell.label, price: cell.menuItemPrice || 0, qty: 0 };
     _tabBasket[key].qty += 1;

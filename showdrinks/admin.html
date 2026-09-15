@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.152"></script>
+  <script src="../shared/embed.js?v=1.0.153"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.0.152">
+  <link rel="stylesheet" href="style.css?v=1.0.153">
 </head>
 <body>
 
@@ -270,12 +270,13 @@
               <th>Name</th>
               <th style="width:100px">Price</th>
               <th style="width:100px">On Sale</th>
-              <th style="width:150px">Shows On</th>
+              <th style="width:70px">Tab</th>
+              <th style="width:70px">POS</th>
               <th style="width:44px"></th>
             </tr>
           </thead>
           <tbody id="menuTableBody">
-            <tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">Loading…</td></tr>
+            <tr><td colspan="7" style="color:var(--text-muted);padding:20px;text-align:center">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -547,12 +548,15 @@
         </label>
       </div>
       <div class="form-group" id="editVisibilityGroup" style="display:none">
-        <label for="editVisibility">Shows On</label>
-        <select id="editVisibility" class="form-control">
-          <option value="both">Both — Bar Tabs POS &amp; Customer Ordering</option>
-          <option value="bar">Bar Tabs POS only</option>
-          <option value="customer">Customer Ordering only</option>
-        </select>
+        <label>Shows On</label>
+        <div style="display:flex;gap:16px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:400">
+            <input type="checkbox" id="editShowOnTab" checked> Tab
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:400">
+            <input type="checkbox" id="editShowOnPos" checked> POS
+          </label>
+        </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
         <button class="btn btn-danger" id="editDeleteBtn" style="display:none;margin-right:auto">Delete</button>
@@ -716,11 +720,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.152"></script>
-<script src="../shared/firebase-config.js?v=1.0.152"></script>
-<script src="../shared/auth.js?v=1.0.152"></script>
-<script src="../shared/suite-nav.js?v=1.0.152"></script>
-<script src="admin.js?v=1.0.152"></script>
+<script src="../shared/version.js?v=1.0.153"></script>
+<script src="../shared/firebase-config.js?v=1.0.153"></script>
+<script src="../shared/auth.js?v=1.0.153"></script>
+<script src="../shared/suite-nav.js?v=1.0.153"></script>
+<script src="admin.js?v=1.0.153"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
