@@ -308,6 +308,11 @@ input, textarea, select, [contenteditable] {
 .qty-control button { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--primary); background: none; color: var(--primary); font-size: 20px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; transition: all .15s; }
 .qty-control button:hover { background: var(--primary); color: #fff; }
 .qty-control .qty-num { font-weight: 700; font-size: 16px; min-width: 24px; text-align: center; }
+/* Delete button alongside a +/− pair (the Order chip's own basket view — see order.js's
+   basketListHtml / admin.js's tabBasketListHtml) — danger-colored so it reads as destructive next
+   to the two quantity buttons either side of it. */
+.qty-control button.qty-danger { border-color: var(--danger); color: var(--danger); }
+.qty-control button.qty-danger:hover { background: var(--danger); color: #fff; }
 
 /* Category chip filter — index.html's PWA duplicates these inline for itself; this copy is the
    one admin.html's Bar Tabs POS (category-list ordering mode) and Menu Items use. */
@@ -319,6 +324,12 @@ input, textarea, select, [contenteditable] {
    flow spacing, no positioning of its own. */
 #tabListCatBar { padding-top:2px; }
 .cat-btn.active { border-color:var(--primary); background:var(--primary); color:#fff; }
+/* The Order chip (appears once there's something in the basket — see renderListMenu/
+   renderTabListMenu) stands out in success-green rather than the neutral/primary styling every
+   other chip uses, since it's a different kind of thing to tap (review what you've got) than a
+   category filter. */
+.cat-btn.order-chip { border-color:var(--success); color:var(--success); font-weight:700; }
+.cat-btn.order-chip.active { background:var(--success); border-color:var(--success); color:#fff; }
 /* The two ordering screens' category bars (customer list mode, Bar Tabs POS list mode) wrap onto
    as many rows as needed instead of scrolling horizontally, so every category is on screen at
    once with no "All" chip needed as a fallback (see renderListMenu/renderTabListMenu, which drop

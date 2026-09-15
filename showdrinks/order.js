@@ -639,20 +639,79 @@ function renderListMenu() {
   // No "All" chip, and nothing shown until a category is tapped — every pill fits on screen at
   // once now (see #listCatBar's flex-wrap:wrap in style.css), so there's no need for an
   // "everything at once" fallback the way a horizontally-scrolling bar needed one.
-  const selected = state.selectedCategory && catOrder.includes(state.selectedCategory)
+  // An extra ORDER_CHIP pill appears once there's something in the basket, showing whatever's in
+  // it with a +/− stepper and a delete — same list, just reusing the pill-per-view pattern instead
+  // of a separate screen for "what have I actually got so far".
+  const hasOrder = basketCount() > 0;
+  const validSelections = hasOrder ? [...catOrder, ORDER_CHIP] : catOrder;
+  const selected = state.selectedCategory && validSelections.includes(state.selectedCategory)
     ? state.selectedCategory : null;
   state.selectedCategory = selected;
 
-  barEl.style.display = catOrder.length ? 'flex' : 'none';
-  barEl.innerHTML = catOrder.map(cat => `
+  barEl.style.display = (catOrder.length || hasOrder) ? 'flex' : 'none';
+  barEl.innerHTML =
+    (hasOrder ? `<button type="button" class="cat-btn order-chip ${selected === ORDER_CHIP ? 'active' : ''}"
+            onclick="selectListCat('${encodeURIComponent(ORDER_CHIP)}')">Order (${basketCount()})</button>` : '') +
+    catOrder.map(cat => `
     <button type="button" class="cat-btn ${cat === selected ? 'active' : ''}"
             onclick="selectListCat('${encodeURIComponent(cat)}')">${escHtml(cat)}</button>`).join('');
 
+  if (selected === ORDER_CHIP) {
+    el.innerHTML = basketListHtml();
+    return;
+  }
   el.innerHTML = selected
     ? `<div class="section-label">${escHtml(selected)}</div>
        <div class="menu-grid">${groups[selected].map(listMenuItemHtml).join('')}</div>`
     : '<p style="color:var(--text-muted);font-size:13px;padding:12px">Choose a category above.</p>';
 }
+
+// Sentinel selectedCategory value for the Order chip above — distinct from any real category name
+// (menu categories are free-text, but none of them can equal this).
+const ORDER_CHIP = '__order__';
+
+// The Order chip's own view: every basket line with a full +/− stepper and a delete, unlike the
+// category cards above (tap-to-add, trash-to-clear-to-zero) — this is the one place you can walk
+// a quantity down one at a time instead of clearing it outright.
+function basketListHtml() {
+  const entries = Object.entries(state.basket);
+  if (!entries.length) {
+    return '<p style="color:var(--text-muted);font-size:13px;padding:12px">Your order is empty.</p>';
+  }
+  const rows = entries.map(([key, i]) => `
+    <div class="menu-item-card has-qty">
+      <span class="mic-name">${escHtml(i.name)}</span>
+      <span class="mic-price">${fmtCurrency(i.price * i.quantity)}</span>
+      <div class="qty-control">
+        <button onclick="listDecBasketItem('${encodeURIComponent(key)}')" title="Remove one">−</button>
+        <span class="qty-num">${i.quantity}</span>
+        <button onclick="listIncBasketItem('${encodeURIComponent(key)}')" title="Add one">+</button>
+        <button class="qty-danger" onclick="removeFromBasket('${encodeURIComponent(key)}')" title="Delete">🗑</button>
+      </div>
+    </div>`).join('');
+  return `<div class="section-label">Order</div>
+    <div class="menu-grid">${rows}</div>
+    <div class="order-total-line"><span>Total</span><span>${fmtCurrency(basketTotal())}</span></div>`;
+}
+
+window.listIncBasketItem = function(encodedKey) {
+  const key = decodeURIComponent(encodedKey);
+  if (!state.basket[key]) return;
+  state.basket[key].quantity += 1;
+  renderListMenu();
+  renderOrderGrid();
+  updateBottomBar();
+};
+
+window.listDecBasketItem = function(encodedKey) {
+  const key = decodeURIComponent(encodedKey);
+  if (!state.basket[key]) return;
+  state.basket[key].quantity -= 1;
+  if (state.basket[key].quantity <= 0) delete state.basket[key];
+  renderListMenu();
+  renderOrderGrid();
+  updateBottomBar();
+};
 
 window.selectListCat = function(encodedCat) {
   state.selectedCategory = decodeURIComponent(encodedCat);

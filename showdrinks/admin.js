@@ -1878,20 +1878,85 @@ function renderTabListMenu() {
   // No "All" chip, and nothing shown until a category is tapped — every pill fits on screen at
   // once now (see #tabListCatBar's flex-wrap:wrap in style.css), so there's no need for an
   // "everything at once" fallback the way a horizontally-scrolling bar needed one.
-  const selected = _tabSelectedCategory && catOrder.includes(_tabSelectedCategory)
+  // An extra ORDER_CHIP pill appears once there's something in this member's basket, showing
+  // whatever's in it with a +/− stepper and a delete — same list, just reusing the pill-per-view
+  // pattern instead of a separate screen for "what have I actually got so far".
+  const tabBasketCount = Object.values(_tabBasket).reduce((s, i) => s + i.qty, 0);
+  const hasOrder = tabBasketCount > 0;
+  const validSelections = hasOrder ? [...catOrder, ORDER_CHIP] : catOrder;
+  const selected = _tabSelectedCategory && validSelections.includes(_tabSelectedCategory)
     ? _tabSelectedCategory : null;
   _tabSelectedCategory = selected;
 
-  barEl.style.display = catOrder.length ? 'flex' : 'none';
-  barEl.innerHTML = catOrder.map(cat => `
+  barEl.style.display = (catOrder.length || hasOrder) ? 'flex' : 'none';
+  barEl.innerHTML =
+    (hasOrder ? `<button type="button" class="cat-btn order-chip ${selected === ORDER_CHIP ? 'active' : ''}"
+            onclick="selectTabListCat('${encodeURIComponent(ORDER_CHIP)}')">Order (${tabBasketCount})</button>` : '') +
+    catOrder.map(cat => `
     <button type="button" class="cat-btn ${cat === selected ? 'active' : ''}"
             onclick="selectTabListCat('${encodeURIComponent(cat)}')">${escHtml(cat)}</button>`).join('');
 
+  if (selected === ORDER_CHIP) {
+    el.innerHTML = tabBasketListHtml();
+    return;
+  }
   el.innerHTML = selected
     ? `<div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">${escHtml(selected)}</div>
        <div class="menu-grid">${groups[selected].map(tabListItemHtml).join('')}</div>`
     : '<p style="color:var(--text-muted);font-size:13px">Choose a category above.</p>';
 }
+
+// Sentinel _tabSelectedCategory value for the Order chip above — distinct from any real category
+// name (menu categories are free-text, but none of them can equal this).
+const ORDER_CHIP = '__order__';
+
+// The Order chip's own view: every basket line with a full +/− stepper and a delete, unlike the
+// category cards above (tap-to-add, trash-to-clear-to-zero) — this is the one place you can walk
+// a quantity down one at a time instead of clearing it outright.
+function tabBasketListHtml() {
+  const entries = Object.entries(_tabBasket);
+  if (!entries.length) {
+    return '<p style="color:var(--text-muted);font-size:13px">Nothing added yet.</p>';
+  }
+  const total = entries.reduce((s, [, i]) => s + i.price * i.qty, 0);
+  const rows = entries.map(([key, i]) => `
+    <div class="menu-item-card has-qty">
+      <span class="mic-name">${escHtml(i.name)}</span>
+      <span class="mic-price">${fmtCurrency(i.price * i.qty)}</span>
+      <div class="qty-control">
+        <button onclick="tabListDecBasketItem('${encodeURIComponent(key)}')" title="Remove one">−</button>
+        <span class="qty-num">${i.qty}</span>
+        <button onclick="tabListIncBasketItem('${encodeURIComponent(key)}')" title="Add one">+</button>
+        <button class="qty-danger" onclick="tabListDeleteBasketItem('${encodeURIComponent(key)}')" title="Delete">🗑</button>
+      </div>
+    </div>`).join('');
+  return `<div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">Order</div>
+    <div class="menu-grid">${rows}</div>
+    <div class="order-total-line"><span>Total</span><span>${fmtCurrency(total)}</span></div>`;
+}
+
+window.tabListIncBasketItem = function(encodedKey) {
+  const key = decodeURIComponent(encodedKey);
+  if (!_tabBasket[key]) return;
+  _tabBasket[key].qty += 1;
+  renderTabListMenu();
+  renderTabBasket();
+};
+
+window.tabListDecBasketItem = function(encodedKey) {
+  const key = decodeURIComponent(encodedKey);
+  if (!_tabBasket[key]) return;
+  _tabBasket[key].qty -= 1;
+  if (_tabBasket[key].qty <= 0) delete _tabBasket[key];
+  renderTabListMenu();
+  renderTabBasket();
+};
+
+window.tabListDeleteBasketItem = function(encodedKey) {
+  delete _tabBasket[decodeURIComponent(encodedKey)];
+  renderTabListMenu();
+  renderTabBasket();
+};
 
 // Tap the card to add one; once it holds any, a delete button clears it back to 0 rather than
 // stepping down one at a time — there's no separate +/− pair (same pattern as the customer
