@@ -119,23 +119,48 @@ function goTo(step) {
   window.scrollTo(0, 0);
 }
 
-// backBtn's "Cancel" role (backing out of a not-yet-placed order, or discarding edits while
-// amending an existing one — both from item selection) renders as plain red words, not a boxed
-// button (see #backBtn.cancel-text-link in index.html's own <style>) — everywhere else it's the
-// normal secondary back button ("← Close"/"← Amend"/"← Back"), so this resets to that default
-// every call and only the two step-1 "Cancel" branches below opt back in.
-function setBackAsCancel(back, isCancel) {
-  back.textContent = isCancel ? 'Cancel' : back.textContent;
-  back.classList.toggle('cancel-text-link', isCancel);
-  back.classList.toggle('btn', !isCancel);
-  back.classList.toggle('btn-secondary', !isCancel);
+// A "Cancel" role — discarding a not-yet-placed order entirely (Order Summary's own Cancel,
+// Review's own Cancel) or the edits so far while amending an existing one (item selection) —
+// renders as plain red words wherever it appears, not a boxed button (see .cancel-text-link in
+// index.html's own <style>), on whichever of backBtn/nextBtn is playing that role at the time.
+// Everywhere else those two are the normal buttons they usually are, so this resets to that
+// default on both every call and only the specific branches below opt one back in.
+function setAsCancelLink(el, isCancel) {
+  el.textContent = isCancel ? 'Cancel' : el.textContent;
+  el.classList.toggle('cancel-text-link', isCancel);
+  el.classList.toggle('btn', !isCancel);
+  el.classList.toggle(el === document.getElementById('nextBtn') ? 'btn-primary' : 'btn-secondary', !isCancel);
+}
+
+// Shared by both Cancel buttons that discard a not-yet-placed order outright (item selection's
+// own, and Order Summary's) — a confirm() first either way, so a stray tap can't wipe out a
+// basket someone's actually building. Amend, by contrast, only steps back to keep editing, so it
+// doesn't go through here — see cancelAmend below for its own, separately-worded safeguard.
+function cancelFreshOrder() {
+  if (!confirm('Cancel this order? Everything in your basket will be lost.')) return;
+  state.basket = {};
+  state.selectedCategory = null;
+  goTo(0);
+  renderHomeScreen();
+}
+
+// Discarding in-progress edits to an order that already exists — same safeguard, different
+// wording, since it's the EDITS being lost here, not the order itself (that's still sitting in
+// the system exactly as it was before this edit session started).
+function cancelAmend() {
+  if (!confirm('Discard your changes to this order?')) return;
+  state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
+  state.basket = {};
+  goTo(0);
+  renderHomeScreen();
 }
 
 function updateBottomBar() {
   const bar  = document.getElementById('bottomBar');
   const next = document.getElementById('nextBtn');
   const back = document.getElementById('backBtn');
-  setBackAsCancel(back, false);
+  setAsCancelLink(back, false);
+  setAsCancelLink(next, false);
   if (state.step === 0 || state.step === 3) { bar.style.display = 'none'; return; }
   if (state.step === 2) {
     bar.style.display = 'flex';
@@ -146,7 +171,11 @@ function updateBottomBar() {
       next.disabled = false;
     } else {
       back.textContent = '← Amend';
-      next.style.display = 'none';
+      // Order Summary only ever has items in the basket already (you can't reach it otherwise),
+      // but this still guards against showing "Cancel" over an empty order on the off chance.
+      const hasGoods = basketCount() > 0;
+      next.style.display = hasGoods ? '' : 'none';
+      if (hasGoods) setAsCancelLink(next, true);
     }
     return;
   }
@@ -160,13 +189,13 @@ function updateBottomBar() {
     if (basketCount() === 0) { bar.style.display = 'none'; return; }
     bar.style.display = 'flex';
     next.style.display = 'none';
-    setBackAsCancel(back, true);
+    setAsCancelLink(back, true);
     return;
   }
   next.style.display = '';
   bar.style.display = 'flex';
   if (state.step === 1) {
-    setBackAsCancel(back, true);
+    setAsCancelLink(back, true);
     const isEditable = state.editingOrderStatus === 'pending';
     next.textContent = isEditable ? 'Save Changes' : 'View Status →';
     next.disabled = false;
@@ -182,13 +211,15 @@ document.getElementById('backBtn').addEventListener('click', () => {
     state.posGridStack.pop(); renderPosGrid(); return;
   }
   if (state.step === 2 && state.editingOrderId) {
+    // "← Close" — just leaves the view; the order itself is untouched in Firestore either way,
+    // so unlike the two Cancel roles below, there's nothing here worth confirming first.
     state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
     state.basket = {};
     goTo(0); renderHomeScreen();
   } else if (state.step === 1 && state.editingOrderId) {
-    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
-    state.basket = {};
-    goTo(0); renderHomeScreen();
+    cancelAmend();
+  } else if (state.step === 1 && !state.editingOrderId) {
+    cancelFreshOrder();
   } else if (state.step > 0) {
     goTo(state.step - 1);
   }
@@ -197,6 +228,11 @@ document.getElementById('backBtn').addEventListener('click', () => {
 document.getElementById('nextBtn').addEventListener('click', async () => {
   if (state.step === 2 && state.editingOrderId) {
     goTo(3); subscribeToOrderStatus(state.editingOrderId); return;
+  }
+  if (state.step === 2 && !state.editingOrderId) {
+    // Order Summary's own Cancel (see updateBottomBar) — discards the whole not-yet-placed order,
+    // unlike "← Amend" which just steps back to keep editing.
+    cancelFreshOrder(); return;
   }
   if (state.step === 1 && state.editingOrderId) {
     // Reaching step 1 (POS grid / category list) with a new, non-editing order never shows this

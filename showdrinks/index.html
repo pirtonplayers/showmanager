@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowDrinks</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css?v=1.0.178">
+  <link rel="stylesheet" href="style.css?v=1.0.179">
   <style>
     .pwa-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--primary); }
     .pwa-content { flex: 1; background: var(--bg); border-radius: 24px 24px 0 0; margin-top: 8px; padding: 24px 20px 40px; overflow-y: auto; }
@@ -65,12 +65,13 @@
 
     .bottom-bar { padding: 16px 20px; background: var(--bg); border-top: 1px solid var(--border); display: flex; gap: 10px; position: sticky; bottom: 0; }
     .bottom-bar .btn { flex: 1; height: 52px; font-size: 16px; border-radius: 12px; }
-    /* backBtn's "Cancel" role (see setBackAsCancel in order.js) — plain clickable words, not a
-       boxed button, so it doesn't compete visually with next/nextBtn (Save Changes etc.) when
-       both show together. margin:0 auto self-centers it on the rare occasion it's the bar's only
-       visible content (a fresh, still-empty order in list mode — the bar hides entirely then, see
-       updateBottomBar(), but this still centers it correctly for the instant before that fires). */
-    #backBtn.cancel-text-link { flex: 0 0 auto; background: none; border: none; padding: 8px; height: auto; border-radius: 0; font-size: 14px; font-weight: 600; color: var(--danger); margin: 0 auto; }
+    /* Either bottomBar button's "Cancel" role (see setAsCancelLink in order.js) — plain clickable
+       words, not a boxed button, so it doesn't compete visually with whichever normal button
+       shows alongside it (← Amend, Save Changes, etc). margin:0 auto self-centers it on the rare
+       occasion it's the bar's only visible content (a fresh, still-empty order in list mode — the
+       bar hides entirely then, see updateBottomBar(), but this still centers it correctly for the
+       instant before that fires). */
+    .cancel-text-link { flex: 0 0 auto; background: none; border: none; padding: 8px; height: auto; border-radius: 0; font-size: 14px; font-weight: 600; color: var(--danger); margin: 0 auto; }
 
     #checkOrderInput { display: flex; gap: 8px; margin-top: 16px; }
 
@@ -351,10 +352,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.178"></script>
-<script src="../shared/firebase-config.js?v=1.0.178"></script>
-<script src="../shared/a2hs.js?v=1.0.178"></script>
-<script src="order.js?v=1.0.178"></script>
+<script src="../shared/version.js?v=1.0.179"></script>
+<script src="../shared/firebase-config.js?v=1.0.179"></script>
+<script src="../shared/a2hs.js?v=1.0.179"></script>
+<script src="order.js?v=1.0.179"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
