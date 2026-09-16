@@ -85,6 +85,13 @@ function orderStage(o) {
 const ORDER_STAGE_LABEL = { unpaid: 'Unpaid', paid: 'Paid', ready: 'Ready', collected: 'Collected' };
 const ORDER_STAGE_BADGE = { unpaid: 'badge-danger', paid: 'badge-warning', ready: 'badge-success', collected: 'badge-primary' };
 
+// Shared by renderReview() (shows the payment section/Cancel Order option) and updateBottomBar()
+// (swaps "Order Status →" for a guaranteed-clickable "Cancel Order" button there instead — see
+// its own comment for why the in-content version of this button doesn't work reliably).
+function isViewingUnpaidOrder() {
+  return !!state.editingOrderId && state.editingOrderPaymentStatus !== 'paid' && !state.editingOrderCancelled;
+}
+
 function basketTotal() {
   return Object.values(state.basket).reduce((s, i) => s + i.price * i.quantity, 0);
 }
@@ -116,17 +123,36 @@ function updateBottomBar() {
   const bar  = document.getElementById('bottomBar');
   const next = document.getElementById('nextBtn');
   const back = document.getElementById('backBtn');
+  // Only ever relevant on step 2 — hidden by default here so every other branch below doesn't
+  // need its own explicit reset (none of them are reachable straight from a step-2 view where
+  // this was showing, but keeping the default here removes any doubt).
+  document.getElementById('cancelOrderBtn').style.display = 'none';
   if (state.step === 0 || state.step === 3) { bar.style.display = 'none'; return; }
   if (state.step === 2) {
     bar.style.display = 'flex';
+    const cancelBtn = document.getElementById('cancelOrderBtn');
     if (state.editingOrderId) {
       back.textContent = '← Close';
-      next.style.display = '';
-      next.textContent = 'Order Status →';
-      next.disabled = false;
+      // An unpaid order swaps "Order Status →" for "Cancel Order" here instead of showing both —
+      // this bar is the one place on the page guaranteed clickable (unlike a link further down
+      // the payment section: on a screen tall enough to need scrolling, #bottomBar's own
+      // position:sticky permanently overlaps whatever's-visually-behind-it at the viewport's
+      // bottom edge the whole time it's shown, not just once you scroll to the very end — so
+      // anything living in the scrolling content below it can end up genuinely unclickable rather
+      // than just visually covered).
+      if (isViewingUnpaidOrder()) {
+        next.style.display = 'none';
+        cancelBtn.style.display = '';
+      } else {
+        next.style.display = '';
+        next.textContent = 'Order Status →';
+        next.disabled = false;
+        cancelBtn.style.display = 'none';
+      }
     } else {
       back.textContent = '← Amend';
       next.style.display = 'none';
+      cancelBtn.style.display = 'none';
     }
     return;
   }
@@ -823,22 +849,25 @@ function renderReview() {
   // showing whatever methods the show currently allows (same state.settings.paymentMode a fresh
   // order uses) — not just whichever method was originally picked. A paid/ready/collected/
   // already-cancelled order has nothing left to pay (or cancel), so stays hidden same as before.
-  const viewingUnpaid = viewing && state.editingOrderPaymentStatus !== 'paid' && !state.editingOrderCancelled;
+  const viewingUnpaid = isViewingUnpaidOrder();
   document.getElementById('paymentSection').style.display = (!viewing || viewingUnpaid) ? '' : 'none';
   const statusEl = document.getElementById('reviewStatus');
   if (viewing) {
     const s = state.editingOrderStatus;
     const num = state.editingOrderNumber ? `Order #${state.editingOrderNumber} · ` : '';
     const label = state.editingOrderCancelled ? '❌ Cancelled'
-      : s === 'ready' ? '✅ Ready to collect' : s === 'collected' ? '🎉 Collected' : 'Being prepared';
+      : s === 'ready' ? '✅ Ready to collect'
+      : s === 'collected' ? '🎉 Collected'
+      : state.editingOrderPaymentStatus !== 'paid' ? '⏳ Awaiting payment'
+      : 'Being prepared';
     statusEl.innerHTML = `<div class="review-status-row">${num}${label}</div>`;
     statusEl.style.display = '';
   } else {
     statusEl.style.display = 'none';
   }
-  // Only for a viewed order still worth cancelling — a fresh order isn't cancellable before it
-  // even exists (the bottom bar's own "← Cancel"/"← Amend" covers backing out of that instead).
-  document.getElementById('cancelOrderBtn').style.display = viewingUnpaid ? '' : 'none';
+  // cancelOrderBtn itself lives in #bottomBar now, not here — see updateBottomBar() (called by
+  // goTo(), which every renderReview() call site already pairs with) for why and where it's
+  // actually shown/hidden.
   if (!viewing || viewingUnpaid) {
     const mode = state.settings?.paymentMode || 'bar';
     const showBar   = mode === 'bar'   || mode === 'both';
