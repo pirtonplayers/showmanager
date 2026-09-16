@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.174"></script>
+  <script src="../shared/embed.js?v=1.0.175"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.0.174">
+  <link rel="stylesheet" href="style.css?v=1.0.175">
 </head>
 <body>
 
@@ -182,6 +182,14 @@
           <div class="form-group">
             <label for="showOrderingMode">Customer ordering screen</label>
             <select id="showOrderingMode" class="form-control">
+              <option value="">Use system default</option>
+              <option value="pos">POS Grid (buttons laid out in POS Layout)</option>
+              <option value="list">Category List (every item, grouped by category, with +/− quantity)</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label for="showTabOrderingMode">Bar Tabs POS screen</label>
+            <select id="showTabOrderingMode" class="form-control">
               <option value="">Use system default</option>
               <option value="pos">POS Grid (buttons laid out in POS Layout)</option>
               <option value="list">Category List (every item, grouped by category, with +/− quantity)</option>
@@ -450,9 +458,16 @@
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><h2>Ordering Method</h2></div>
       <div class="card-body">
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group">
           <label for="orderingMode">Customer ordering screen</label>
           <select id="orderingMode" class="form-control">
+            <option value="pos">POS Grid (buttons laid out in POS Layout)</option>
+            <option value="list">Category List (every item, grouped by category, with +/− quantity)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label for="tabOrderingMode">Bar Tabs POS screen</label>
+          <select id="tabOrderingMode" class="form-control">
             <option value="pos">POS Grid (buttons laid out in POS Layout)</option>
             <option value="list">Category List (every item, grouped by category, with +/− quantity)</option>
           </select>
@@ -729,11 +744,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.174"></script>
-<script src="../shared/firebase-config.js?v=1.0.174"></script>
-<script src="../shared/auth.js?v=1.0.174"></script>
-<script src="../shared/suite-nav.js?v=1.0.174"></script>
-<script src="admin.js?v=1.0.174"></script>
+<script src="../shared/version.js?v=1.0.175"></script>
+<script src="../shared/firebase-config.js?v=1.0.175"></script>
+<script src="../shared/auth.js?v=1.0.175"></script>
+<script src="../shared/suite-nav.js?v=1.0.175"></script>
+<script src="admin.js?v=1.0.175"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

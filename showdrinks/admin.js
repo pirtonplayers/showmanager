@@ -233,6 +233,7 @@ function renderShowEditor() {
   document.getElementById('showSumupMerchantCode').value = show.sumupMerchantCode || '';
   document.getElementById('showSumupApiKey').value        = show.sumupApiKey || '';
   document.getElementById('showOrderingMode').value       = show.orderingMode || '';
+  document.getElementById('showTabOrderingMode').value    = show.tabOrderingMode || '';
 
   const sessions = show.sessions || {};
   ['before','interval','after'].forEach(id => {
@@ -258,8 +259,9 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
   const sumupMerchantCode = document.getElementById('showSumupMerchantCode').value.trim();
   const sumupApiKey       = document.getElementById('showSumupApiKey').value.trim();
   const orderingMode      = document.getElementById('showOrderingMode').value;
+  const tabOrderingMode   = document.getElementById('showTabOrderingMode').value;
   const defaultLocationId = document.getElementById('showDefaultLocation').value;
-  const fields = { name, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode, defaultLocationId };
+  const fields = { name, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode, tabOrderingMode, defaultLocationId };
 
   try {
     if (_creatingNewShow) {
@@ -919,6 +921,7 @@ async function loadSettings() {
     document.getElementById('sumupApiKey').value = d.sumupApiKey || '';
     document.getElementById('paymentMode').value = d.paymentMode || 'bar';
     document.getElementById('orderingMode').value = d.orderingMode || 'pos';
+    document.getElementById('tabOrderingMode').value = d.tabOrderingMode || 'pos';
     document.getElementById('emailTemplateSubject').value = d.emailTemplateSubject || DEFAULT_EMAIL_TEMPLATE_SUBJECT;
     document.getElementById('emailTemplateBody').value = d.emailTemplateBody || DEFAULT_EMAIL_TEMPLATE_BODY;
   } catch(e) {
@@ -932,6 +935,7 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
     sumupApiKey: document.getElementById('sumupApiKey').value.trim(),
     paymentMode: document.getElementById('paymentMode').value,
     orderingMode: document.getElementById('orderingMode').value,
+    tabOrderingMode: document.getElementById('tabOrderingMode').value,
     emailTemplateSubject: document.getElementById('emailTemplateSubject').value.trim(),
     emailTemplateBody: document.getElementById('emailTemplateBody').value,
   };
@@ -1424,12 +1428,12 @@ let _tabBasket           = {};
 let _tabSelectedKey      = null;
 let _tabSelectedCategory = null;
 
-// Same POS Grid / Category List choice as the customer ordering screen (Settings & QR →
-// Ordering Method, optionally overridden per-show) — Show Tabs follows whichever the current
-// show is actually using, rather than keeping its own separate setting.
+// Its own POS Grid / Category List choice — Settings & QR → Ordering Method's "Bar Tabs POS
+// screen" (optionally overridden per-show), independent of the customer ordering screen's own
+// mode (same card/section, its own field: tabOrderingMode vs orderingMode).
 function isPosMode() {
   const current = _shows.find(s => s.isCurrent);
-  const mode = current?.orderingMode || _systemSettings.orderingMode || 'pos';
+  const mode = current?.tabOrderingMode || _systemSettings.tabOrderingMode || 'pos';
   return mode !== 'list';
 }
 
