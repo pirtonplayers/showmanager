@@ -24,6 +24,7 @@ const SMTP_SECRETS = [SMTP_USER, SMTP_PASS, SMTP_FROM];
 
 const EXPENSES_ADMIN_URL = 'https://antonjung.github.io/showmanager/expenses/admin.html';
 const PORTAL_URL = 'https://antonjung.github.io/showmanager/index.html';
+const SHOWDRINKS_ORDER_URL = 'https://antonjung.github.io/showmanager/showdrinks/index.html';
 
 function transporter() {
   return nodemailer.createTransport({
@@ -479,4 +480,125 @@ exports.sendMemberEmail = onCall({ region: 'europe-west1', secrets: SMTP_SECRETS
   await transporter().sendMail({ from: fromAddress(settings), to, subject, text: body });
 
   return { ok: true };
+});
+
+// Show-override-then-system-default resolution for SumUp's merchant code/API key — same rule the
+// Show Editor's own "Payment Settings (this show)" card documents ("leave blank to fall back to
+// the system defaults"), and the same "currently active show" (isCurrent==true) every other
+// payment-settings read in this app keys off, not the order's own showDate.
+async function sumupCredentials() {
+  const [showSnap, settingsDoc] = await Promise.all([
+    db.collection('showdrinks_shows').where('isCurrent', '==', true).limit(1).get(),
+    db.collection('showdrinks_config').doc('settings').get(),
+  ]);
+  const currentShow = showSnap.empty ? {} : showSnap.docs[0].data();
+  const settings = settingsDoc.exists ? settingsDoc.data() : {};
+  return {
+    merchantCode: currentShow.sumupMerchantCode || settings.sumupMerchantCode,
+    apiKey: currentShow.sumupApiKey || settings.sumupApiKey,
+  };
+}
+
+// Creates a real SumUp Hosted Checkout (https://developer.sumup.com/online-payments/checkouts/
+// hosted-checkout) and hands back its hosted_checkout_url for the client to redirect to. This has
+// to happen server-side — it's the only way to use the merchant's SumUp API key without ever
+// putting it in front of the (unauthenticated, public) customer PWA. No caller-auth check here,
+// matching showdrinks_orders' own firestore.rules (create/update: if true) — the whole ordering
+// flow already trusts the client for what's IN the order; this only adds the one thing that
+// can't be trusted client-side, the API key itself.
+exports.createSumupCheckout = onCall({ region: 'europe-west1' }, async (request) => {
+  const orderId = request.data?.orderId;
+  if (!orderId || typeof orderId !== 'string') {
+    throw new HttpsError('invalid-argument', 'orderId is required.');
+  }
+
+  const orderRef = db.collection('showdrinks_orders').doc(orderId);
+  const orderDoc = await orderRef.get();
+  if (!orderDoc.exists) throw new HttpsError('not-found', 'Order not found.');
+  const order = orderDoc.data();
+  if (order.paymentMode !== 'sumup') {
+    throw new HttpsError('failed-precondition', 'This order is not set up for online payment.');
+  }
+  if (order.paymentStatus === 'paid') {
+    throw new HttpsError('failed-precondition', 'This order has already been paid.');
+  }
+
+  const { merchantCode, apiKey } = await sumupCredentials();
+  if (!merchantCode || !apiKey) {
+    throw new HttpsError('failed-precondition', 'SumUp is not configured for this show.');
+  }
+
+  // A re-tap of "Pay Online" before the first redirect actually happens (slow connection, etc.)
+  // would otherwise hit SumUp's 409 (checkout_reference, which we set to orderId, must be unique
+  // per merchant) — re-use the checkout already created for this order instead of erroring.
+  if (order.sumupCheckoutId) {
+    const existing = await fetch(`https://api.sumup.com/v0.1/checkouts/${order.sumupCheckoutId}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    }).then(r => r.ok ? r.json() : null).catch(() => null);
+    if (existing?.hosted_checkout_url && existing.status === 'PENDING') {
+      return { hostedCheckoutUrl: existing.hosted_checkout_url };
+    }
+  }
+
+  const redirectUrl = `${SHOWDRINKS_ORDER_URL}?sumup=return&ref=${encodeURIComponent(orderId)}`;
+  const res = await fetch('https://api.sumup.com/v0.1/checkouts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      checkout_reference: orderId,
+      amount: Number(Number(order.totalAmount || 0).toFixed(2)),
+      currency: 'GBP',
+      merchant_code: merchantCode,
+      description: `ShowDrinks order${order.orderNumber ? ' #' + order.orderNumber : ''}`,
+      redirect_url: redirectUrl,
+      hosted_checkout: { enabled: true },
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.hosted_checkout_url) {
+    console.error('SumUp checkout creation failed', res.status, data);
+    throw new HttpsError('internal', data.message || 'Could not start SumUp checkout.');
+  }
+
+  await orderRef.update({ sumupCheckoutId: data.id, updatedAt: FieldValue.serverTimestamp() });
+
+  return { hostedCheckoutUrl: data.hosted_checkout_url };
+});
+
+// Called when the customer's browser returns from SumUp's hosted checkout page (order.js's
+// init(), on seeing ?sumup=return&ref=...) — that query param only ever means "they're back",
+// never "they paid" (nothing stops a customer hand-editing the URL to claim success), so this
+// always re-checks the REAL status with SumUp's own API before ever marking an order paid.
+exports.verifySumupPayment = onCall({ region: 'europe-west1' }, async (request) => {
+  const orderId = request.data?.orderId;
+  if (!orderId || typeof orderId !== 'string') {
+    throw new HttpsError('invalid-argument', 'orderId is required.');
+  }
+
+  const orderRef = db.collection('showdrinks_orders').doc(orderId);
+  const orderDoc = await orderRef.get();
+  if (!orderDoc.exists) throw new HttpsError('not-found', 'Order not found.');
+  const order = orderDoc.data();
+  if (order.paymentStatus === 'paid') return { paid: true };
+  if (!order.sumupCheckoutId) {
+    throw new HttpsError('failed-precondition', 'No SumUp checkout was started for this order.');
+  }
+
+  const { apiKey } = await sumupCredentials();
+  if (!apiKey) throw new HttpsError('failed-precondition', 'SumUp is not configured.');
+
+  const res = await fetch(`https://api.sumup.com/v0.1/checkouts/${order.sumupCheckoutId}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error('SumUp checkout status check failed', res.status, data);
+    throw new HttpsError('internal', 'Could not confirm payment status with SumUp.');
+  }
+
+  if (data.status === 'PAID') {
+    await orderRef.update({ paymentStatus: 'paid', updatedAt: FieldValue.serverTimestamp() });
+    return { paid: true };
+  }
+  return { paid: false, status: data.status };
 });

@@ -1,5 +1,11 @@
 'use strict';
 
+// SumUp checkout creation/verification both have to happen server-side (the merchant's API key
+// can never reach this unauthenticated public page) — see functions/index.js's
+// createSumupCheckout/verifySumupPayment.
+const createSumupCheckoutFn = firebase.app().functions('europe-west1').httpsCallable('createSumupCheckout');
+const verifySumupPaymentFn  = firebase.app().functions('europe-west1').httpsCallable('verifySumupPayment');
+
 // ── localStorage ───────────────────────────────────────────────────────────
 
 const LS_NAME           = 'showdrinks_name';
@@ -66,13 +72,14 @@ function escHtml(s) {
 }
 
 // One overall status made of two independent fields: an order can't be Ready/Collected until
-// it's paid, so "Unpaid" only applies to a pay-at-bar order that hasn't been marked paid yet
-// (see admin.js's Mark Paid) — a SumUp order is already "paid" the moment its redirect-back
-// handler runs, so it never shows Unpaid at all.
+// it's paid. A pay-at-bar order stays "Unpaid" until admin.js's Mark Paid; a SumUp order stays
+// "Unpaid" until verifySumupPaymentFn (called on the redirect-back from checkout) confirms the
+// REAL status with SumUp and marks it — never assumed paid just because the customer's browser
+// came back.
 function orderStage(o) {
   if (o.prepStatus === 'collected') return 'collected';
   if (o.prepStatus === 'ready') return 'ready';
-  if (o.paymentMode === 'bar' && o.paymentStatus !== 'paid') return 'unpaid';
+  if (o.paymentStatus !== 'paid') return 'unpaid';
   return 'paid';
 }
 const ORDER_STAGE_LABEL = { unpaid: 'Unpaid', paid: 'Paid', ready: 'Ready', collected: 'Collected' };
@@ -806,8 +813,13 @@ function renderReview() {
   }
   if (!viewing) {
     const mode = state.settings?.paymentMode || 'bar';
-    document.getElementById('payAtBarSection').style.display  = mode === 'bar'   ? '' : 'none';
-    document.getElementById('sumupSection').style.display     = mode === 'sumup' ? '' : 'none';
+    const showBar   = mode === 'bar'   || mode === 'both';
+    const showSumup = mode === 'sumup' || mode === 'both';
+    document.getElementById('payAtBarSection').style.display   = showBar ? '' : 'none';
+    document.getElementById('sumupSection').style.display      = showSumup ? '' : 'none';
+    // Only makes sense as a choice between two visible options, not layout filler above a lone
+    // section — "both" is the only mode where it ever shows.
+    document.getElementById('paymentOrDivider').style.display  = mode === 'both' ? '' : 'none';
 
     const barBtn = document.getElementById('payAtBarBtn');
     barBtn.disabled = false;
@@ -879,10 +891,22 @@ async function placeOrder(paymentMode) {
   }
 }
 
-function initiateSumupPayment() {
-  const code = state.settings?.sumupMerchantCode;
-  if (!code) { toast('SumUp not configured', 'error'); return; }
-  window.location.href = `https://pay.sumup.com/b2c/QRCODE?affiliate-key=${encodeURIComponent(code)}&amount=${basketTotal().toFixed(2)}&currency=GBP&ref=${encodeURIComponent(state.orderId)}`;
+// Asks the server to create a real SumUp Hosted Checkout for the order just placed, then sends
+// the browser there. Merchant code/API key resolution (show override → system default) all
+// happens inside createSumupCheckoutFn — this page never sees either.
+async function initiateSumupPayment() {
+  const btn = document.getElementById('payOnlineBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Redirecting to SumUp…'; }
+  try {
+    const result = await createSumupCheckoutFn({ orderId: state.orderId });
+    const url = result.data?.hostedCheckoutUrl;
+    if (!url) throw new Error('No checkout link returned');
+    window.location.href = url;
+  } catch(e) {
+    console.error(e);
+    toast(e.message || 'Could not start SumUp checkout', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '💳 Pay Online with SumUp'; }
+  }
 }
 
 // ── Screen 3: Status ───────────────────────────────────────────────────────
@@ -908,9 +932,11 @@ function showOrderStatus(order) {
   const numEl = document.getElementById('confOrderNum');
   if (numEl) numEl.textContent = order.orderNumber ? '#' + order.orderNumber : '';
 
-  // Persistent reminder for a pay-at-bar order until it's actually marked paid (see admin.js's
-  // Mark Paid) — separate from the ready/collected messaging above since payment and prep are
-  // independent (an order can be made and even ready before it's paid).
+  // Persistent reminder for any unpaid order, not just pay-at-bar ones — a SumUp order can end up
+  // here too if the customer backed out of checkout or it failed/expired, and "go pay at the bar"
+  // is the honest fallback for that too (staff can always take payment there regardless of which
+  // method was originally chosen) — separate from the ready/collected messaging above since
+  // payment and prep are independent (an order can be made and even ready before it's paid).
   document.getElementById('payAtBarBanner').style.display = stage === 'unpaid' ? '' : 'none';
 
   const locBanner = document.getElementById('locationBanner');
@@ -1031,14 +1057,14 @@ async function init() {
     state.showConfig = currentShow || {};
     state.sessions   = currentShow?.sessions || {};
     state.menuItems  = menuSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    // Per-show payment settings override the system defaults when set
+    // Per-show payment settings override the system defaults when set. Deliberately picking just
+    // these two fields rather than spreading the whole settings doc — sumupMerchantCode/
+    // sumupApiKey live in the same doc but must never reach this unauthenticated public page (the
+    // Cloud Functions in createSumupCheckoutFn/verifySumupPaymentFn resolve those server-side).
     const systemSettings = settingsDoc.exists ? settingsDoc.data() : {};
     state.settings = {
-      ...systemSettings,
-      ...(currentShow?.paymentMode ? { paymentMode: currentShow.paymentMode } : {}),
-      ...(currentShow?.sumupMerchantCode ? { sumupMerchantCode: currentShow.sumupMerchantCode } : {}),
-      ...(currentShow?.sumupApiKey ? { sumupApiKey: currentShow.sumupApiKey } : {}),
-      ...(currentShow?.orderingMode ? { orderingMode: currentShow.orderingMode } : {}),
+      paymentMode: currentShow?.paymentMode || systemSettings.paymentMode,
+      orderingMode: currentShow?.orderingMode || systemSettings.orderingMode,
     };
     state.posGrids   = {};
     posSnap.docs.forEach(d => { state.posGrids[d.id] = { id: d.id, ...d.data() }; });
@@ -1049,15 +1075,18 @@ async function init() {
     document.getElementById('heroShowName').textContent = showName;
     document.title = showName;
 
-    // Handle SumUp redirect-back
+    // Handle SumUp redirect-back — the query param only means "they're back from SumUp's
+    // checkout page", never "they paid" (anyone could hand-edit a URL to claim that), so this
+    // always asks the server to check the REAL status with SumUp before showing an order as paid.
+    // Either way (paid or still pending — a customer who backed out without paying, say) the
+    // order status screen is the right place to land: it'll just show whatever's actually true.
     const params = new URLSearchParams(window.location.search);
-    if (params.get('sumup') === 'success' && params.get('ref')) {
+    if (params.get('sumup') === 'return' && params.get('ref')) {
       const orderId = params.get('ref');
       try {
-        await db.collection('showdrinks_orders').doc(orderId).update({
-          paymentStatus: 'paid',
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        });
+        await verifySumupPaymentFn({ orderId });
+      } catch(e) { console.error(e); }
+      try {
         const doc = await db.collection('showdrinks_orders').doc(orderId).get();
         if (doc.exists) {
           showOrderStatus({ id: doc.id, ...doc.data() });
