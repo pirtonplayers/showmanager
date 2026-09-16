@@ -891,23 +891,35 @@ async function placeOrder(paymentMode) {
   }
 }
 
-// Asks the server to create a real SumUp Hosted Checkout for the order just placed, then sends
-// the browser there. Merchant code/API key resolution (show override → system default) all
-// happens inside createSumupCheckoutFn — this page never sees either.
-async function initiateSumupPayment() {
-  const btn = document.getElementById('payOnlineBtn');
+// Asks the server to create a real SumUp Hosted Checkout, then sends the browser there. Merchant
+// code/API key resolution (show override → system default) all happens inside
+// createSumupCheckoutFn — this page never sees either. Two callers: straight after placing a new
+// order (orderId defaults to state.orderId, btnId to the Review screen's own button), and a
+// retry from the Status screen for an order that came back unpaid — see retrySumupPayment below,
+// which passes both explicitly since state.orderId isn't the right one there.
+async function initiateSumupPayment(orderId = state.orderId, btnId = 'payOnlineBtn') {
+  const btn = document.getElementById(btnId);
+  const label = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Redirecting to SumUp…'; }
   try {
-    const result = await createSumupCheckoutFn({ orderId: state.orderId });
+    const result = await createSumupCheckoutFn({ orderId });
     const url = result.data?.hostedCheckoutUrl;
     if (!url) throw new Error('No checkout link returned');
     window.location.href = url;
   } catch(e) {
     console.error(e);
     toast(e.message || 'Could not start SumUp checkout', 'error');
-    if (btn) { btn.disabled = false; btn.textContent = '💳 Pay Online with SumUp'; }
+    if (btn) { btn.disabled = false; btn.textContent = label; }
   }
 }
+
+// The Status screen's "Try Paying Online Again" button (see showOrderStatus) — reachable after
+// backing out of/failing a SumUp checkout, so paying still isn't a dead end. Pay-at-bar needs no
+// equivalent button: staff take payment there directly and mark it paid from the admin side, no
+// action for the customer to take on this device.
+window.retrySumupPayment = function(orderId) {
+  initiateSumupPayment(orderId, 'retrySumupBtn');
+};
 
 // ── Screen 3: Status ───────────────────────────────────────────────────────
 
@@ -938,6 +950,16 @@ function showOrderStatus(order) {
   // method was originally chosen) — separate from the ready/collected messaging above since
   // payment and prep are independent (an order can be made and even ready before it's paid).
   document.getElementById('payAtBarBanner').style.display = stage === 'unpaid' ? '' : 'none';
+
+  // A SumUp order that comes back unpaid (backed out, failed, or the 30-minute checkout session
+  // just expired) isn't a dead end — retrySumupPayment (above) creates a fresh checkout for the
+  // same order. Pay-at-bar orders get no such button: there's nothing online to retry.
+  const retryBtn = document.getElementById('retrySumupBtn');
+  if (retryBtn) {
+    const canRetry = stage === 'unpaid' && order.paymentMode === 'sumup';
+    retryBtn.style.display = canRetry ? '' : 'none';
+    if (canRetry) retryBtn.onclick = () => retrySumupPayment(order.id);
+  }
 
   const locBanner = document.getElementById('locationBanner');
   if (isReady && order.locationName) {

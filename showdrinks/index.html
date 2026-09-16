@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowDrinks</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css?v=1.0.169">
+  <link rel="stylesheet" href="style.css?v=1.0.170">
   <style>
     .pwa-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--primary); }
     .pwa-content { flex: 1; background: var(--bg); border-radius: 24px 24px 0 0; margin-top: 8px; padding: 24px 20px 40px; overflow-y: auto; }
@@ -290,6 +290,11 @@
         <div class="status-sub" id="statusSub">We're getting your drinks ready.</div>
 
         <div class="pay-at-bar-banner" id="payAtBarBanner" style="display:none">💵 Please pay at the bar</div>
+        <!-- Only for an unpaid order whose paymentMode is 'sumup' — see showOrderStatus in
+             order.js, which also wires up its onclick per-order (retrySumupPayment). -->
+        <button class="btn btn-primary btn-full" style="display:none;height:48px;border-radius:12px;margin-bottom:16px;background:#00b4d8" id="retrySumupBtn">
+          💳 Try Paying Online Again
+        </button>
 
         <div class="location-banner" id="locationBanner" style="display:none">
           <span class="loc-label">Collect from</span>
@@ -323,10 +328,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.169"></script>
-<script src="../shared/firebase-config.js?v=1.0.169"></script>
-<script src="../shared/a2hs.js?v=1.0.169"></script>
-<script src="order.js?v=1.0.169"></script>
+<script src="../shared/version.js?v=1.0.170"></script>
+<script src="../shared/firebase-config.js?v=1.0.170"></script>
+<script src="../shared/a2hs.js?v=1.0.170"></script>
+<script src="order.js?v=1.0.170"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
