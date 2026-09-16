@@ -37,7 +37,7 @@ const state = {
   basket: {},          // name → { name, price, quantity }
   selectedCategory: null,
   orderId: null, orderNumber: null,
-  editingOrderId: null, editingOrderStatus: null, editingOrderNumber: null,
+  editingOrderId: null, editingOrderStatus: null, editingOrderNumber: null, editingOrderPaymentStatus: null,
   currentStatusOrderId: null,
   showConfig: null, sessions: null, menuItems: [], settings: null,
   statusUnsubscribe: null,
@@ -159,11 +159,11 @@ document.getElementById('backBtn').addEventListener('click', () => {
     state.posGridStack.pop(); renderPosGrid(); return;
   }
   if (state.step === 2 && state.editingOrderId) {
-    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null;
+    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null;
     state.basket = {};
     goTo(0); renderHomeScreen();
   } else if (state.step === 1 && state.editingOrderId) {
-    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null;
+    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null;
     state.basket = {};
     goTo(0); renderHomeScreen();
   } else if (state.step > 0) {
@@ -366,7 +366,7 @@ window.changeName = function() {
 
 window.startSessionOrder = function(id, name) {
   state.showDate = today(); state.sessionId = id; state.sessionName = name; state.basket = {};
-  state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null;
+  state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null;
   state.selectedCategory = null;
   goTo(1); renderMenu();
 };
@@ -378,9 +378,10 @@ window.viewOrder = async function(orderId) {
     const order = { id: doc.id, ...doc.data() };
     state.currentStatusOrderId = orderId;
     // Load order into the edit/view screen (screen 2)
-    state.editingOrderId     = orderId;
-    state.editingOrderStatus = order.prepStatus;
-    state.editingOrderNumber = order.orderNumber || null;
+    state.editingOrderId            = orderId;
+    state.editingOrderStatus        = order.prepStatus;
+    state.editingOrderNumber        = order.orderNumber || null;
+    state.editingOrderPaymentStatus = order.paymentStatus;
     state.showDate    = order.showDate;
     state.sessionId   = order.sessionId;
     state.sessionName = order.sessionName;
@@ -776,7 +777,7 @@ async function saveOrderEdits() {
     state.currentStatusOrderId = state.editingOrderId;
     const doc = await db.collection('showdrinks_orders').doc(state.editingOrderId).get();
     if (doc.exists) showOrderStatus({ id: doc.id, ...doc.data() });
-    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null;
+    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null;
     goTo(3);
     subscribeToOrderStatus(state.currentStatusOrderId);
   } catch(e) {
@@ -800,7 +801,12 @@ function renderReview() {
     </div>`).join('');
   document.getElementById('reviewTotal').textContent = fmtCurrency(basketTotal());
   const viewing = !!state.editingOrderId;
-  document.getElementById('paymentSection').style.display = viewing ? 'none' : '';
+  // Viewing an already-placed order that hasn't been paid yet still gets the payment section,
+  // showing whatever methods the show currently allows (same state.settings.paymentMode a fresh
+  // order uses) — not just whichever method was originally picked. A paid/ready/collected order
+  // has nothing left to pay, so stays hidden same as before.
+  const viewingUnpaid = viewing && state.editingOrderPaymentStatus !== 'paid';
+  document.getElementById('paymentSection').style.display = (!viewing || viewingUnpaid) ? '' : 'none';
   const statusEl = document.getElementById('reviewStatus');
   if (viewing) {
     const s = state.editingOrderStatus;
@@ -811,7 +817,7 @@ function renderReview() {
   } else {
     statusEl.style.display = 'none';
   }
-  if (!viewing) {
+  if (!viewing || viewingUnpaid) {
     const mode = state.settings?.paymentMode || 'bar';
     const showBar   = mode === 'bar'   || mode === 'both';
     const showSumup = mode === 'sumup' || mode === 'both';
@@ -823,17 +829,57 @@ function renderReview() {
 
     const barBtn = document.getElementById('payAtBarBtn');
     barBtn.disabled = false;
-    barBtn.textContent = 'Confirm Order (Pay at Bar)';
+    barBtn.textContent = viewing ? "I'll Pay at the Bar" : 'Confirm Order (Pay at Bar)';
     const onlineBtn = document.getElementById('payOnlineBtn');
     onlineBtn.disabled = false;
     onlineBtn.textContent = '💳 Pay Online with SumUp';
   }
 }
 
-document.getElementById('payAtBarBtn').addEventListener('click', () => placeOrder('bar'));
-document.getElementById('payOnlineBtn').addEventListener('click', () => {
-  placeOrder('sumup').then(() => { if (state.orderId) initiateSumupPayment(); });
+document.getElementById('payAtBarBtn').addEventListener('click', () => {
+  if (state.editingOrderId) confirmPayAtBarForExistingOrder(); else placeOrder('bar');
 });
+document.getElementById('payOnlineBtn').addEventListener('click', () => {
+  if (state.editingOrderId) payOnlineForExistingOrder();
+  else placeOrder('sumup').then(() => { if (state.orderId) initiateSumupPayment(); });
+});
+
+// The two handlers below back the payment section when VIEWING an already-placed unpaid order
+// (reached by tapping it on Home) rather than placing a new one — nothing gets created, an
+// existing order's paymentMode is updated to match whichever button was tapped (it may differ
+// from what was originally chosen, e.g. switching from bar to online) before acting on it.
+
+async function confirmPayAtBarForExistingOrder() {
+  const orderId = state.editingOrderId;
+  const btn = document.getElementById('payAtBarBtn');
+  btn.disabled = true;
+  try {
+    await db.collection('showdrinks_orders').doc(orderId).update({
+      paymentMode: 'bar', updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    const doc = await db.collection('showdrinks_orders').doc(orderId).get();
+    if (!doc.exists) throw new Error('Order not found');
+    showOrderStatus({ id: doc.id, ...doc.data() });
+    goTo(3);
+    subscribeToOrderStatus(orderId);
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+    btn.disabled = false;
+  }
+}
+
+async function payOnlineForExistingOrder() {
+  const orderId = state.editingOrderId;
+  try {
+    await db.collection('showdrinks_orders').doc(orderId).update({
+      paymentMode: 'sumup', updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+    return;
+  }
+  await initiateSumupPayment(orderId, 'payOnlineBtn');
+}
 
 async function placeOrder(paymentMode) {
   const btn = paymentMode === 'bar' ? document.getElementById('payAtBarBtn') : document.getElementById('payOnlineBtn');
@@ -954,12 +1000,14 @@ function showOrderStatus(order) {
   // A SumUp order that comes back unpaid (backed out, failed, or the 30-minute checkout session
   // just expired) isn't a dead end — retrySumupPayment (above) creates a fresh checkout for the
   // same order. Pay-at-bar orders get no such button: there's nothing online to retry.
+  const canRetry = stage === 'unpaid' && order.paymentMode === 'sumup';
   const retryBtn = document.getElementById('retrySumupBtn');
   if (retryBtn) {
-    const canRetry = stage === 'unpaid' && order.paymentMode === 'sumup';
     retryBtn.style.display = canRetry ? '' : 'none';
     if (canRetry) retryBtn.onclick = () => retrySumupPayment(order.id);
   }
+  const retryLinks = document.getElementById('retrySumupLinks');
+  if (retryLinks) retryLinks.style.display = canRetry ? '' : 'none';
 
   const locBanner = document.getElementById('locationBanner');
   if (isReady && order.locationName) {
@@ -1021,7 +1069,7 @@ function goHomeFromStatus() {
   if (state.statusUnsubscribe) { state.statusUnsubscribe(); state.statusUnsubscribe = null; }
   state.showDate = ''; state.sessionId = ''; state.sessionName = '';
   state.basket = {}; state.orderId = null; state.selectedCategory = null;
-  state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null;
+  state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null;
   goTo(0); renderHomeScreen();
 }
 
