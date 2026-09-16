@@ -123,36 +123,17 @@ function updateBottomBar() {
   const bar  = document.getElementById('bottomBar');
   const next = document.getElementById('nextBtn');
   const back = document.getElementById('backBtn');
-  // Only ever relevant on step 2 — hidden by default here so every other branch below doesn't
-  // need its own explicit reset (none of them are reachable straight from a step-2 view where
-  // this was showing, but keeping the default here removes any doubt).
-  document.getElementById('cancelOrderBtn').style.display = 'none';
   if (state.step === 0 || state.step === 3) { bar.style.display = 'none'; return; }
   if (state.step === 2) {
     bar.style.display = 'flex';
-    const cancelBtn = document.getElementById('cancelOrderBtn');
     if (state.editingOrderId) {
       back.textContent = '← Close';
-      // An unpaid order swaps "Order Status →" for "Cancel Order" here instead of showing both —
-      // this bar is the one place on the page guaranteed clickable (unlike a link further down
-      // the payment section: on a screen tall enough to need scrolling, #bottomBar's own
-      // position:sticky permanently overlaps whatever's-visually-behind-it at the viewport's
-      // bottom edge the whole time it's shown, not just once you scroll to the very end — so
-      // anything living in the scrolling content below it can end up genuinely unclickable rather
-      // than just visually covered).
-      if (isViewingUnpaidOrder()) {
-        next.style.display = 'none';
-        cancelBtn.style.display = '';
-      } else {
-        next.style.display = '';
-        next.textContent = 'Order Status →';
-        next.disabled = false;
-        cancelBtn.style.display = 'none';
-      }
+      next.style.display = '';
+      next.textContent = 'Order Status →';
+      next.disabled = false;
     } else {
       back.textContent = '← Amend';
       next.style.display = 'none';
-      cancelBtn.style.display = 'none';
     }
     return;
   }
@@ -865,9 +846,6 @@ function renderReview() {
   } else {
     statusEl.style.display = 'none';
   }
-  // cancelOrderBtn itself lives in #bottomBar now, not here — see updateBottomBar() (called by
-  // goTo(), which every renderReview() call site already pairs with) for why and where it's
-  // actually shown/hidden.
   if (!viewing || viewingUnpaid) {
     const mode = state.settings?.paymentMode || 'bar';
     const showBar   = mode === 'bar'   || mode === 'both';
@@ -931,27 +909,6 @@ async function payOnlineForExistingOrder() {
   }
   await initiateSumupPayment(orderId, 'payOnlineBtn');
 }
-
-document.getElementById('cancelOrderBtn').addEventListener('click', async () => {
-  if (!confirm('Cancel this order? This can\'t be undone.')) return;
-  const orderId = state.editingOrderId;
-  const btn = document.getElementById('cancelOrderBtn');
-  btn.disabled = true;
-  try {
-    // A cancel is a flag, not a delete — firestore.rules only allows showdrinksAdmin to actually
-    // delete an order doc, and keeping the record (rather than erasing it) is what lets admin's
-    // own Orders list show it was cancelled instead of it just silently vanishing.
-    await db.collection('showdrinks_orders').doc(orderId).update({
-      cancelled: true, cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-    toast('Order cancelled', 'info');
-    goHomeFromStatus(); // resets all editing/basket state and re-renders Home, same as any other "done here" exit
-  } catch(e) {
-    toast('Failed: ' + e.message, 'error');
-    btn.disabled = false;
-  }
-});
 
 async function placeOrder(paymentMode) {
   const btn = paymentMode === 'bar' ? document.getElementById('payAtBarBtn') : document.getElementById('payOnlineBtn');
@@ -1039,6 +996,28 @@ window.retrySumupPayment = function(orderId) {
   initiateSumupPayment(orderId, 'retrySumupBtn');
 };
 
+// The Status screen's own "Cancel Order" button (see showOrderStatus) — the only place it
+// appears, and only while the order's still unpaid.
+window.cancelOrder = async function(orderId) {
+  if (!confirm('Cancel this order? This can\'t be undone.')) return;
+  const btn = document.getElementById('cancelOrderBtn');
+  if (btn) btn.disabled = true;
+  try {
+    // A cancel is a flag, not a delete — firestore.rules only allows showdrinksAdmin to actually
+    // delete an order doc, and keeping the record (rather than erasing it) is what lets admin's
+    // own Orders list show it was cancelled instead of it just silently vanishing.
+    await db.collection('showdrinks_orders').doc(orderId).update({
+      cancelled: true, cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    toast('Order cancelled', 'info');
+    goHomeFromStatus(); // resets all editing/basket state and re-renders Home, same as any other "done here" exit
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+    if (btn) btn.disabled = false;
+  }
+};
+
 // ── Screen 3: Status ───────────────────────────────────────────────────────
 
 function showOrderStatus(order) {
@@ -1080,6 +1059,18 @@ function showOrderStatus(order) {
   }
   const retryLinks = document.getElementById('retrySumupLinks');
   if (retryLinks) retryLinks.style.display = canRetry ? '' : 'none';
+
+  // Cancel lives ONLY here, on the order's own status page, and only while it's still unpaid —
+  // once it's paid/ready/collected there's nothing left to back out of. stage 'unpaid' already
+  // excludes ready/collected; !order.cancelled additionally covers an already-cancelled order
+  // reaching this screen (orderStage() itself has no notion of "cancelled" — it's a separate flag,
+  // not a prepStatus/paymentStatus value), so its own cancel button doesn't just re-offer itself.
+  const canCancel = stage === 'unpaid' && !order.cancelled;
+  const cancelBtn = document.getElementById('cancelOrderBtn');
+  if (cancelBtn) {
+    cancelBtn.style.display = canCancel ? '' : 'none';
+    if (canCancel) cancelBtn.onclick = () => cancelOrder(order.id);
+  }
 
   const locBanner = document.getElementById('locationBanner');
   if (isReady && order.locationName) {

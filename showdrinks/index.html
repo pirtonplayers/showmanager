@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowDrinks</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css?v=1.0.175">
+  <link rel="stylesheet" href="style.css?v=1.0.176">
   <style>
     .pwa-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--primary); }
     .pwa-content { flex: 1; background: var(--bg); border-radius: 24px 24px 0 0; margin-top: 8px; padding: 24px 20px 40px; overflow-y: auto; }
@@ -307,6 +307,11 @@
           <a href="terms.html" style="color:var(--text-muted)">Terms &amp; Conditions</a> and
           <a href="privacy.html" style="color:var(--text-muted)">Privacy Policy</a>.
         </p>
+        <!-- The only place Cancel Order appears — only while the order's still unpaid (see
+             showOrderStatus in order.js, which also wires up its onclick per-order). -->
+        <button type="button" id="cancelOrderBtn" style="display:none;width:100%;text-align:center;background:none;border:none;cursor:pointer;font-size:13px;color:var(--danger);margin-bottom:16px;padding:8px">
+          Cancel Order
+        </button>
 
         <div class="location-banner" id="locationBanner" style="display:none">
           <span class="loc-label">Collect from</span>
@@ -332,10 +337,6 @@
   <div class="bottom-bar" id="bottomBar" style="display:none">
     <button class="btn btn-secondary" id="backBtn">← Back</button>
     <button class="btn btn-primary" id="nextBtn">Next →</button>
-    <!-- Review screen only, replacing nextBtn there for an order that's still unpaid — see
-         updateBottomBar() in order.js for why it lives in the always-clickable bar rather than as
-         a link inside the (scrollable, on a tall enough screen) payment section above it. -->
-    <button class="btn btn-danger" id="cancelOrderBtn" style="display:none">Cancel Order</button>
   </div>
 </div>
 
@@ -344,10 +345,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.175"></script>
-<script src="../shared/firebase-config.js?v=1.0.175"></script>
-<script src="../shared/a2hs.js?v=1.0.175"></script>
-<script src="order.js?v=1.0.175"></script>
+<script src="../shared/version.js?v=1.0.176"></script>
+<script src="../shared/firebase-config.js?v=1.0.176"></script>
+<script src="../shared/a2hs.js?v=1.0.176"></script>
+<script src="order.js?v=1.0.176"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
