@@ -119,15 +119,16 @@ function goTo(step) {
   window.scrollTo(0, 0);
 }
 
-// backBtn's "Cancel" role (backing out of a not-yet-placed order entirely, from item selection)
-// gets its own red/centered treatment — everywhere else it's just the plain secondary back
-// button ("← Close"/"← Amend"/"← Back"), so this resets to that default every call and only the
-// two step-1 "Cancel" branches below opt back in.
+// backBtn's "Cancel" role (backing out of a not-yet-placed order, or discarding edits while
+// amending an existing one — both from item selection) renders as plain red words, not a boxed
+// button (see #backBtn.cancel-text-link in index.html's own <style>) — everywhere else it's the
+// normal secondary back button ("← Close"/"← Amend"/"← Back"), so this resets to that default
+// every call and only the two step-1 "Cancel" branches below opt back in.
 function setBackAsCancel(back, isCancel) {
   back.textContent = isCancel ? 'Cancel' : back.textContent;
-  back.classList.toggle('btn-danger', isCancel);
+  back.classList.toggle('cancel-text-link', isCancel);
+  back.classList.toggle('btn', !isCancel);
   back.classList.toggle('btn-secondary', !isCancel);
-  back.style.justifyContent = isCancel ? 'center' : '';
 }
 
 function updateBottomBar() {
@@ -153,7 +154,10 @@ function updateBottomBar() {
     // POS grid mode: its own "Finish" cell drives navigation, so the bottom bar stays hidden.
     if (isPosMode()) { bar.style.display = 'none'; return; }
     // List mode: the basket total/trolley live in the header instead (see updateHeroBasket) and
-    // the trolley is how you get to Review, so the bottom bar here is just Cancel.
+    // the trolley is how you get to Review, so the bottom bar here is just Cancel — and with
+    // nothing in the basket yet, there's nothing to cancel either, so the bar has nothing left to
+    // show at all until something's actually been added.
+    if (basketCount() === 0) { bar.style.display = 'none'; return; }
     bar.style.display = 'flex';
     next.style.display = 'none';
     setBackAsCancel(back, true);
