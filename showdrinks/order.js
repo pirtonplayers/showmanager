@@ -119,10 +119,22 @@ function goTo(step) {
   window.scrollTo(0, 0);
 }
 
+// backBtn's "Cancel" role (backing out of a not-yet-placed order entirely, from item selection)
+// gets its own red/centered treatment — everywhere else it's just the plain secondary back
+// button ("← Close"/"← Amend"/"← Back"), so this resets to that default every call and only the
+// two step-1 "Cancel" branches below opt back in.
+function setBackAsCancel(back, isCancel) {
+  back.textContent = isCancel ? 'Cancel' : back.textContent;
+  back.classList.toggle('btn-danger', isCancel);
+  back.classList.toggle('btn-secondary', !isCancel);
+  back.style.justifyContent = isCancel ? 'center' : '';
+}
+
 function updateBottomBar() {
   const bar  = document.getElementById('bottomBar');
   const next = document.getElementById('nextBtn');
   const back = document.getElementById('backBtn');
+  setBackAsCancel(back, false);
   if (state.step === 0 || state.step === 3) { bar.style.display = 'none'; return; }
   if (state.step === 2) {
     bar.style.display = 'flex';
@@ -144,13 +156,13 @@ function updateBottomBar() {
     // the trolley is how you get to Review, so the bottom bar here is just Cancel.
     bar.style.display = 'flex';
     next.style.display = 'none';
-    back.textContent = '← Cancel';
+    setBackAsCancel(back, true);
     return;
   }
   next.style.display = '';
   bar.style.display = 'flex';
   if (state.step === 1) {
-    back.textContent = '← Cancel';
+    setBackAsCancel(back, true);
     const isEditable = state.editingOrderStatus === 'pending';
     next.textContent = isEditable ? 'Save Changes' : 'View Status →';
     next.disabled = false;
