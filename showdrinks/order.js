@@ -37,7 +37,7 @@ const state = {
   basket: {},          // name → { name, price, quantity }
   selectedCategory: null,
   orderId: null, orderNumber: null,
-  editingOrderId: null, editingOrderStatus: null, editingOrderNumber: null, editingOrderPaymentStatus: null,
+  editingOrderId: null, editingOrderStatus: null, editingOrderNumber: null, editingOrderPaymentStatus: null, editingOrderCancelled: null,
   currentStatusOrderId: null,
   showConfig: null, sessions: null, menuItems: [], settings: null,
   statusUnsubscribe: null,
@@ -159,11 +159,11 @@ document.getElementById('backBtn').addEventListener('click', () => {
     state.posGridStack.pop(); renderPosGrid(); return;
   }
   if (state.step === 2 && state.editingOrderId) {
-    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null;
+    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
     state.basket = {};
     goTo(0); renderHomeScreen();
   } else if (state.step === 1 && state.editingOrderId) {
-    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null;
+    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
     state.basket = {};
     goTo(0); renderHomeScreen();
   } else if (state.step > 0) {
@@ -249,7 +249,7 @@ async function renderHomeScreen() {
     }
     const showAll = getShowAllOrders();
     const enriched = allSaved.map(o => byId[o.id]).filter(Boolean)
-      .filter(o => showAll || o.prepStatus !== 'collected')
+      .filter(o => showAll || (o.prepStatus !== 'collected' && !o.cancelled))
       .sort((a, b) => (b.orderNumber || 0) - (a.orderNumber || 0));
     const header = `<div class="section-label" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <span>Your orders</span>
@@ -296,6 +296,23 @@ function orderCard(o) {
   const isReady     = o.prepStatus === 'ready';
   const isCollected = o.prepStatus === 'collected';
   const numLabel = o.orderNumber ? `<span style="font-weight:900;color:var(--primary)">#${o.orderNumber}</span> · ` : '';
+
+  // Checked before isReady/the normal stage badge below — a cancelled order is only ever reached
+  // here via "Show all" (renderOrdersList excludes it by default), so it just needs its own
+  // plain, non-clickable-to-pay row (renderReview's own cancelled check already keeps viewOrder
+  // from re-offering payment on it; this just keeps the badge honest too).
+  if (o.cancelled) {
+    return `<div class="past-order-card" onclick="viewOrder('${o.id}')">
+      <div class="past-order-info">
+        <div class="poi-session">${numLabel}${escHtml(o.sessionName || '')}</div>
+        <div class="poi-detail">${fmtDate(o.showDate)}</div>
+      </div>
+      <div class="poi-right">
+        <span class="badge badge-danger">Cancelled</span>
+        <div class="poi-total">${fmtCurrency(o.totalAmount)}</div>
+      </div>
+    </div>`;
+  }
 
   // Ready orders expand right here — no need to tap through to the status screen just to see
   // where to collect from and confirm collection.
@@ -366,7 +383,7 @@ window.changeName = function() {
 
 window.startSessionOrder = function(id, name) {
   state.showDate = today(); state.sessionId = id; state.sessionName = name; state.basket = {};
-  state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null;
+  state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
   state.selectedCategory = null;
   goTo(1); renderMenu();
 };
@@ -382,6 +399,7 @@ window.viewOrder = async function(orderId) {
     state.editingOrderStatus        = order.prepStatus;
     state.editingOrderNumber        = order.orderNumber || null;
     state.editingOrderPaymentStatus = order.paymentStatus;
+    state.editingOrderCancelled     = order.cancelled === true;
     state.showDate    = order.showDate;
     state.sessionId   = order.sessionId;
     state.sessionName = order.sessionName;
@@ -777,7 +795,7 @@ async function saveOrderEdits() {
     state.currentStatusOrderId = state.editingOrderId;
     const doc = await db.collection('showdrinks_orders').doc(state.editingOrderId).get();
     if (doc.exists) showOrderStatus({ id: doc.id, ...doc.data() });
-    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null;
+    state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
     goTo(3);
     subscribeToOrderStatus(state.currentStatusOrderId);
   } catch(e) {
@@ -803,20 +821,24 @@ function renderReview() {
   const viewing = !!state.editingOrderId;
   // Viewing an already-placed order that hasn't been paid yet still gets the payment section,
   // showing whatever methods the show currently allows (same state.settings.paymentMode a fresh
-  // order uses) — not just whichever method was originally picked. A paid/ready/collected order
-  // has nothing left to pay, so stays hidden same as before.
-  const viewingUnpaid = viewing && state.editingOrderPaymentStatus !== 'paid';
+  // order uses) — not just whichever method was originally picked. A paid/ready/collected/
+  // already-cancelled order has nothing left to pay (or cancel), so stays hidden same as before.
+  const viewingUnpaid = viewing && state.editingOrderPaymentStatus !== 'paid' && !state.editingOrderCancelled;
   document.getElementById('paymentSection').style.display = (!viewing || viewingUnpaid) ? '' : 'none';
   const statusEl = document.getElementById('reviewStatus');
   if (viewing) {
     const s = state.editingOrderStatus;
     const num = state.editingOrderNumber ? `Order #${state.editingOrderNumber} · ` : '';
-    const label = s === 'ready' ? '✅ Ready to collect' : s === 'collected' ? '🎉 Collected' : 'Being prepared';
+    const label = state.editingOrderCancelled ? '❌ Cancelled'
+      : s === 'ready' ? '✅ Ready to collect' : s === 'collected' ? '🎉 Collected' : 'Being prepared';
     statusEl.innerHTML = `<div class="review-status-row">${num}${label}</div>`;
     statusEl.style.display = '';
   } else {
     statusEl.style.display = 'none';
   }
+  // Only for a viewed order still worth cancelling — a fresh order isn't cancellable before it
+  // even exists (the bottom bar's own "← Cancel"/"← Amend" covers backing out of that instead).
+  document.getElementById('cancelOrderBtn').style.display = viewingUnpaid ? '' : 'none';
   if (!viewing || viewingUnpaid) {
     const mode = state.settings?.paymentMode || 'bar';
     const showBar   = mode === 'bar'   || mode === 'both';
@@ -880,6 +902,27 @@ async function payOnlineForExistingOrder() {
   }
   await initiateSumupPayment(orderId, 'payOnlineBtn');
 }
+
+document.getElementById('cancelOrderBtn').addEventListener('click', async () => {
+  if (!confirm('Cancel this order? This can\'t be undone.')) return;
+  const orderId = state.editingOrderId;
+  const btn = document.getElementById('cancelOrderBtn');
+  btn.disabled = true;
+  try {
+    // A cancel is a flag, not a delete — firestore.rules only allows showdrinksAdmin to actually
+    // delete an order doc, and keeping the record (rather than erasing it) is what lets admin's
+    // own Orders list show it was cancelled instead of it just silently vanishing.
+    await db.collection('showdrinks_orders').doc(orderId).update({
+      cancelled: true, cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    toast('Order cancelled', 'info');
+    goHomeFromStatus(); // resets all editing/basket state and re-renders Home, same as any other "done here" exit
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+    btn.disabled = false;
+  }
+});
 
 async function placeOrder(paymentMode) {
   const btn = paymentMode === 'bar' ? document.getElementById('payAtBarBtn') : document.getElementById('payOnlineBtn');
@@ -1069,7 +1112,7 @@ function goHomeFromStatus() {
   if (state.statusUnsubscribe) { state.statusUnsubscribe(); state.statusUnsubscribe = null; }
   state.showDate = ''; state.sessionId = ''; state.sessionName = '';
   state.basket = {}; state.orderId = null; state.selectedCategory = null;
-  state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null;
+  state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
   goTo(0); renderHomeScreen();
 }
 

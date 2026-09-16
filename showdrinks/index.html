@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowDrinks</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css?v=1.0.172">
+  <link rel="stylesheet" href="style.css?v=1.0.173">
   <style>
     .pwa-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--primary); }
     .pwa-content { flex: 1; background: var(--bg); border-radius: 24px 24px 0 0; margin-top: 8px; padding: 24px 20px 40px; overflow-y: auto; }
@@ -283,6 +283,12 @@
             <a href="privacy.html" style="color:var(--text-muted)">Privacy Policy</a>.
           </p>
         </div>
+        <!-- Only for an unpaid, not-already-cancelled order VIEWED from Home (see renderReview
+             in order.js) — never shown alongside placing a brand-new order, which has its own
+             "← Amend"/"← Cancel" bottom-bar button for backing out before it's even created. -->
+        <button type="button" id="cancelOrderBtn" style="display:none;width:100%;text-align:center;background:none;border:none;cursor:pointer;font-size:13px;color:var(--danger);margin-top:18px;padding:8px">
+          Cancel Order
+        </button>
       </div>
     </div>
 
@@ -340,10 +346,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.172"></script>
-<script src="../shared/firebase-config.js?v=1.0.172"></script>
-<script src="../shared/a2hs.js?v=1.0.172"></script>
-<script src="order.js?v=1.0.172"></script>
+<script src="../shared/version.js?v=1.0.173"></script>
+<script src="../shared/firebase-config.js?v=1.0.173"></script>
+<script src="../shared/a2hs.js?v=1.0.173"></script>
+<script src="order.js?v=1.0.173"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

@@ -684,9 +684,13 @@ async function loadOrders() {
       });
     }
 
+    // 'cancelled' isn't a prepStatus value — it's the separate `cancelled` flag a customer sets
+    // themselves from the payment page (see order.js's cancelOrderBtn) — so it needs its own
+    // branch rather than falling into the generic prepStatus-match case below.
     if (status === 'all') { /* no filter */ }
-    else if (status === '') orders = orders.filter(o => o.prepStatus !== 'collected');
-    else orders = orders.filter(o => o.prepStatus === status);
+    else if (status === 'cancelled') orders = orders.filter(o => o.cancelled === true);
+    else if (status === '') orders = orders.filter(o => o.prepStatus !== 'collected' && !o.cancelled);
+    else orders = orders.filter(o => o.prepStatus === status && !o.cancelled);
     renderOrders(orders);
   }, err => {
     console.error('Firestore orders error:', err);
@@ -714,10 +718,15 @@ function renderOrders(orders) {
   const container = document.getElementById('ordersContainer');
   const summary = document.getElementById('ordersSummary');
 
-  const total = orders.length;
-  const ready = orders.filter(o => o.prepStatus === 'ready').length;
+  // Cancelled orders are excluded from every stat below regardless of which filter produced this
+  // list — they never got served (or, usually, paid), so counting them as "Orders"/"Pending" or
+  // toward Revenue would overstate all four. The cards themselves still render for every order
+  // passed in (including cancelled ones, under the Cancelled/All filters) — just not tallied here.
+  const statsOrders = orders.filter(o => !o.cancelled);
+  const total = statsOrders.length;
+  const ready = statsOrders.filter(o => o.prepStatus === 'ready').length;
   const pending = total - ready;
-  const totalRevenue = orders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+  const totalRevenue = statsOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
 
   summary.innerHTML = `
     <div class="stat"><div class="snum">${total}</div><div class="slabel">Orders</div></div>
@@ -737,7 +746,8 @@ function renderOrders(orders) {
     const isCollected = o.prepStatus === 'collected';
     const isPaid      = o.paymentStatus === 'paid';
     const sessionLabel = o.sessionName || o.sessionId || '';
-    const statusBadge = isCollected ? '<span class="badge badge-primary">Collected</span>'
+    const statusBadge = o.cancelled ? '<span class="badge badge-danger">Cancelled</span>'
+      : isCollected ? '<span class="badge badge-primary">Collected</span>'
       : isReady ? '<span class="badge badge-success">Ready</span>'
       : '<span class="badge badge-warning">Pending</span>';
     // Payment for a "pay at bar" order isn't taken until the customer's at the counter, so it
@@ -745,7 +755,9 @@ function renderOrders(orders) {
     // SumUp orders normally flip to paid on their own (the redirect-back handler), but the same
     // Mark Paid button covers one that's stuck (e.g. the browser closed before returning).
     const markPaidBtn = `<button class="btn btn-primary btn-sm" onclick="markOrderPaid('${o.id}')">💰 Mark Paid</button>`;
-    const actionBtns = isCollected
+    // A cancelled order (see order.js's cancelOrderBtn — the customer's own doing, from their
+    // payment page) has nothing left to action: not paid, not prepared, not served.
+    const actionBtns = o.cancelled ? '' : isCollected
       ? `<button class="btn btn-secondary btn-sm" onclick="markReady('${o.id}')">↩ Undo Collected</button>`
       : isReady
         ? `${isPaid ? `<button class="btn btn-primary btn-sm" onclick="markCollected('${o.id}')">✓ Collected</button>` : markPaidBtn}
@@ -753,16 +765,17 @@ function renderOrders(orders) {
         : `<button class="btn btn-success btn-sm" onclick="markReady('${o.id}')">✓ Mark Ready</button>
            ${isPaid ? '' : markPaidBtn}`;
 
-    // Ready/collected orders have nothing left to prepare, so they collapse their items/location
-    // by default — expandable per-order via the chevron below. Pending ones always show in full.
-    const actioned = isReady || isCollected;
+    // Ready/collected/cancelled orders have nothing left to prepare, so they collapse their
+    // items/location by default — expandable per-order via the chevron below. Pending ones always
+    // show in full.
+    const actioned = isReady || isCollected || o.cancelled;
     const collapsed = actioned && !_orderExpandedIds.has(o.id);
     const toggleBtn = actioned
       ? `<button class="btn btn-secondary btn-sm" onclick="toggleOrderExpanded('${o.id}')" title="${collapsed ? 'Expand' : 'Collapse'}">${collapsed ? '▾' : '▴'}</button>`
       : '';
 
     return `
-      <div class="order-card ${isReady ? 'prepared' : ''} ${isCollected ? 'order-collected' : ''}" id="order-${o.id}">
+      <div class="order-card ${isReady ? 'prepared' : ''} ${isCollected || o.cancelled ? 'order-collected' : ''}" id="order-${o.id}">
         <div class="order-card-header">
           ${o.orderNumber ? `<span style="font-size:22px;font-weight:900;color:var(--primary);min-width:44px">#${o.orderNumber}</span>` : ''}
           <div class="order-customer">${escHtml(o.customerName)}</div>
@@ -789,9 +802,10 @@ function renderOrders(orders) {
         </div>`}
         <div class="order-card-footer">
           ${actionBtns}
+          ${o.cancelled ? '' : `
           <span class="badge ${isPaid ? 'badge-success' : 'badge-warning'}" style="margin-left:auto">
             ${isPaid ? '✓ Paid' : (o.paymentMode === 'bar' ? '💵 Unpaid (pay at bar)' : '⏳ Awaiting payment')}
-          </span>
+          </span>`}
         </div>
       </div>`;
   }).join('');
