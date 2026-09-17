@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.199"></script>
+  <script src="../shared/embed.js?v=1.0.200"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.0.199">
+  <link rel="stylesheet" href="style.css?v=1.0.200">
 </head>
 <body>
 
@@ -53,10 +53,10 @@
       <div id="suiteNavDropdown"></div>
       <div class="dropdown-divider"></div>
       <div class="suite-current-section">
+        <button class="tab-btn" data-tab="menu">Price List</button>
         <button class="tab-btn active" data-tab="orders">Orders</button>
         <button class="tab-btn" data-tab="tabmembers">Bar Tabs</button>
         <button class="tab-btn" data-tab="show">Show &amp; Sessions</button>
-        <button class="tab-btn" data-tab="menu">Price List</button>
         <button class="tab-btn" data-tab="locations">Locations</button>
         <button class="tab-btn" data-tab="pos">POS Layout</button>
         <button class="tab-btn" data-tab="settings">Settings &amp; QR</button>
@@ -77,8 +77,8 @@
   <div id="suiteNavSidebar"></div>
   <div class="dropdown-divider"></div>
   <div class="suite-current-section">
-    <button class="tab-btn active" data-tab="show">Show &amp; Sessions</button>
     <button class="tab-btn" data-tab="menu">Price List</button>
+    <button class="tab-btn active" data-tab="show">Show &amp; Sessions</button>
     <button class="tab-btn" data-tab="locations">Locations</button>
     <button class="tab-btn" data-tab="orders">Orders</button>
     <button class="tab-btn" data-tab="tabmembers">Bar Tabs</button>
@@ -270,8 +270,10 @@
       <div class="section-header" style="margin-bottom:0">
         <h2>Price List</h2>
         <button class="btn btn-primary btn-sm" onclick="openAddMenuItemModal()">+ Add Item</button>
-        <button class="btn btn-danger btn-sm" id="clearAllMenuBtn" style="display:none">Clear All</button>
       </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0">
+        The whole Price List can be cleared in bulk from Settings &amp; QR → Danger Zone.
+      </p>
       <div id="menuCategoryBar" class="cat-bar menu-cat-bar" style="display:none"></div>
     </div>
     <div class="card">
@@ -557,7 +559,11 @@
         <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
           Permanently deletes every order for every show — there's no undo.
         </p>
-        <button class="btn btn-danger btn-sm" id="clearAllOrdersBtn">Clear All Orders</button>
+        <button class="btn btn-danger btn-sm" id="clearAllOrdersBtn" style="margin-bottom:16px">Clear All Orders</button>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+          Permanently deletes the entire Price List — there's no undo.
+        </p>
+        <button class="btn btn-danger btn-sm" id="clearAllMenuBtn" style="display:none">Clear All Menu Items</button>
       </div>
     </div>
   </div>
@@ -749,11 +755,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.199"></script>
-<script src="../shared/firebase-config.js?v=1.0.199"></script>
-<script src="../shared/auth.js?v=1.0.199"></script>
-<script src="../shared/suite-nav.js?v=1.0.199"></script>
-<script src="admin.js?v=1.0.199"></script>
+<script src="../shared/version.js?v=1.0.200"></script>
+<script src="../shared/firebase-config.js?v=1.0.200"></script>
+<script src="../shared/auth.js?v=1.0.200"></script>
+<script src="../shared/suite-nav.js?v=1.0.200"></script>
+<script src="admin.js?v=1.0.200"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
