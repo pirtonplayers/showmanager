@@ -198,9 +198,11 @@ input, textarea, select, [contenteditable] {
 .suite-current-section .tab-btn.active::before { color: var(--accent); }
 
 /* Bar Tabs POS-only accounts (and anyone landing via the portal's dedicated Tabs POS tile) get
-   just the one screen — the rest of Bar Manager's menu (every other tab) is hidden, leaving only
-   Change Password/Sign Out in the hamburger/sidebar. See _tabsOnlyMode in admin.js. */
-body.tabs-only-mode .suite-current-section { display: none; }
+   just the POS screen plus "Bar Tabs" (view members/tabs — but not Mark Paid, hidden separately
+   in renderTabMembersList) — every other tab is hidden, leaving Change Password/Sign Out below.
+   See _tabsOnlyMode in admin.js. */
+body.tabs-only-mode .suite-current-section .tab-btn { display: none; }
+body.tabs-only-mode .suite-current-section .tab-btn[data-tab="tabmembers"] { display: block; }
 
 /* ── Auth gate — covers the page until the first onAuthStateChanged fires, so neither the
    login screen nor the signed-in app ever flashes on a page that's actually already signed in

@@ -1549,6 +1549,11 @@ async function loadShowTabs() {
     Object.keys(_posGrids).length ? Promise.resolve() : loadPosGrids(),
     loadTabMembersData(),
   ]);
+  // _tabStack starts out pointed at 'root' (its declaration runs before Settings & QR's
+  // tabPosStartGridId is loaded) — now that it's loaded, and as long as nobody's mid-order,
+  // correct it to whichever grid is actually configured as the starting page. Otherwise the
+  // dimmed "no member selected yet" screen shows root instead of the configured start page.
+  if (!_tabSelectedMemberId) _tabStack = [tabPosStartGrid()];
   renderTabOrderEntry();
   renderTabBasket();
 }
@@ -2320,7 +2325,7 @@ function renderTabMembersList() {
         <div style="font-size:12px;color:var(--text-muted)">${m.email ? `✉ ${escHtml(m.email)}` : 'No email on file'}</div>
         <div class="item-actions" onclick="event.stopPropagation()">
           <button class="btn btn-secondary btn-sm" onclick="toggleTabMemberOrders('${m.id}')">${expanded ? 'Hide' : 'View'} Orders</button>
-          ${unpaid > 0 ? `<button class="btn btn-primary btn-sm" onclick="markMemberPaid('${m.id}')">Mark Paid</button>` : ''}
+          ${unpaid > 0 && !_tabsOnlyMode ? `<button class="btn btn-primary btn-sm" onclick="markMemberPaid('${m.id}')">Mark Paid</button>` : ''}
         </div>
         ${ordersHtml}
       </div>`;
