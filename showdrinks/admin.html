@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.200"></script>
+  <script src="../shared/embed.js?v=1.0.201"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.0.200">
+  <link rel="stylesheet" href="style.css?v=1.0.201">
 </head>
 <body>
 
@@ -401,10 +401,12 @@
         <div id="tabsMenuDropdown" class="dropdown-menu">
           <button class="btn btn-secondary btn-sm" onclick="emailAllOwingMembers()">✉ Email All Owing</button>
           <button class="btn btn-secondary btn-sm" id="exportTabSalesBtn">⬇ Export Sales (CSV)</button>
-          <button class="btn btn-danger btn-sm" id="clearAllTabsBtn">Clear Sales History</button>
         </div>
       </div>
     </div>
+    <p style="font-size:12px;color:var(--text-muted);margin:4px 0 16px">
+      Tab sales history can be cleared in bulk from Settings &amp; QR → Danger Zone.
+    </p>
 
     <div class="card">
       <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -563,7 +565,11 @@
         <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
           Permanently deletes the entire Price List — there's no undo.
         </p>
-        <button class="btn btn-danger btn-sm" id="clearAllMenuBtn" style="display:none">Clear All Menu Items</button>
+        <button class="btn btn-danger btn-sm" id="clearAllMenuBtn" style="display:none;margin-bottom:16px">Clear All Menu Items</button>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+          Permanently deletes every tab's sales history — member names are kept. There's no undo.
+        </p>
+        <button class="btn btn-danger btn-sm" id="clearAllTabsBtn">Clear Sales History</button>
       </div>
     </div>
   </div>
@@ -755,11 +761,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.200"></script>
-<script src="../shared/firebase-config.js?v=1.0.200"></script>
-<script src="../shared/auth.js?v=1.0.200"></script>
-<script src="../shared/suite-nav.js?v=1.0.200"></script>
-<script src="admin.js?v=1.0.200"></script>
+<script src="../shared/version.js?v=1.0.201"></script>
+<script src="../shared/firebase-config.js?v=1.0.201"></script>
+<script src="../shared/auth.js?v=1.0.201"></script>
+<script src="../shared/suite-nav.js?v=1.0.201"></script>
+<script src="admin.js?v=1.0.201"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
