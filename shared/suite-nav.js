@@ -26,11 +26,15 @@ const APP_SUBNAV = {
     { id: 'users', label: 'Users', selector: '[data-tab="users"]' },
     { id: 'settings', label: 'Settings', selector: '[data-tab="settings"]' },
   ],
+  // Price List first, matching admin.html's own header dropdown/sidebar order — note this is
+  // also what a fresh session lands on first when opening Bar Manager via the portal (see
+  // ensureFrame's 'load' handler in portal.js: APP_SUBNAV[key]?.[0]?.id is the fallback landing
+  // tab before any tab's actually been picked), not just the menu's visual order.
   showdrinksAdmin: [
+    { id: 'menu', label: 'Price List', selector: '[data-tab="menu"]' },
     { id: 'orders', label: 'Orders', selector: '[data-tab="orders"]' },
     { id: 'tabmembers', label: 'Bar Tabs', selector: '[data-tab="tabmembers"]' },
     { id: 'show', label: 'Show & Sessions', selector: '[data-tab="show"]' },
-    { id: 'menu', label: 'Price List', selector: '[data-tab="menu"]' },
     { id: 'locations', label: 'Locations', selector: '[data-tab="locations"]' },
     { id: 'pos', label: 'POS Layout', selector: '[data-tab="pos"]' },
     { id: 'settings', label: 'Settings & QR', selector: '[data-tab="settings"]' },
