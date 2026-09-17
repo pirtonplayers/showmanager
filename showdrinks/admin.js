@@ -2141,16 +2141,22 @@ function wirePosLongPress(container, onPress) {
   });
 }
 
-// Same simplification as the customer ordering screen's Category List mode: every item already
-// shows its own qty (a POS grid tap re-selects it for +/-, a list-mode card has its own stepper),
-// so an itemized breakdown here would just repeat that — a trolley + count + running total is
-// all this needs to add.
+// Itemized as it builds up, same as the POS Layout Test preview's own basket (posRenderTestBasket)
+// — capped height/scrollable rather than left to grow unbounded, since this sits in the sticky
+// header above the grid.
 function renderTabBasket() {
   const el = document.getElementById('tabBasket');
   if (!el) return;
   const items = Object.values(_tabBasket);
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-  el.innerHTML = `
+  const itemsHtml = items.length
+    ? `<div class="tab-basket-items">${items.map(i =>
+        `<div class="tab-basket-item-row">
+           <span>${i.qty}× ${escHtml(i.name)}</span>
+           <span>${fmtCurrency(i.price * i.qty)}</span>
+         </div>`).join('')}</div>`
+    : '';
+  el.innerHTML = itemsHtml + `
     <span class="tab-basket-row">
       <span class="tab-basket-icon">${ICON_TROLLEY}</span>
       <span class="tab-basket-total">${fmtCurrency(total)}</span>

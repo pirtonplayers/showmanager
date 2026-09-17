@@ -434,6 +434,11 @@ body.tabs-only-mode .suite-current-section .tab-btn[data-tab="tabmembers"] { dis
 .tab-basket-icon svg { width:100%; height:100%; }
 .tab-basket-total { font-size:26px; font-weight:400; }
 .tab-basket-caption { font-size:11px; font-weight:600; opacity:.8; text-transform:uppercase; letter-spacing:.03em; }
+/* The order building up, line by line, as items are tapped — same idea as the POS Layout Test
+   preview's own basket. Capped/scrollable rather than left to grow unbounded, since this sits in
+   the sticky header above the grid. */
+.tab-basket-items { align-self:stretch; max-height:120px; overflow-y:auto; font-size:13px; margin-bottom:6px; }
+.tab-basket-item-row { display:flex; justify-content:space-between; gap:12px; padding:2px 0; }
 
 /* Per-row "⋯" action menu (Bar Tabs member rows) — <details>/<summary>, same idea as the
    portal's Users permissions dropdown: native disclosure, closed on outside click via a small
