@@ -1139,6 +1139,15 @@ function showOrderStatus(order) {
     if (canCancel) cancelBtn.onclick = () => cancelOrder(order.id);
   }
 
+  // Nothing actionable left (paid, or already cancelled) — safe to auto-return home after a bit.
+  // While unpaid/cancellable, never arm this: the customer may be mid-decision on Cancel or a
+  // SumUp retry, and getting swept back to Home mid-confirm() used to look exactly like those
+  // buttons silently doing nothing.
+  if (_statusAutoHomeTimer) { clearTimeout(_statusAutoHomeTimer); _statusAutoHomeTimer = null; }
+  if (stage !== 'unpaid') {
+    _statusAutoHomeTimer = setTimeout(goHomeFromStatus, 10000);
+  }
+
   const locBanner = document.getElementById('locationBanner');
   if (isReady && order.locationName) {
     locBanner.style.display = '';
@@ -1156,10 +1165,15 @@ function showOrderStatus(order) {
   if (collectBtn) collectBtn.style.display = isReady ? '' : 'none';
 }
 
-// Every current call to this is right after freshly placing/confirming an order — the home
-// screen's own order cards keep live-updating the same status (see orderCard's ready-expanded
-// state), so there's no need to keep sitting on this confirmation screen; it returns home on
-// its own after a bit rather than waiting for the customer to tap Home themselves.
+// When there's nothing left for the customer to do here (paid and either being prepared, ready,
+// or collected), the home screen's own order cards keep live-updating the same status anyway (see
+// orderCard's ready-expanded state) — so rather than making them tap Home themselves, this screen
+// returns there on its own after a bit. BUT: while the order's still unpaid, there IS something to
+// do here (Cancel Order, or retry a failed SumUp payment) — auto-navigating away mid-decision used
+// to silently sweep the customer back to Home before they'd finished reading/confirming a cancel,
+// which looked exactly like "the Cancel button does nothing". So this only arms itself once the
+// order reaches a stage with nothing actionable left, and re-evaluates on every live update
+// (showOrderStatus below) rather than once up front.
 let _statusAutoHomeTimer = null;
 
 function subscribeToOrderStatus(orderId) {
@@ -1167,8 +1181,6 @@ function subscribeToOrderStatus(orderId) {
   state.statusUnsubscribe = db.collection('showdrinks_orders').doc(orderId).onSnapshot(snap => {
     if (snap.exists) showOrderStatus({ id: snap.id, ...snap.data() });
   });
-  if (_statusAutoHomeTimer) clearTimeout(_statusAutoHomeTimer);
-  _statusAutoHomeTimer = setTimeout(goHomeFromStatus, 10000);
 }
 
 // Shared by the status screen's own button and each ready order's inline "I've collected my
