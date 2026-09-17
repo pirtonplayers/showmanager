@@ -451,9 +451,11 @@ function openAddUserModal() {
   document.getElementById('addUserBtn').textContent = '+ Add user';
   document.getElementById('addUserForm').reset();
   document.getElementById('newUserCreateOnlyFields').style.display = '';
+  resetMemberPicker();
   document.getElementById('newUserAccessList').innerHTML = accessPickerHtml('newUser');
   document.getElementById('addUserError').textContent = '';
   document.getElementById('addUserModal').style.display = 'flex';
+  loadMemberDirectory();
 }
 
 function openEditUserModal(id) {
@@ -467,12 +469,65 @@ function openEditUserModal(id) {
   document.getElementById('newUserName').value = user.name || '';
   document.getElementById('newUserEmail').value = user.email || '';
   document.getElementById('newUserCreateOnlyFields').style.display = 'none';
+  // Editing an existing user is always direct Name/Email — the member picker only applies when
+  // creating (see resetMemberPicker/applyMemberPick below).
+  document.getElementById('newUserMemberPickRow').style.display = 'none';
+  document.getElementById('newUserNameRow').style.display = '';
+  document.getElementById('newUserEmailRow').style.display = '';
   document.getElementById('newUserAccessList').innerHTML = accessPickerHtml('newUser',
     { ...user.access, isManager: user.isManager },
     isSelf ? "You can't change your own Manager status" : '');
   document.getElementById('addUserError').textContent = '';
   document.getElementById('addUserModal').style.display = 'flex';
 }
+
+// ── Member picker (Add user only) — same members list Bar Tabs POS uses ────────────────────
+
+let _memberDirectory = null; // null = not loaded yet; [] is a valid "loaded, empty" state
+
+async function loadMemberDirectory() {
+  if (_memberDirectory) { renderMemberPickerOptions(); return; }
+  try {
+    const snap = await db.collection('showdrinks_tabMembers').orderBy('name').get();
+    _memberDirectory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderMemberPickerOptions();
+  } catch (err) {
+    showToast('Could not load members: ' + err.message, 'error');
+  }
+}
+
+function renderMemberPickerOptions() {
+  const sel = document.getElementById('newUserMemberSelect');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— choose —</option>' +
+    (_memberDirectory || []).map(m =>
+      `<option value="${m.id}">${escapeHtml(m.name)}${m.email ? ` (${escapeHtml(m.email)})` : ''}</option>`).join('');
+  sel.value = cur;
+}
+
+function resetMemberPicker() {
+  document.getElementById('newUserMemberPickRow').style.display = '';
+  document.getElementById('newUserNameRow').style.display = 'none';
+  document.getElementById('newUserEmailRow').style.display = 'none';
+  document.getElementById('newUserMemberSelect').value = '';
+}
+
+document.getElementById('newUserMemberSelect').addEventListener('change', () => {
+  const member = (_memberDirectory || []).find(m => m.id === document.getElementById('newUserMemberSelect').value);
+  if (!member) return;
+  document.getElementById('newUserName').value = member.name || '';
+  document.getElementById('newUserEmail').value = member.email || '';
+});
+
+document.getElementById('newUserManualEntryLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('newUserMemberPickRow').style.display = 'none';
+  document.getElementById('newUserNameRow').style.display = '';
+  document.getElementById('newUserEmailRow').style.display = '';
+  document.getElementById('newUserName').value = '';
+  document.getElementById('newUserEmail').value = '';
+  document.getElementById('newUserName').focus();
+});
 
 document.getElementById('addUserForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -542,6 +597,132 @@ document.getElementById('resyncClaimsBtn').addEventListener('click', async () =>
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
+    btn.disabled = false;
+  }
+});
+
+// ── Import Members (CSV) — writes to showdrinks_tabMembers, the one shared members list also
+// used by Bar Tabs POS and the Add user modal's Member picker above. Moved here from Bar
+// Manager's own Bar Tabs page since importing members is a whole-suite user-management action,
+// not a Bar Tabs-specific one.
+
+// RFC4180-ish parser (handles quoted fields with embedded commas/quotes/newlines).
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\r') { /* ignore — \n (below) ends the row for both \n and \r\n */ }
+    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(f => f.trim() !== ''));
+}
+
+const IMPORT_NAME_HEADERS = ['name', 'full name', 'fullname', 'member name', 'member'];
+const IMPORT_EMAIL_HEADERS = ['email', 'e-mail', 'email address', 'emailaddress'];
+
+function findCsvColumn(header, candidates) {
+  return header.findIndex(h => candidates.includes(h.trim().toLowerCase()));
+}
+
+let _importMembersRows = [];
+
+document.getElementById('importMembersBtn').addEventListener('click', () => {
+  document.getElementById('importMembersFile').click();
+});
+
+document.getElementById('importMembersFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = ''; // clear so picking the same file again still fires 'change'
+  if (!file) return;
+  try {
+    const rows = parseCsv(await file.text());
+    if (!rows.length) { showToast('CSV file is empty', 'error'); return; }
+
+    const header = rows[0];
+    const nameIdx = findCsvColumn(header, IMPORT_NAME_HEADERS);
+    const emailIdx = findCsvColumn(header, IMPORT_EMAIL_HEADERS);
+    if (nameIdx === -1) { showToast('No "Name" column found in that CSV', 'error'); return; }
+
+    if (!_memberDirectory) await loadMemberDirectory();
+    const existingLower = new Set((_memberDirectory || []).map(m => m.name.toLowerCase()));
+    const seen = new Set();
+    const parsed = [];
+    for (const r of rows.slice(1)) {
+      const name = (r[nameIdx] || '').trim();
+      if (!name) continue;
+      const email = emailIdx !== -1 ? (r[emailIdx] || '').trim() : '';
+      const nameLower = name.toLowerCase();
+      const status = existingLower.has(nameLower) || seen.has(nameLower) ? 'existing' : 'new';
+      if (status === 'new') seen.add(nameLower);
+      parsed.push({ name, email, status });
+    }
+    if (!parsed.length) { showToast('No rows with a name found in that CSV', 'error'); return; }
+    openImportMembersModal(parsed);
+  } catch (err) {
+    showToast('Failed to read file: ' + err.message, 'error');
+  }
+});
+
+function openImportMembersModal(rows) {
+  _importMembersRows = rows;
+  const newCount = rows.filter(r => r.status === 'new').length;
+  const skipCount = rows.length - newCount;
+  document.getElementById('importMembersSummary').textContent =
+    `${newCount} new member${newCount === 1 ? '' : 's'} will be added` +
+    (skipCount ? `, ${skipCount} skipped — already on the list` : '') + '.';
+  document.getElementById('importMembersList').innerHTML = rows.map(r => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:8px;background:${r.status === 'new' ? 'var(--bg)' : 'transparent'};opacity:${r.status === 'new' ? '1' : '.55'}">
+      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        <strong>${escapeHtml(r.name)}</strong>${r.email ? ` <span style="color:var(--text-muted)">· ${escapeHtml(r.email)}</span>` : ''}
+      </span>
+      <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;flex-shrink:0">${r.status === 'new' ? 'New' : 'Already on list'}</span>
+    </div>
+  `).join('');
+  const confirmBtn = document.getElementById('importMembersConfirmBtn');
+  confirmBtn.disabled = newCount === 0;
+  confirmBtn.textContent = newCount ? `Import ${newCount} Member${newCount === 1 ? '' : 's'}` : 'Nothing to import';
+  document.getElementById('importMembersModal').style.display = 'flex';
+}
+
+function closeImportMembersModal() {
+  document.getElementById('importMembersModal').style.display = 'none';
+  _importMembersRows = [];
+}
+
+document.getElementById('importMembersModalCloseBtn').addEventListener('click', closeImportMembersModal);
+document.getElementById('importMembersCancelBtn').addEventListener('click', closeImportMembersModal);
+document.getElementById('importMembersModal').addEventListener('click', (e) => {
+  if (e.target.id === 'importMembersModal') closeImportMembersModal();
+});
+
+document.getElementById('importMembersConfirmBtn').addEventListener('click', async () => {
+  const newRows = _importMembersRows.filter(r => r.status === 'new');
+  if (!newRows.length) return;
+  const btn = document.getElementById('importMembersConfirmBtn');
+  btn.disabled = true;
+  try {
+    for (let i = 0; i < newRows.length; i += 500) { // Firestore batches cap at 500 writes
+      const batch = db.batch();
+      newRows.slice(i, i + 500).forEach(r => {
+        batch.set(db.collection('showdrinks_tabMembers').doc(), {
+          name: r.name, email: r.email, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+      await batch.commit();
+    }
+    _memberDirectory = null; // force a fresh fetch next time the picker/import needs it
+    showToast(`Imported ${newRows.length} member${newRows.length === 1 ? '' : 's'}`, 'success');
+    closeImportMembersModal();
+  } catch (err) {
+    showToast('Import failed: ' + err.message, 'error');
     btn.disabled = false;
   }
 });

@@ -91,8 +91,13 @@ service cloud.firestore {
     // Bar Tabs POS (a bartender with only showdrinksTabsPos, not full showdrinksAdmin) needs to
     // read/write these two to take tab orders — everything else showdrinks-admin-only stays
     // showdrinksAdmin-only (editing the menu/grids/shows is not exposed to that restricted view).
+    // showdrinks_tabMembers doubles as the whole suite's shared members directory — the portal's
+    // and Expenses' own Add user screens read it to populate their Member picker dropdown, so
+    // expensesAdmin gets read-only access too (isManager already covers the portal via
+    // hasAccess('showdrinksAdmin')); only Bar Tabs POS/Bar Manager can write to it.
     match /showdrinks_tabMembers/{id} {
-      allow read, write: if hasAccess('showdrinksAdmin') || hasAccess('showdrinksTabsPos');
+      allow read: if hasAccess('showdrinksAdmin') || hasAccess('showdrinksTabsPos') || hasAccess('expensesAdmin');
+      allow write: if hasAccess('showdrinksAdmin') || hasAccess('showdrinksTabsPos');
     }
     match /showdrinks_tabOrders/{id} {
       allow read, write: if hasAccess('showdrinksAdmin') || hasAccess('showdrinksTabsPos');

@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.189"></script>
+  <script src="../shared/embed.js?v=1.0.190"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.0.189">
+  <link rel="stylesheet" href="style.css?v=1.0.190">
 </head>
 <body>
 
@@ -399,8 +399,6 @@
         <div id="tabsMenuDropdown" class="dropdown-menu">
           <button class="btn btn-secondary btn-sm" onclick="emailAllOwingMembers()">✉ Email All Owing</button>
           <button class="btn btn-secondary btn-sm" id="exportTabSalesBtn">⬇ Export Sales (CSV)</button>
-          <button class="btn btn-secondary btn-sm" id="importMembersBtn">⬆ Import Members (CSV)</button>
-          <input type="file" id="importMembersFile" accept=".csv,text/csv" style="display:none">
           <button class="btn btn-danger btn-sm" id="clearAllTabsBtn">Clear Sales History</button>
         </div>
       </div>
@@ -641,26 +639,6 @@
   </div>
 </div>
 
-<!-- Import Members (CSV) preview modal — opened by importMembersBtn after the chosen file is
-     parsed for Name/Email columns (see parseCsv/importMembersFile handler in admin.js); nothing
-     is written to Firestore until "Import" is confirmed here. -->
-<div id="importMembersModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
-  <div class="card" style="width:100%;max-width:480px;margin:20px;max-height:85vh;display:flex;flex-direction:column">
-    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
-      <h2>Import Members</h2>
-      <button onclick="closeImportMembersModal()" style="background:none;border:none;font-size:20px;cursor:pointer">×</button>
-    </div>
-    <div class="card-body" style="overflow-y:auto">
-      <p class="muted" id="importMembersSummary" style="margin-bottom:12px"></p>
-      <div id="importMembersList" style="display:flex;flex-direction:column;gap:6px"></div>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border)">
-      <button class="btn btn-secondary" onclick="closeImportMembersModal()">Cancel</button>
-      <button class="btn btn-primary" id="importMembersConfirmBtn">Import</button>
-    </div>
-  </div>
-</div>
-
 <!-- Shown by askNameMatch() (admin.js) when a name being added shares a first name with, or is a
      close spelling match to, one or more existing members — picking one selects that member
      instead of creating a duplicate; "Someone new" (or tapping outside) proceeds with the add. -->
@@ -771,11 +749,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.189"></script>
-<script src="../shared/firebase-config.js?v=1.0.189"></script>
-<script src="../shared/auth.js?v=1.0.189"></script>
-<script src="../shared/suite-nav.js?v=1.0.189"></script>
-<script src="admin.js?v=1.0.189"></script>
+<script src="../shared/version.js?v=1.0.190"></script>
+<script src="../shared/firebase-config.js?v=1.0.190"></script>
+<script src="../shared/auth.js?v=1.0.190"></script>
+<script src="../shared/suite-nav.js?v=1.0.190"></script>
+<script src="admin.js?v=1.0.190"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

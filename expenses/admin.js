@@ -1094,9 +1094,10 @@ window.openAddExpensesUserModal = function() {
   document.getElementById('addUserForm').reset();
   document.getElementById('newUserCreateOnlyFields').style.display = '';
   document.getElementById('editUserAccessGroup').style.display = 'none';
+  resetMemberPicker();
   document.getElementById('addUserError').textContent = '';
   document.getElementById('addUserModal').style.display = 'flex';
-  document.getElementById('newUserName').focus();
+  loadMemberDirectory();
 };
 
 window.openEditExpensesUserModal = function(id) {
@@ -1108,12 +1109,64 @@ window.openEditExpensesUserModal = function(id) {
   document.getElementById('addUserForm').reset();
   document.getElementById('newUserName').value = user.name || '';
   document.getElementById('newUserCreateOnlyFields').style.display = 'none';
+  // Editing an existing user is always direct Name — the member picker only applies when
+  // creating (see resetMemberPicker/applyMemberPick below).
+  document.getElementById('newUserMemberPickRow').style.display = 'none';
+  document.getElementById('newUserNameRow').style.display = '';
   document.getElementById('editUserAccessGroup').style.display = '';
   document.getElementById('editUserExpensesAccess').checked = !!user.access.expenses;
   document.getElementById('addUserError').textContent = '';
   document.getElementById('addUserModal').style.display = 'flex';
   document.getElementById('newUserName').focus();
 };
+
+// ── Member picker (Add user only) — same members list Bar Tabs POS uses ────────────────────
+
+let _memberDirectory = null; // null = not loaded yet; [] is a valid "loaded, empty" state
+
+async function loadMemberDirectory() {
+  if (_memberDirectory) { renderMemberPickerOptions(); return; }
+  try {
+    const snap = await db.collection('showdrinks_tabMembers').orderBy('name').get();
+    _memberDirectory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderMemberPickerOptions();
+  } catch (err) {
+    showToast('Could not load members: ' + err.message, 'error');
+  }
+}
+
+function renderMemberPickerOptions() {
+  const sel = document.getElementById('newUserMemberSelect');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— choose —</option>' +
+    (_memberDirectory || []).map(m =>
+      `<option value="${m.id}">${escapeHtml(m.name)}${m.email ? ` (${escapeHtml(m.email)})` : ''}</option>`).join('');
+  sel.value = cur;
+}
+
+function resetMemberPicker() {
+  document.getElementById('newUserMemberPickRow').style.display = '';
+  document.getElementById('newUserNameRow').style.display = 'none';
+  document.getElementById('newUserEmailRow').style.display = 'none';
+  document.getElementById('newUserMemberSelect').value = '';
+}
+
+document.getElementById('newUserMemberSelect').addEventListener('change', () => {
+  const member = (_memberDirectory || []).find(m => m.id === document.getElementById('newUserMemberSelect').value);
+  if (!member) return;
+  document.getElementById('newUserName').value = member.name || '';
+  document.getElementById('newUserEmail').value = member.email || '';
+});
+
+document.getElementById('newUserManualEntryLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('newUserMemberPickRow').style.display = 'none';
+  document.getElementById('newUserNameRow').style.display = '';
+  document.getElementById('newUserEmailRow').style.display = '';
+  document.getElementById('newUserName').value = '';
+  document.getElementById('newUserEmail').value = '';
+  document.getElementById('newUserName').focus();
+});
 
 window.closeAddExpensesUserModal = function() {
   document.getElementById('addUserModal').style.display = 'none';
