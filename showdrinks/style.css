@@ -327,11 +327,12 @@ body.tabs-only-mode .suite-current-section .tab-btn[data-tab="tabmembers"] { dis
 .qty-control button.qty-danger { border-color: var(--danger); color: var(--danger); }
 .qty-control button.qty-danger:hover { background: var(--danger); color: #fff; }
 
-/* Category chip filter — index.html's PWA duplicates these inline for itself; this copy is the
-   one admin.html's Bar Tabs POS (category-list ordering mode) and Menu Items use. */
-.cat-bar { display:flex; gap:10px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+/* Category chip filter — index.html's PWA duplicates these inline for itself (its own copy was
+   sized up separately; this one stays at Bar Manager's original, smaller size) — this copy is
+   the one admin.html's Bar Tabs POS (category-list ordering mode) and Menu Items use. */
+.cat-bar { display:flex; gap:8px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
 .cat-bar::-webkit-scrollbar { display:none; }
-.cat-btn { flex:0 0 auto; white-space:nowrap; padding:10px 18px; border:2px solid var(--border); border-radius:999px; background:var(--surface); font-size:15px; font-weight:600; cursor:pointer; transition:all .15s; }
+.cat-btn { flex:0 0 auto; white-space:nowrap; padding:7px 14px; border:2px solid var(--border); border-radius:999px; background:var(--surface); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
 /* Lives in .tab-pos-sticky-header now (a sibling of the member picker/basket bar, not nested in
    the scrolling grid/list below) — that wrapper is what's sticky, so this just needs its own
    flow spacing, no positioning of its own. */
