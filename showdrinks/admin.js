@@ -2235,20 +2235,55 @@ async function commitTabOrder() {
 
 // ── Basket review modal (tap the basket bar) ────────────────────────────────
 
-window.openTabBasketReview = function() {
-  const items = Object.values(_tabBasket);
+// Same +/−/delete pattern as the customer app's own "Order (n)" chip (basketListHtml in
+// order.js) — reused here so the review modal isn't just a read-only summary; a bartender can
+// walk a quantity down, bump it back up, or drop an item entirely before committing to the tab.
+function renderTabBasketReviewItems() {
+  const items = Object.entries(_tabBasket);
   const el = document.getElementById('tabBasketReviewItems');
   el.innerHTML = items.length
-    ? items.map(i => `
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:14px">
-        <span>${i.qty}× ${escHtml(i.name)}</span>
-        <span>${fmtCurrency(i.price * i.qty)}</span>
+    ? items.map(([key, i]) => `
+      <div class="menu-item-card has-qty">
+        <span class="mic-name">${escHtml(i.name)}</span>
+        <span class="mic-price">${fmtCurrency(i.price * i.qty)}</span>
+        <div class="qty-control">
+          <button onclick="tabDecBasketItem('${encodeURIComponent(key)}')" title="Remove one">−</button>
+          <span class="qty-num">${i.qty}</span>
+          <button onclick="tabIncBasketItem('${encodeURIComponent(key)}')" title="Add one">+</button>
+          <button class="qty-danger" onclick="tabRemoveBasketItem('${encodeURIComponent(key)}')" title="Delete">🗑</button>
+        </div>
       </div>`).join('')
     : '<p style="color:var(--text-muted);font-size:14px">No drinks added yet.</p>';
-  const total = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const total = items.reduce((s, [, i]) => s + i.price * i.qty, 0);
   document.getElementById('tabBasketReviewTotal').textContent = fmtCurrency(total);
   // Disabled rather than tappable-then-errored — no member selected, or nothing to charge.
   document.getElementById('tabCommitBtn').disabled = !_tabSelectedMemberId || total <= 0;
+}
+
+window.tabIncBasketItem = function(encodedKey) {
+  const key = decodeURIComponent(encodedKey);
+  if (!_tabBasket[key]) return;
+  _tabBasket[key].qty += 1;
+  renderTabBasketReviewItems(); renderTabBasket(); renderTabGrid();
+};
+
+window.tabDecBasketItem = function(encodedKey) {
+  const key = decodeURIComponent(encodedKey);
+  if (!_tabBasket[key]) return;
+  _tabBasket[key].qty -= 1;
+  if (_tabBasket[key].qty <= 0) { delete _tabBasket[key]; if (_tabSelectedKey === key) _tabSelectedKey = null; }
+  renderTabBasketReviewItems(); renderTabBasket(); renderTabGrid();
+};
+
+window.tabRemoveBasketItem = function(encodedKey) {
+  const key = decodeURIComponent(encodedKey);
+  delete _tabBasket[key];
+  if (_tabSelectedKey === key) _tabSelectedKey = null;
+  renderTabBasketReviewItems(); renderTabBasket(); renderTabGrid();
+};
+
+window.openTabBasketReview = function() {
+  renderTabBasketReviewItems();
   document.getElementById('tabBasketReviewModal').style.display = 'flex';
 };
 
