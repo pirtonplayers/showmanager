@@ -38,6 +38,14 @@ const APP_SUBNAV = {
   budget: [
     { id: 'shows', label: 'Shows', selector: '[data-tab="shows"]' },
   ],
+  // The restricted Tabs POS view has no visible nav buttons of its own (showdrinksAdmin's are
+  // all hidden there except "Bar Tabs" — see body.tabs-only-mode in showdrinks/style.css), so
+  // "POS" targets a hidden, purely-functional button (#tabPosHiddenNavBtn in admin.html) that
+  // exists only for this postMessage click to land on.
+  showdrinksTabsPos: [
+    { id: 'tabs', label: 'POS', selector: '[data-tab="tabs"]' },
+    { id: 'tabmembers', label: 'Bar Tabs', selector: '[data-tab="tabmembers"]' },
+  ],
 };
 
 // account: users/{uid} data (isManager, access) — same shape checkAccess() resolves.

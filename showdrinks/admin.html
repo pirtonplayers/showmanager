@@ -4,15 +4,21 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.187"></script>
+  <script src="../shared/embed.js?v=1.0.188"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.0.187">
+  <link rel="stylesheet" href="style.css?v=1.0.188">
 </head>
 <body>
 
 <!-- Covers the page until the first onAuthStateChanged fires — see #authGate in style.css. -->
 <div id="authGate"></div>
+
+<!-- Purely a postMessage click target — never shown, has no visual presence anywhere. The
+     restricted Tabs POS view (body.tabs-only-mode) hides every real nav button except "Bar
+     Tabs", so the portal shell's own hamburger (shared/suite-nav.js APP_SUBNAV.showdrinksTabsPos)
+     needs some [data-tab="tabs"] element to click to get back to the POS screen from there. -->
+<button class="tab-btn" id="tabPosHiddenNavBtn" data-tab="tabs" style="display:none" aria-hidden="true" tabindex="-1"></button>
 
 <div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)">
   <div class="card" style="width:100%;max-width:360px;margin:20px">
@@ -765,11 +771,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.187"></script>
-<script src="../shared/firebase-config.js?v=1.0.187"></script>
-<script src="../shared/auth.js?v=1.0.187"></script>
-<script src="../shared/suite-nav.js?v=1.0.187"></script>
-<script src="admin.js?v=1.0.187"></script>
+<script src="../shared/version.js?v=1.0.188"></script>
+<script src="../shared/firebase-config.js?v=1.0.188"></script>
+<script src="../shared/auth.js?v=1.0.188"></script>
+<script src="../shared/suite-nav.js?v=1.0.188"></script>
+<script src="admin.js?v=1.0.188"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
