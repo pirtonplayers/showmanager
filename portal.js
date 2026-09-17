@@ -48,6 +48,12 @@ const TILE_META = {
 let activeKey = 'dashboard'; // 'dashboard' | 'users' | an ACCESS_APPS[].key
 const lastTab = {};          // ACCESS_APPS[].key -> last APP_SUBNAV tab id chosen for it
 const frames = {};           // ACCESS_APPS[].key -> its <iframe>, created lazily
+// Whether each app's iframe has fired its own 'load' event at least once — tracked separately
+// from lastTab because an app with no APP_SUBNAV entries (e.g. showdrinksTabsPos, a single-screen
+// view with no sub-tabs) never gets a truthy lastTab[key], which used to be what "ready" meant;
+// that left activateApp() showing the loading overlay every time with nothing left to hide it,
+// since a preloaded iframe that already finished loading won't fire 'load' again.
+const loadedFrames = new Set(); // ACCESS_APPS[].key
 
 function activatePane(key) {
   // <main> itself (not just which .work-pane is active inside it) has to hide when an app
@@ -98,6 +104,7 @@ function ensureFrame(key) {
   // just be missed. Only hides the loading overlay if we're still looking at this app when it
   // finishes — a preloaded app's own 'load' event can fire long after the user's moved on.
   frame.addEventListener('load', () => {
+    loadedFrames.add(key);
     activateTab(key, lastTab[key] || APP_SUBNAV[key]?.[0]?.id);
     if (key === activeKey) hideAppLoadingOverlay();
   });
@@ -135,11 +142,11 @@ function activateApp(key) {
   if (!app) return;
   activatePane(null); // hides every native pane and every other iframe
 
-  const alreadyReady = !!frames[key] && !!lastTab[key];
+  const alreadyReady = loadedFrames.has(key);
   const frame = ensureFrame(key);
   if (!frame) return;
   if (alreadyReady) {
-    activateTab(key, lastTab[key]);
+    if (lastTab[key]) activateTab(key, lastTab[key]);
     hideAppLoadingOverlay();
   } else {
     showAppLoadingOverlay(app.label);
