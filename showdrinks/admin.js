@@ -1014,7 +1014,14 @@ document.getElementById('downloadQrBtn').addEventListener('click', () => {
 // ── POS Layout ─────────────────────────────────────────────────────────────
 
 const POS_COLORS = ['','#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#6b7280','#0f172a'];
-const POS_N = 18;
+// Main grid is POS_MAIN_N cells (3 columns × however many rows that divides into — 5 rows of 3
+// here); the rest sit in the smaller "extra" row below it (unaffected by this — see
+// .pos-admin-extra/.pos-grid-extra's own grid-template-columns:repeat(6,1fr) in style.css, which
+// stays fixed at 6 regardless of POS_N). Both order.js's own copy of this split (renderPosGrid)
+// and every render function in this file need to agree on POS_MAIN_N/POS_N — there's no shared
+// constants file between the two scripts, so if this ever changes again, update both.
+const POS_MAIN_N = 15;
+const POS_N = 21;
 
 let _posGrids    = {};
 let _posGridOrder = [];
@@ -1117,10 +1124,10 @@ function posRenderEditor() {
       ${_posActiveId==='root'?'<span style="font-size:12px;color:var(--text-muted)">(root — entry point for customers)</span>':''}
     </div>
     <div class="pos-admin-grid">
-      ${cells.slice(0,12).map((cell,i) => posRenderAdminCell(cell,i)).join('')}
+      ${cells.slice(0,POS_MAIN_N).map((cell,i) => posRenderAdminCell(cell,i)).join('')}
     </div>
     <div class="pos-admin-grid pos-admin-extra">
-      ${cells.slice(12).map((cell,i) => posRenderAdminCell(cell,12+i)).join('')}
+      ${cells.slice(POS_MAIN_N).map((cell,i) => posRenderAdminCell(cell,POS_MAIN_N+i)).join('')}
     </div>`;
 }
 
@@ -1221,6 +1228,7 @@ window.posOpenCell = function(idx) {
 };
 
 function posRenderColorPicker() {
+  const isCustom = _posCellColor && !POS_COLORS.includes(_posCellColor);
   document.getElementById('posCellColors').innerHTML = POS_COLORS.map(c =>
     `<div onclick="posPickColor('${c}')" title="${c||'None'}"
           style="width:28px;height:28px;border-radius:6px;cursor:pointer;flex-shrink:0;
@@ -1228,7 +1236,17 @@ function posRenderColorPicker() {
                  border:2px solid ${c===_posCellColor?'var(--primary)':(c?c:'var(--border)')};
                  display:flex;align-items:center;justify-content:center">
        ${!c?'<span style="font-size:12px;color:var(--text-muted)">✕</span>':''}
-     </div>`).join('');
+     </div>`).join('')
+    // Full-range picker (any hex, not just the presets above) — native <input type="color">
+    // opens the OS/browser's own color wheel. Shows whatever's currently picked when that's a
+    // valid 6-digit hex (including a preset, so it doubles as a live preview either way), with
+    // its own ring highlighted only when the current colour is genuinely custom — a preset stays
+    // "selected" via its own swatch instead, rather than both looking picked at once.
+    + `<input type="color" id="posCellColorCustom"
+              value="${/^#[0-9a-f]{6}$/i.test(_posCellColor) ? _posCellColor : '#4f46e5'}"
+              oninput="posPickColor(this.value)" title="Custom colour"
+              style="width:28px;height:28px;border-radius:6px;cursor:pointer;flex-shrink:0;padding:0;
+                     border:2px solid ${isCustom ? 'var(--primary)' : 'var(--border)'}">`;
 }
 
 window.posPickColor = function(c) { _posCellColor = c; posRenderColorPicker(); };
@@ -1355,8 +1373,8 @@ function posRenderTestGrid() {
     </button>`;
   }
   el.innerHTML =
-    `<div class="pos-grid">${cells.slice(0,12).map((c,i) => cellBtn(c,i)).join('')}</div>` +
-    `<div class="pos-grid-extra">${cells.slice(12).map((c,i) => cellBtn(c,12+i)).join('')}</div>`;
+    `<div class="pos-grid">${cells.slice(0,POS_MAIN_N).map((c,i) => cellBtn(c,i)).join('')}</div>` +
+    `<div class="pos-grid-extra">${cells.slice(POS_MAIN_N).map((c,i) => cellBtn(c,POS_MAIN_N+i)).join('')}</div>`;
 }
 
 function posRenderTestBasket() {
@@ -1868,8 +1886,8 @@ function renderTabGrid() {
     </button>`;
   }
   el.innerHTML =
-    `<div class="pos-grid">${cells.slice(0,12).map((c,i) => cellBtn(c,i)).join('')}</div>` +
-    `<div class="pos-grid-extra">${cells.slice(12).map((c,i) => cellBtn(c,12+i)).join('')}</div>`;
+    `<div class="pos-grid">${cells.slice(0,POS_MAIN_N).map((c,i) => cellBtn(c,i)).join('')}</div>` +
+    `<div class="pos-grid-extra">${cells.slice(POS_MAIN_N).map((c,i) => cellBtn(c,POS_MAIN_N+i)).join('')}</div>`;
 }
 
 // Category List alternative to the POS grid above — every menu item grouped under its category,

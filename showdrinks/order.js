@@ -515,6 +515,13 @@ function itemShowsOnPos(item) {
   return true;
 }
 
+// Main grid is POS_MAIN_N cells (3 columns × however many rows that divides into), the rest sit
+// in the smaller fixed 6-column "extra" row below it — admin.js's own copy of this same split
+// (POS_MAIN_N/POS_N there) has to agree with these, since both read/write the same
+// showdrinks_posGrids docs; there's no shared constants file between the two scripts.
+const POS_MAIN_N = 15;
+const POS_N = 21;
+
 function renderPosGrid() {
   const gridId = state.posGridStack[state.posGridStack.length - 1];
   const grid = state.posGrids[gridId];
@@ -524,8 +531,8 @@ function renderPosGrid() {
     el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:12px">POS layout not set up yet — configure it in Admin → POS Layout.</p>';
     return;
   }
-  const all = (grid.cells || []).slice(0, 18);
-  while (all.length < 18) all.push({ type: 'empty' });
+  const all = (grid.cells || []).slice(0, POS_N);
+  while (all.length < POS_N) all.push({ type: 'empty' });
   function cellBtn(cell, i) {
     if (!cell || cell.type === 'empty') return `<button class="pos-btn empty" disabled></button>`;
     const style = cell.color
@@ -546,8 +553,8 @@ function renderPosGrid() {
     </button>`;
   }
   el.innerHTML =
-    `<div class="pos-grid">${all.slice(0,12).map((c,i) => cellBtn(c,i)).join('')}</div>` +
-    `<div class="pos-grid-extra">${all.slice(12).map((c,i) => cellBtn(c,12+i)).join('')}</div>`;
+    `<div class="pos-grid">${all.slice(0,POS_MAIN_N).map((c,i) => cellBtn(c,i)).join('')}</div>` +
+    `<div class="pos-grid-extra">${all.slice(POS_MAIN_N).map((c,i) => cellBtn(c,POS_MAIN_N+i)).join('')}</div>`;
 }
 
 function wirePosLongPress(container, onPress) {
