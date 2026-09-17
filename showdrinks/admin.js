@@ -2651,7 +2651,14 @@ async function init() {
   try {
     // loadOrders() included since Orders is the default tab now — otherwise it'd sit empty
     // until the user clicked away and back (every other tab's own data only loads on click).
-    await Promise.all([loadShows(), loadMenuItems(), loadLocations(), loadSettings(), loadOrders()]);
+    // Both loadLocations() and loadOrders() (which itself reads locations, to fill in each
+    // order's collection point) touch showdrinks_locations — showdrinksAdmin-only in
+    // firestore.rules — so a tabs-only account (no showdrinksAdmin) would have Promise.all
+    // reject on that permission-denied read and never reach the tabs screen at all. Neither is
+    // needed for Bar Tabs POS anyway, so skip both in that restricted view.
+    const loads = [loadShows(), loadMenuItems(), loadSettings()];
+    if (!_tabsOnlyMode) loads.push(loadLocations(), loadOrders());
+    await Promise.all(loads);
   } catch(e) {
     document.getElementById('headerShowName').textContent = 'Firebase not configured';
     toast('Firebase not configured – edit firebase-config.js', 'error');
