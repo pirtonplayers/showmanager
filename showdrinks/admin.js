@@ -1030,7 +1030,7 @@ let _posEditIdx   = null;
 let _posCellColor = '';
 
 function posEmptyGrid(name) {
-  return { name, cells: Array(POS_N).fill(null).map(() =>
+  return { name, sticky: false, cells: Array(POS_N).fill(null).map(() =>
     ({ type:'empty', label:'', color:'', menuItemId:'', menuItemPrice:0, targetGridId:'' })) };
 }
 
@@ -1122,6 +1122,11 @@ function posRenderEditor() {
       <input class="form-control" id="posGridNameInput" value="${escHtml(grid.name)}"
              style="max-width:200px" placeholder="Grid name" oninput="posRenameGrid(this.value)">
       ${_posActiveId==='root'?'<span style="font-size:12px;color:var(--text-muted)">(root — entry point for customers)</span>':''}
+      <label class="switch-label" style="margin-left:auto" title="Stay on this grid after adding an item, the same way a long-press already does — instead of jumping back to the root menu each time">
+        <input type="checkbox" ${grid.sticky?'checked':''} onchange="posToggleSticky(this.checked)">
+        <span class="switch"></span>
+        <span>Sticky</span>
+      </label>
     </div>
     <div class="pos-admin-grid">
       ${cells.slice(0,POS_MAIN_N).map((cell,i) => posRenderAdminCell(cell,i)).join('')}
@@ -1203,6 +1208,15 @@ window.posRenameGrid = function(name) {
   if (_posActiveId && _posGrids[_posActiveId]) {
     _posGrids[_posActiveId].name = name;
     posRenderGridList();
+  }
+};
+
+// Sticky, like a grid name change, is only kept in memory here until "Save Layout" actually
+// writes it — see posSaveBtn's own handler, which already needs updating whenever a new
+// per-grid field like this is added.
+window.posToggleSticky = function(sticky) {
+  if (_posActiveId && _posGrids[_posActiveId]) {
+    _posGrids[_posActiveId].sticky = sticky;
   }
 };
 
@@ -1324,7 +1338,7 @@ document.getElementById('posSaveBtn').addEventListener('click', async () => {
   try {
     const batch = db.batch();
     Object.values(_posGrids).forEach(g => {
-      batch.set(db.collection('showdrinks_posGrids').doc(g.id), { name:g.name, cells:g.cells||[] });
+      batch.set(db.collection('showdrinks_posGrids').doc(g.id), { name:g.name, cells:g.cells||[], sticky:g.sticky===true });
     });
     await batch.commit();
     toast('POS layout saved','success');
@@ -1405,7 +1419,10 @@ window.handlePosTestBtn = function(idx) {
     if (!_testBasket[key]) _testBasket[key] = { name: cell.label, price: cell.menuItemPrice || 0, qty: 0 };
     _testBasket[key].qty += 1;
     _testSelectedKey = key;
-    _testStack = ['root']; posRenderTestGrid(); posRenderTestBasket();
+    // Test mode has no long-press to simulate, so Sticky (grid.sticky) is the only thing that
+    // ever keeps it on the current grid here — same rule as the real Bar Tabs POS/customer grids.
+    if (!grid.sticky) _testStack = ['root'];
+    posRenderTestGrid(); posRenderTestBasket();
   } else if (cell.type === 'clear') {
     _testBasket = {}; _testSelectedKey = null; posRenderTestBasket();
   } else if (cell.type === 'plus') {
@@ -2094,9 +2111,10 @@ window.handleTabPosBtn = function(idx, isLongPress) {
     if (!_tabBasket[key]) _tabBasket[key] = { name: cell.label, price: cell.menuItemPrice || 0, qty: 0 };
     _tabBasket[key].qty += 1;
     _tabSelectedKey = key;
-    // Long press: stay on this grid (adding several from the same category in a row). A normal
-    // tap still jumps back to the root menu, same as before.
-    if (!isLongPress) _tabStack = ['root'];
+    // Long press stays on this grid (adding several from the same category in a row) — so does a
+    // plain tap, on a grid marked Sticky in POS Layout (grid.sticky). Otherwise a normal tap still
+    // jumps back to the root menu, same as before.
+    if (!isLongPress && !grid.sticky) _tabStack = ['root'];
     renderTabGrid(); renderTabBasket();
   } else if (cell.type === 'clear') {
     _tabBasket = {}; _tabSelectedKey = null; renderTabGrid(); renderTabBasket();

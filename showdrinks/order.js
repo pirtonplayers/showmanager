@@ -596,9 +596,10 @@ window.handlePosBtn = function(idx, isLongPress) {
     if (!state.basket[key]) state.basket[key] = { name: menuItem.name, price: menuItem.price, quantity: 0 };
     state.basket[key].quantity += 1;
     state.selectedBasketKey = key;
-    // Long press: stay on this grid (adding several from the same category in a row). A normal
-    // tap still jumps back to the root menu, same as before.
-    if (!isLongPress) state.posGridStack = ['root'];
+    // Long press stays on this grid (adding several from the same category in a row) — so does a
+    // plain tap, on a grid marked Sticky in POS Layout (grid.sticky). Otherwise a normal tap still
+    // jumps back to the root menu, same as before.
+    if (!isLongPress && !grid.sticky) state.posGridStack = ['root'];
     renderPosGrid();
     renderOrderGrid();
     updateBottomBar();
