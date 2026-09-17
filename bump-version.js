@@ -52,34 +52,49 @@ function bumpApp({ dir, assets = [], html = [], swCache }) {
   }
 }
 
+// manifest.json's own icons[].src entries get restamped the same way as any other asset
+// reference (restamp()'s regex matches a quoted path in JSON just as well as an HTML attribute)
+// — added below alongside each app's actual icon files. Without this, an icon change never
+// gets a new cache key: GitHub Pages' CDN can keep serving the old PNG for up to 10 minutes
+// same as any other unversioned asset (see restamp() above), and worse, a browser that's cached
+// the manifest/icon from before then has no reason to ever re-fetch it at all — this is what
+// made a just-shipped icon change look like it hadn't deployed.
 bumpApp({
   dir: '', swCache: 'portal',
-  assets: ['style.css', 'portal.js', 'shared/version.js', 'shared/firebase-config.js', 'shared/auth.js', 'shared/suite-nav.js', 'shared/a2hs.js'],
-  html: ['index.html'],
+  assets: [
+    'style.css', 'portal.js', 'shared/version.js', 'shared/firebase-config.js', 'shared/auth.js', 'shared/suite-nav.js', 'shared/a2hs.js',
+    'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+  ],
+  html: ['index.html', 'manifest.json'],
 });
 bumpApp({
   dir: 'expenses', swCache: 'expenses',
   assets: [
     'style.css', 'app.js', 'admin.js',
     '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/a2hs.js', '../shared/load-script.js',
+    'manifest.json', 'admin-manifest.json',
+    'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+    'icons/icon-admin-192.png', 'icons/icon-admin-512.png', 'icons/apple-touch-icon-admin.png',
   ],
-  html: ['index.html', 'admin.html', 'help.html', 'admin-help.html'],
+  html: ['index.html', 'admin.html', 'help.html', 'admin-help.html', 'manifest.json', 'admin-manifest.json'],
 });
 bumpApp({
   dir: 'budget', swCache: 'budget',
   assets: [
     'style.css', 'budget.js',
     '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/load-script.js',
+    'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png',
   ],
-  html: ['index.html'],
+  html: ['index.html', 'manifest.json'],
 });
 bumpApp({
   dir: 'showdrinks', swCache: 'showdrinks',
   assets: [
     'style.css', 'admin.js', 'order.js',
     '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/a2hs.js',
+    'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png',
   ],
-  html: ['index.html', 'admin.html', 'terms.html', 'privacy.html'],
+  html: ['index.html', 'admin.html', 'terms.html', 'privacy.html', 'manifest.json'],
 });
 
 console.log(`Version: ${version}`);
