@@ -1094,6 +1094,19 @@ function posRenderMenuItems() {
     : '<p style="font-size:12px;color:var(--text-muted)">No items.</p>';
 }
 
+function posRenderCellItemOptions() {
+  const filterVal = document.getElementById('posCellItemCatFilter')?.value || '';
+  const sel = document.getElementById('posCellItemSel');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— select —</option>' +
+    _allMenuItems.map(i => {
+      const hide = filterVal && i.category !== filterVal;
+      return `<option value="${i.id}"${hide ? ' hidden' : ''}>${escHtml(i.name)} ${fmtCurrency(i.price)}</option>`;
+    }).join('');
+  sel.value = current;
+}
+
 function posRenderGridList() {
   const el = document.getElementById('posGridList');
   if (!el) return;
@@ -1227,9 +1240,19 @@ window.posOpenCell = function(idx) {
   _posCellColor = cell.color || '';
   document.getElementById('posCellType').value = cell.type || 'empty';
   document.getElementById('posCellLabel').value = cell.label || '';
-  document.getElementById('posCellItemSel').innerHTML =
-    '<option value="">— select —</option>' +
-    _allMenuItems.map(i => `<option value="${i.id}"${i.id===cell.menuItemId?' selected':''}>${escHtml(i.name)} ${fmtCurrency(i.price)}</option>`).join('');
+
+  // Category filter defaults to whatever category the already-assigned item (if any) belongs to
+  // — so opening a cell that's already set doesn't hide its own item behind a different filter
+  // the moment the modal opens.
+  const currentItem = _allMenuItems.find(i => i.id === cell.menuItemId);
+  const catFilterEl = document.getElementById('posCellItemCatFilter');
+  const cats = [...new Set(_allMenuItems.map(i => i.category).filter(Boolean))].sort();
+  catFilterEl.innerHTML = '<option value="">All categories</option>' +
+    cats.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  catFilterEl.value = currentItem?.category || '';
+  posRenderCellItemOptions();
+  document.getElementById('posCellItemSel').value = cell.menuItemId || '';
+
   document.getElementById('posCellGridSel').innerHTML =
     '<option value="">— select —</option>' +
     _posGridOrder.filter(id => id!==_posActiveId).map(id => {

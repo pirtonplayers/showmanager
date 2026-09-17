@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.181"></script>
+  <script src="../shared/embed.js?v=1.0.182"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.0.181">
+  <link rel="stylesheet" href="style.css?v=1.0.182">
 </head>
 <body>
 
@@ -717,6 +717,9 @@
       </div>
       <div class="form-group" id="posCellItemRow" style="display:none">
         <label>Menu Item</label>
+        <select id="posCellItemCatFilter" class="form-control" style="margin-bottom:6px" onchange="posRenderCellItemOptions()">
+          <option value="">All categories</option>
+        </select>
         <select id="posCellItemSel" class="form-control" onchange="posCellItemChange()"></select>
       </div>
       <div class="form-group" id="posCellGridRow" style="display:none">
@@ -744,11 +747,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.181"></script>
-<script src="../shared/firebase-config.js?v=1.0.181"></script>
-<script src="../shared/auth.js?v=1.0.181"></script>
-<script src="../shared/suite-nav.js?v=1.0.181"></script>
-<script src="admin.js?v=1.0.181"></script>
+<script src="../shared/version.js?v=1.0.182"></script>
+<script src="../shared/firebase-config.js?v=1.0.182"></script>
+<script src="../shared/auth.js?v=1.0.182"></script>
+<script src="../shared/suite-nav.js?v=1.0.182"></script>
+<script src="admin.js?v=1.0.182"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
