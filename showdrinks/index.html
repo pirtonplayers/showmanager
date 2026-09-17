@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowDrinks</title>
-  <link rel="manifest" href="manifest.json?v=1.0.196">
-  <link rel="stylesheet" href="style.css?v=1.0.196">
+  <link rel="manifest" href="manifest.json?v=1.0.197">
+  <link rel="stylesheet" href="style.css?v=1.0.197">
   <style>
     .pwa-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--primary); }
     .pwa-content { flex: 1; background: var(--bg); border-radius: 24px 24px 0 0; margin-top: 8px; padding: 24px 20px 40px; overflow-y: auto; }
@@ -111,6 +111,13 @@
     .sub-screen .pwa-hero h1 { font-size:14px; font-weight:700; margin:0; }
     .sub-screen .pwa-hero p { display:none; }
     .sub-screen .pwa-content { padding-top:16px; }
+
+    /* Category List's own back-to-home escape hatch (see heroGoBack in order.js) — shown/hidden
+       by updateBottomBar() alongside that screen's own bottom bar, exactly when the bottom bar
+       itself has nothing to show (a fresh, still-empty order has nothing to Cancel either). The
+       more general "svg display:none" rule above would otherwise hide this icon too. */
+    #heroBackBtn { display:none; align-items:center; justify-content:center; background:none; border:none; color:#fff; cursor:pointer; padding:4px; margin:0 -4px 0 -8px; flex-shrink:0; }
+    .sub-screen .pwa-hero #heroBackBtn svg { display:block; width:22px; height:22px; }
 
     /* Screen 2 POS mode — hide chrome, fill viewport */
     .pos-screen .pwa-hero { display:none; }
@@ -220,6 +227,12 @@
 
 <div class="pwa-body" style="padding-top:env(safe-area-inset-top)">
   <div class="pwa-hero">
+    <!-- Category List mode's bottom bar hides entirely once the basket's empty (nothing to
+         cancel — see updateBottomBar in order.js), which otherwise left no way back to Home at
+         all from a fresh, still-empty order. Shown/hidden alongside that same bottom bar logic. -->
+    <button type="button" id="heroBackBtn" onclick="heroGoBack()" style="display:none" aria-label="Back to home" title="Back to home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
     <svg viewBox="0 0 134.888 161.16">
       <defs>
         <style>
@@ -369,10 +382,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.196"></script>
-<script src="../shared/firebase-config.js?v=1.0.196"></script>
-<script src="../shared/a2hs.js?v=1.0.196"></script>
-<script src="order.js?v=1.0.196"></script>
+<script src="../shared/version.js?v=1.0.197"></script>
+<script src="../shared/firebase-config.js?v=1.0.197"></script>
+<script src="../shared/a2hs.js?v=1.0.197"></script>
+<script src="order.js?v=1.0.197"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
