@@ -103,6 +103,13 @@ function basketCount() {
 // staff-configured POS button grid (default), or a plain list of every item grouped by category.
 function isPosMode() { return (state.settings && state.settings.orderingMode) !== 'list'; }
 
+// Settings & QR → Ordering Method's "Starting page" for the customer ordering screen — falls
+// back to root if unset or if the configured grid's since been deleted.
+function posStartGrid() {
+  const id = state.settings && state.settings.posStartGridId;
+  return id && state.posGrids[id] ? id : 'root';
+}
+
 // ── Navigation ─────────────────────────────────────────────────────────────
 
 const body = document.querySelector('.pwa-body');
@@ -487,7 +494,7 @@ function renderMenu() {
     listMenuEl.style.display = 'none';
     listCatBarEl.style.display = 'none';
     posGridEl.style.display = '';
-    state.posGridStack = ['root'];
+    state.posGridStack = [posStartGrid()];
     renderPosGrid();
   } else {
     posGridEl.style.display = 'none';
@@ -599,7 +606,7 @@ window.handlePosBtn = function(idx, isLongPress) {
     // Long press stays on this grid (adding several from the same category in a row) — so does a
     // plain tap, on a grid marked Sticky in POS Layout (grid.sticky). Otherwise a normal tap still
     // jumps back to the root menu, same as before.
-    if (!isLongPress && !grid.sticky) state.posGridStack = ['root'];
+    if (!isLongPress && !grid.sticky) state.posGridStack = [posStartGrid()];
     renderPosGrid();
     renderOrderGrid();
     updateBottomBar();
@@ -1258,6 +1265,7 @@ async function init() {
     state.settings = {
       paymentMode: currentShow?.paymentMode || systemSettings.paymentMode,
       orderingMode: currentShow?.orderingMode || systemSettings.orderingMode,
+      posStartGridId: systemSettings.posStartGridId,
     };
     state.posGrids   = {};
     posSnap.docs.forEach(d => { state.posGrids[d.id] = { id: d.id, ...d.data() }; });

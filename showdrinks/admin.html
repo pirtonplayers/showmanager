@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.182"></script>
+  <script src="../shared/embed.js?v=1.0.183"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.0.182">
+  <link rel="stylesheet" href="style.css?v=1.0.183">
 </head>
 <body>
 
@@ -48,7 +48,6 @@
       <div class="dropdown-divider"></div>
       <div class="suite-current-section">
         <button class="tab-btn active" data-tab="orders">Orders</button>
-        <button class="tab-btn" data-tab="tabs">Bar Tabs POS</button>
         <button class="tab-btn" data-tab="tabmembers">Bar Tabs</button>
         <button class="tab-btn" data-tab="show">Show &amp; Sessions</button>
         <button class="tab-btn" data-tab="menu">Price List</button>
@@ -76,7 +75,6 @@
     <button class="tab-btn" data-tab="menu">Price List</button>
     <button class="tab-btn" data-tab="locations">Locations</button>
     <button class="tab-btn" data-tab="orders">Orders</button>
-    <button class="tab-btn" data-tab="tabs">Bar Tabs POS</button>
     <button class="tab-btn" data-tab="tabmembers">Bar Tabs</button>
     <button class="tab-btn" data-tab="pos">POS Layout</button>
     <button class="tab-btn" data-tab="settings">Settings &amp; QR</button>
@@ -319,8 +317,10 @@
       <div class="section-header" style="margin-bottom:0">
         <h2>Orders</h2>
         <button class="btn btn-secondary btn-sm" id="refreshOrdersBtn">⟳ Refresh</button>
-        <button class="btn btn-danger btn-sm" id="clearAllOrdersBtn">Clear All Orders</button>
       </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0">
+        Orders can be cleared in bulk from Settings &amp; QR → Danger Zone.
+      </p>
 
       <div class="orders-toolbar">
         <div class="form-group" style="margin:0;flex:1;min-width:160px">
@@ -460,17 +460,25 @@
       <div class="card-body">
         <div class="form-group">
           <label for="orderingMode">Customer ordering screen</label>
-          <select id="orderingMode" class="form-control">
+          <select id="orderingMode" class="form-control" onchange="posToggleStartGridRows()">
             <option value="pos">POS Grid (buttons laid out in POS Layout)</option>
             <option value="list">Category List (every item, grouped by category, with +/− quantity)</option>
           </select>
         </div>
+        <div class="form-group" id="orderingModeStartGridRow">
+          <label for="orderingModeStartGrid">Starting page</label>
+          <select id="orderingModeStartGrid" class="form-control"></select>
+        </div>
         <div class="form-group" style="margin-bottom:0">
           <label for="tabOrderingMode">Bar Tabs POS screen</label>
-          <select id="tabOrderingMode" class="form-control">
+          <select id="tabOrderingMode" class="form-control" onchange="posToggleStartGridRows()">
             <option value="pos">POS Grid (buttons laid out in POS Layout)</option>
             <option value="list">Category List (every item, grouped by category, with +/− quantity)</option>
           </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0" id="tabOrderingModeStartGridRow">
+          <label for="tabOrderingModeStartGrid">Starting page</label>
+          <select id="tabOrderingModeStartGrid" class="form-control"></select>
         </div>
       </div>
     </div>
@@ -536,6 +544,16 @@
           <button class="btn btn-primary" id="generateQrBtn">Generate QR Code</button>
           <button class="btn btn-secondary" id="downloadQrBtn" style="margin-left:8px;display:none">Download PNG</button>
         </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px;border-color:var(--danger)">
+      <div class="card-header"><h2>Danger Zone</h2></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+          Permanently deletes every order for every show — there's no undo.
+        </p>
+        <button class="btn btn-danger btn-sm" id="clearAllOrdersBtn">Clear All Orders</button>
       </div>
     </div>
   </div>
@@ -747,11 +765,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.182"></script>
-<script src="../shared/firebase-config.js?v=1.0.182"></script>
-<script src="../shared/auth.js?v=1.0.182"></script>
-<script src="../shared/suite-nav.js?v=1.0.182"></script>
-<script src="admin.js?v=1.0.182"></script>
+<script src="../shared/version.js?v=1.0.183"></script>
+<script src="../shared/firebase-config.js?v=1.0.183"></script>
+<script src="../shared/auth.js?v=1.0.183"></script>
+<script src="../shared/suite-nav.js?v=1.0.183"></script>
+<script src="admin.js?v=1.0.183"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

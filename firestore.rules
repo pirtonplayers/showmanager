@@ -88,11 +88,14 @@ service cloud.firestore {
       allow update: if true;
       allow delete: if hasAccess('showdrinksAdmin');
     }
+    // Bar Tabs POS (a bartender with only showdrinksTabsPos, not full showdrinksAdmin) needs to
+    // read/write these two to take tab orders — everything else showdrinks-admin-only stays
+    // showdrinksAdmin-only (editing the menu/grids/shows is not exposed to that restricted view).
     match /showdrinks_tabMembers/{id} {
-      allow read, write: if hasAccess('showdrinksAdmin'); // admin-only, the PWA never touches these
+      allow read, write: if hasAccess('showdrinksAdmin') || hasAccess('showdrinksTabsPos');
     }
     match /showdrinks_tabOrders/{id} {
-      allow read, write: if hasAccess('showdrinksAdmin');
+      allow read, write: if hasAccess('showdrinksAdmin') || hasAccess('showdrinksTabsPos');
     }
 
     // ── ShowBudget ───────────────────────────────────────────────────────────

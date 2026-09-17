@@ -31,10 +31,11 @@ function showToast(message, type = 'info') {
 // Tile metadata for the dashboard — ACCESS_APPS (shared/auth.js) gives the key/label/href every
 // app agrees on; this just adds the emoji/description for the portal's own display.
 const TILE_META = {
-  expenses:        { emoji: '🧾', desc: 'Submit a show expense for reimbursement.' },
-  expensesAdmin:   { emoji: '💷', desc: 'Review, pay and report on submitted expenses.' },
-  showdrinksAdmin: { emoji: '🍹', desc: 'Manage shows, menu, orders and Show Tabs.' },
-  budget:          { emoji: '📊', desc: 'Plan and track show budgets.' },
+  expenses:          { emoji: '🧾', desc: 'Submit a show expense for reimbursement.' },
+  expensesAdmin:     { emoji: '💷', desc: 'Review, pay and report on submitted expenses.' },
+  showdrinksAdmin:   { emoji: '🍹', desc: 'Manage shows, menu, orders and Show Tabs.' },
+  showdrinksTabsPos: { emoji: '🍺', desc: 'Take orders against a cast/crew member\'s tab.' },
+  budget:            { emoji: '📊', desc: 'Plan and track show budgets.' },
 };
 
 // ── The shell ────────────────────────────────────────────────────────────

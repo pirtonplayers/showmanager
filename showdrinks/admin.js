@@ -924,9 +924,32 @@ async function loadSettings() {
     document.getElementById('tabOrderingMode').value = d.tabOrderingMode || 'pos';
     document.getElementById('emailTemplateSubject').value = d.emailTemplateSubject || DEFAULT_EMAIL_TEMPLATE_SUBJECT;
     document.getElementById('emailTemplateBody').value = d.emailTemplateBody || DEFAULT_EMAIL_TEMPLATE_BODY;
+    await (Object.keys(_posGrids).length ? Promise.resolve() : loadPosGrids());
+    posRenderStartGridSelects();
+    document.getElementById('orderingModeStartGrid').value = d.posStartGridId || 'root';
+    document.getElementById('tabOrderingModeStartGrid').value = d.tabPosStartGridId || 'root';
+    posToggleStartGridRows();
   } catch(e) {
     console.error(e);
   }
+}
+
+// Which grid a POS-mode screen opens on — grids are shared/global (not per-show), so this is a
+// system-wide choice, not something a show can override the way it overrides POS vs List mode
+// itself. Only shown/relevant while that screen's mode is 'pos'.
+function posRenderStartGridSelects() {
+  const options = '<option value="root">Main Menu (root)</option>' +
+    _posGridOrder.filter(id => id !== 'root')
+      .map(id => `<option value="${id}">${escHtml(_posGrids[id]?.name || id)}</option>`).join('');
+  document.getElementById('orderingModeStartGrid').innerHTML = options;
+  document.getElementById('tabOrderingModeStartGrid').innerHTML = options;
+}
+
+function posToggleStartGridRows() {
+  document.getElementById('orderingModeStartGridRow').style.display =
+    document.getElementById('orderingMode').value === 'pos' ? '' : 'none';
+  document.getElementById('tabOrderingModeStartGridRow').style.display =
+    document.getElementById('tabOrderingMode').value === 'pos' ? '' : 'none';
 }
 
 document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
@@ -936,6 +959,8 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
     paymentMode: document.getElementById('paymentMode').value,
     orderingMode: document.getElementById('orderingMode').value,
     tabOrderingMode: document.getElementById('tabOrderingMode').value,
+    posStartGridId: document.getElementById('orderingModeStartGrid').value || 'root',
+    tabPosStartGridId: document.getElementById('tabOrderingModeStartGrid').value || 'root',
     emailTemplateSubject: document.getElementById('emailTemplateSubject').value.trim(),
     emailTemplateBody: document.getElementById('emailTemplateBody').value,
   };
@@ -1495,6 +1520,13 @@ function isPosMode() {
   return mode !== 'list';
 }
 
+// Settings & QR → Ordering Method's "Starting page" for Bar Tabs POS — falls back to root if
+// unset or if the configured grid's since been deleted.
+function tabPosStartGrid() {
+  const id = _systemSettings.tabPosStartGridId;
+  return id && _posGrids[id] ? id : 'root';
+}
+
 // Shared by both Bar Tabs pages (POS and Admin) — members + their running totals, and the live
 // tabOrders listener renderTabMembersList() needs to compute those totals. Cached: skips the
 // members re-fetch once loaded (this array is kept in sync locally whenever a member's added —
@@ -1557,7 +1589,7 @@ window.selectTabMember = function(id) {
     return;
   }
   _tabSelectedMemberId = id || null;
-  _tabStack = ['root']; _tabBasket = {}; _tabSelectedKey = null; _tabSelectedCategory = null;
+  _tabStack = [tabPosStartGrid()]; _tabBasket = {}; _tabSelectedKey = null; _tabSelectedCategory = null;
   document.getElementById('tabMemberSelect').value = id || '';
 
   const posArea = document.getElementById('tabPosArea');
@@ -2137,7 +2169,7 @@ window.handleTabPosBtn = function(idx, isLongPress) {
     // Long press stays on this grid (adding several from the same category in a row) — so does a
     // plain tap, on a grid marked Sticky in POS Layout (grid.sticky). Otherwise a normal tap still
     // jumps back to the root menu, same as before.
-    if (!isLongPress && !grid.sticky) _tabStack = ['root'];
+    if (!isLongPress && !grid.sticky) _tabStack = [tabPosStartGrid()];
     renderTabGrid(); renderTabBasket();
   } else if (cell.type === 'clear') {
     _tabBasket = {}; _tabSelectedKey = null; renderTabGrid(); renderTabBasket();
@@ -2178,7 +2210,7 @@ async function commitTabOrder() {
       items, totalAmount, paid: false,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    _tabBasket = {}; _tabSelectedKey = null; _tabStack = ['root'];
+    _tabBasket = {}; _tabSelectedKey = null; _tabStack = [tabPosStartGrid()];
     renderTabOrderEntry(); renderTabBasket();
     closeTabBasketReview();
     // A lightweight auto-dismissing pill rather than a modal needing an "OK" tap — this is a
@@ -2501,27 +2533,43 @@ document.getElementById('clearAllTabsBtn').addEventListener('click', async () =>
 
 let _appInitialized = false;
 
+// Restricted view: a "Bar Tabs POS"-only account (access.showdrinksTabsPos, not full
+// access.showdrinksAdmin) — or anyone landing via the portal's dedicated Tabs POS tile
+// (?view=tabs), which always opens this focused single-screen view even for a full admin — sees
+// only the Bar Tabs POS panel, with the rest of Bar Manager's menu hidden (see
+// body.tabs-only-mode in style.css). Set once auth resolves, read by init() below.
+let _tabsOnlyMode = false;
+
 // Shared login (shared/auth.js): the same users/{uid} doc used by every app in showmanager.
-// isManager or access.showdrinksAdmin gets in; anyone else signed in but lacking that flag is
-// bounced back out with an explanation rather than landing on a blank admin screen.
+// isManager, access.showdrinksAdmin or access.showdrinksTabsPos gets in; anyone else signed in
+// but lacking every one of those flags is bounced back out with an explanation rather than
+// landing on a blank admin screen.
 firebase.auth().onAuthStateChanged(async user => {
   const loginScreen = document.getElementById('loginScreen');
   const adminApp = document.getElementById('adminApp');
   const errEl = document.getElementById('loginError');
   if (user) {
-    const allowed = await checkAccess(user.uid, 'showdrinksAdmin').catch(() => null);
-    if (!allowed) {
+    const account = await checkAccess(user.uid).catch(() => null);
+    const hasFullAdmin = !!(account && (account.isManager === true || account.access?.showdrinksAdmin === true));
+    const hasTabsPos = hasFullAdmin || !!(account && account.access?.showdrinksTabsPos === true);
+    if (!hasTabsPos) {
       await firebase.auth().signOut();
       errEl.textContent = 'This account does not have ShowDrinks admin access — ask a manager to grant it from the showmanager portal.';
       errEl.style.display = '';
       document.getElementById('authGate').style.display = 'none';
       return;
     }
-    mountSuiteNav(allowed, 'showdrinksAdmin', '../');
+    _tabsOnlyMode = !hasFullAdmin || new URLSearchParams(location.search).get('view') === 'tabs';
+    document.body.classList.toggle('tabs-only-mode', _tabsOnlyMode);
+    if (!_tabsOnlyMode) mountSuiteNav(account, 'showdrinksAdmin', '../');
     loginScreen.style.display = 'none';
     adminApp.style.display = '';
     document.getElementById('authGate').style.display = 'none';
-    if (!_appInitialized) { _appInitialized = true; init(); }
+    if (!_appInitialized) {
+      _appInitialized = true;
+      await init();
+      if (_tabsOnlyMode) { activateAdminTab('tabs'); loadShowTabs(); }
+    }
   } else {
     adminApp.style.display = 'none';
     loginScreen.style.display = 'flex';
