@@ -420,7 +420,13 @@ body.tabs-only-mode .suite-current-section .tab-btn[data-tab="tabmembers"] { dis
    margin and the .embedded top:0 override exist). */
 .tab-pos-sticky-header { position: sticky; top: 60px; z-index: 60; background: var(--bg); margin: -24px -24px 12px; padding: 12px 24px; }
 .tab-pos-split { display:flex; gap:16px; align-items:stretch; position:relative; }
-.tab-pos-buttons { flex:1 1 100%; min-width:0; max-height:65vh; overflow-y:auto; }
+/* Grid mode only gets its own bounded, internally-scrolling box (a fixed set of buttons doesn't
+   need to grow the page) — List mode needs to flow into the page's own scroll instead, or
+   .tab-pos-sticky-header above (sticky relative to THAT scroll) never tracks it: scrolling a
+   long list inside its own separate box wouldn't move a sticky header outside that box at all,
+   which looked like "not sticky" even though the CSS said sticky. See renderTabOrderEntry(). */
+.tab-pos-buttons { flex:1 1 100%; min-width:0; }
+.tab-pos-buttons.grid-mode { max-height:65vh; overflow-y:auto; }
 /* No member picked yet — grid stays visible (so it's obvious what's coming) but can't be used. */
 .tab-pos-split.inactive { pointer-events:none; }
 .tab-pos-split.inactive .tab-pos-buttons { opacity:.35; }

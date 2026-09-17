@@ -1569,6 +1569,12 @@ function renderTabOrderEntry() {
   // it), so it needs its own explicit hide here for grid mode — renderTabListMenu() (list mode)
   // sets its own display based on category count.
   if (posMode) document.getElementById('tabListCatBar').style.display = 'none';
+  // .tab-pos-buttons only gets its own bounded/internally-scrolling box (see .grid-mode in
+  // style.css) in Grid mode, where it holds a fixed set of buttons. In List mode it needs to
+  // flow naturally instead: the sticky header above it tracks the page's own scroll, not an
+  // independent scrollbox's — so a long list scrolled inside its own separate box never moved
+  // that header at all, which looked like "not sticky" even though the CSS said sticky.
+  document.querySelector('.tab-pos-buttons').classList.toggle('grid-mode', posMode);
   if (posMode) renderTabGrid(); else renderTabListMenu();
 }
 
