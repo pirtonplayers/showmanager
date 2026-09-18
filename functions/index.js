@@ -231,6 +231,21 @@ exports.listExpensesUsers = onCall({ region: 'europe-west1' }, async (request) =
   return { ok: true, users };
 });
 
+// Any showplanner user can list who else has showplanner access — needed to assign roles/tasks
+// to specific people. Same shape/reasoning as listExpensesUsers: firestore.rules only lets an
+// account read its own users/{uid} doc (or a manager read anyone's), so a directory of OTHER
+// people's names has to come from a callable using the Admin SDK, not a client-side query.
+exports.listShowplannerUsers = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireAppAccess(request, 'showplanner');
+  const snap = await db.collection('users').get();
+  const users = snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(u => u.access?.showplanner === true || u.isManager === true)
+    .map(u => ({ id: u.id, name: u.name || u.email, email: u.email }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { ok: true, users };
+});
+
 // Edits just name + access.expenses on an existing account — expensesAdmin-scoped (unlike the
 // portal's general users/{uid} update, which is Manager-only). Deliberately can't touch email,
 // access.expensesAdmin itself, isManager, or any other app — an expenses admin can't promote

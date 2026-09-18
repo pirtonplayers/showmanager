@@ -1,5 +1,7 @@
 'use strict';
 
+const functionsRegion = firebase.app().functions('europe-west1');
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function escapeHtml(str) {
@@ -225,6 +227,7 @@ function withDefaults(show) {
     producer: show.producer || '',
     showType: show.showType || '',
     roles: show.roles || [],
+    roleAssignments: show.roleAssignments || {},
     planTemplateId: show.planTemplateId || null,
     fixedParams: { ...emptyFixedParams(), ...(show.fixedParams || {}) },
     // Drop the old single "Ticket sales" formula line some shows still have saved from before
@@ -340,6 +343,8 @@ function renderEditor() {
   renderLinesTable('spend', SPEND_FORMULAS);
   renderForecast();
   renderPlanCard();
+  renderRolesCard();
+  renderTasksCard();
 }
 
 document.getElementById('showDirectorInput').addEventListener('input', (e) => { currentShow.director = e.target.value; });
@@ -416,15 +421,19 @@ async function generatePlanFromTemplate(template, baseDate) {
 
   batch.set(db.collection('showplanner_shows').doc(currentShowId), {
     roles: JSON.parse(JSON.stringify(template.roles || [])),
+    roleAssignments: {},
     planTemplateId: template.id,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
 
   await batch.commit();
   currentShow.roles = JSON.parse(JSON.stringify(template.roles || []));
+  currentShow.roleAssignments = {};
   currentShow.planTemplateId = template.id;
   await loadCurrentShowTasks();
   renderPlanCard();
+  renderRolesCard();
+  renderTasksCard();
 }
 
 document.getElementById('generatePlanBtn').addEventListener('click', async () => {
@@ -441,6 +450,276 @@ document.getElementById('generatePlanBtn').addEventListener('click', async () =>
   try {
     await generatePlanFromTemplate(template, baseDate);
     showToast('Plan generated', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// ── Roles (per-show — who holds each role) ──────────────────────────────
+
+let allShowplannerUsers = []; // [{id, name, email}] — everyone with access.showplanner, for assignment pickers
+
+async function loadShowplannerUsers() {
+  try {
+    const result = await functionsRegion.httpsCallable('listShowplannerUsers')();
+    allShowplannerUsers = result.data.users || [];
+  } catch (err) {
+    console.warn('listShowplannerUsers failed', err);
+    allShowplannerUsers = [];
+  }
+}
+function userName(uidVal) { return allShowplannerUsers.find(u => u.id === uidVal)?.name || '(unknown)'; }
+function roleName(roleId) { return currentShow.roles.find(r => r.id === roleId)?.name || ''; }
+
+function renderRolesCard() {
+  const tbody = document.getElementById('rolesTableBody');
+  const roles = currentShow.roles;
+  tbody.innerHTML = roles.length ? roles.map((r, i) => {
+    const assignedIds = currentShow.roleAssignments[r.id] || [];
+    const assignedNames = assignedIds.length ? assignedIds.map(userName).join(', ') : '—';
+    return `
+      <tr>
+        <td><input type="text" class="form-control" placeholder="Role name" value="${escapeHtml(r.name || '')}" data-role-name="${i}"></td>
+        <td class="role-assignees">${escapeHtml(assignedNames)}</td>
+        <td><button class="btn btn-secondary btn-sm" data-assign-role="${r.id}">Assign</button></td>
+        <td><button class="grid-del-btn" data-role-delete="${i}" title="Remove">×</button></td>
+      </tr>`;
+  }).join('') : '<tr><td colspan="4" class="empty-state">No roles yet — add one, or generate a plan from a task template above.</td></tr>';
+}
+document.getElementById('addRoleBtn').addEventListener('click', () => {
+  currentShow.roles.push({ id: uid(), name: '' });
+  renderRolesCard();
+});
+document.getElementById('rolesTableBody').addEventListener('input', (e) => {
+  const i = e.target.getAttribute('data-role-name');
+  if (i === null) return;
+  currentShow.roles[Number(i)].name = e.target.value;
+});
+document.getElementById('rolesTableBody').addEventListener('click', (e) => {
+  const delIdx = e.target.getAttribute('data-role-delete');
+  if (delIdx !== null) {
+    const removed = currentShow.roles.splice(Number(delIdx), 1)[0];
+    delete currentShow.roleAssignments[removed.id];
+    renderRolesCard();
+    renderTasksCard();
+    return;
+  }
+  const assignRoleId = e.target.getAttribute('data-assign-role');
+  if (assignRoleId) openAssignRoleModal(assignRoleId);
+});
+
+let assigningRoleId = null;
+function openAssignRoleModal(roleId) {
+  assigningRoleId = roleId;
+  const role = currentShow.roles.find(r => r.id === roleId);
+  document.getElementById('assignRoleModalTitle').textContent = `Assign: ${role?.name || 'role'}`;
+  const assigned = new Set(currentShow.roleAssignments[roleId] || []);
+  document.getElementById('assignRoleEmptyNote').style.display = allShowplannerUsers.length ? 'none' : '';
+  document.getElementById('assignRoleChecklist').innerHTML = allShowplannerUsers.map(u => `
+    <div class="checklist-row">
+      <input type="checkbox" id="assignUser-${u.id}" value="${u.id}" ${assigned.has(u.id) ? 'checked' : ''}>
+      <label for="assignUser-${u.id}">${escapeHtml(u.name)}</label>
+    </div>
+  `).join('');
+  document.getElementById('assignRoleModal').style.display = 'flex';
+}
+document.getElementById('assignRoleCloseBtn').addEventListener('click', () => { document.getElementById('assignRoleModal').style.display = 'none'; });
+document.getElementById('assignRoleModal').addEventListener('click', (e) => { if (e.target.id === 'assignRoleModal') e.target.style.display = 'none'; });
+document.getElementById('assignRoleSaveBtn').addEventListener('click', () => {
+  const checked = Array.from(document.querySelectorAll('#assignRoleChecklist input:checked')).map(cb => cb.value);
+  currentShow.roleAssignments[assigningRoleId] = checked;
+  document.getElementById('assignRoleModal').style.display = 'none';
+  renderRolesCard();
+  showToast('Assignment updated — click Save changes below to store it', 'success');
+});
+
+// ── Tasks ─────────────────────────────────────────────────────────────────
+// Manual task CRUD, on top of whatever generatePlanFromTemplate() seeded — each write here goes
+// straight to Firestore (unlike roles/budget lines above, which wait for the page's own Save
+// changes button) since tasks live in their own subcollection, not on the show doc itself.
+
+const STATUS_LABEL = { not_started: 'Not started', in_progress: 'In progress', completed: 'Completed' };
+const STATUS_BADGE = { not_started: 'badge-danger', in_progress: 'badge-warning', completed: 'badge-success' };
+
+function renderTasksCard() {
+  const el = document.getElementById('tasksList');
+  if (!currentShowTasks.length) {
+    el.innerHTML = '<p class="empty-state">No tasks yet — generate a plan from a task template above, or add one manually.</p>';
+    return;
+  }
+  const byParent = {};
+  currentShowTasks.forEach(t => {
+    const key = t.parentTaskId || 'root';
+    (byParent[key] = byParent[key] || []).push(t);
+  });
+  const sortFn = (a, b) => (a.dueDate || '').localeCompare(b.dueDate || '') || (a.order ?? 0) - (b.order ?? 0);
+
+  function renderTask(t, isSub) {
+    const assigneeNames = (t.assigneeIds || []).map(userName);
+    const rName = roleName(t.roleId);
+    const metaParts = [];
+    if (rName) metaParts.push(rName);
+    if (assigneeNames.length) metaParts.push(assigneeNames.join(', '));
+    const subHtml = (byParent[t.id] || []).sort(sortFn).map(sub => renderTask(sub, true)).join('');
+    return `
+      <div class="task-row${isSub ? ' subtask' : ''}" data-open-task="${t.id}">
+        <span class="badge ${STATUS_BADGE[t.status] || 'badge-danger'}">${STATUS_LABEL[t.status] || 'Not started'}</span>
+        <span class="task-title">${escapeHtml(t.title || '(untitled)')}${t.description ? `<span class="task-desc">${escapeHtml(t.description)}</span>` : ''}</span>
+        ${metaParts.length ? `<span class="task-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
+        <span class="task-due">${t.dueDate ? fmtPerfDate({ date: t.dueDate }) : 'No due date'}</span>
+      </div>
+      ${subHtml}`;
+  }
+
+  el.innerHTML = (byParent['root'] || []).sort(sortFn).map(t => renderTask(t, false)).join('');
+}
+document.getElementById('tasksList').addEventListener('click', (e) => {
+  const target = e.target.closest('[data-open-task]');
+  if (target) openTaskModal(target.getAttribute('data-open-task'));
+});
+document.getElementById('addTaskBtn').addEventListener('click', () => openTaskModal(null));
+
+let editingTaskId = null;   // null while creating a new task
+let editingTaskDraft = null; // working copy of the task while the modal is open
+
+function openTaskModal(taskId) {
+  editingTaskId = taskId;
+  const existing = taskId ? currentShowTasks.find(t => t.id === taskId) : null;
+  editingTaskDraft = existing
+    ? { ...existing, comments: [...(existing.comments || [])] }
+    : { title: '', description: '', dueDate: '', dueMode: 'date', daysBeforeShow: null,
+        roleId: null, assigneeIds: [], status: 'not_started', parentTaskId: null, comments: [] };
+
+  document.getElementById('taskModalTitle').textContent = existing ? 'Edit task' : 'New task';
+  document.getElementById('taskTitleInput').value = editingTaskDraft.title || '';
+  document.getElementById('taskDescInput').value = editingTaskDraft.description || '';
+  document.getElementById('taskDueDateInput').value = editingTaskDraft.dueDate || '';
+  document.getElementById('taskStatusSelect').value = editingTaskDraft.status || 'not_started';
+
+  document.getElementById('taskRoleSelect').innerHTML = '<option value="">—</option>' +
+    currentShow.roles.map(r => `<option value="${r.id}"${r.id === editingTaskDraft.roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
+
+  // Sub-tasks can only nest one level deep — a task's own possible parents are every OTHER
+  // top-level task, never another sub-task (keeps the two-level task-row/subtask CSS/rendering
+  // above correct without a recursive tree).
+  document.getElementById('taskParentSelect').innerHTML = '<option value="">Top-level</option>' +
+    currentShowTasks.filter(t => t.id !== taskId && !t.parentTaskId)
+      .map(t => `<option value="${t.id}"${t.id === editingTaskDraft.parentTaskId ? ' selected' : ''}>${escapeHtml(t.title || '(untitled)')}</option>`).join('');
+
+  const assignedSet = new Set(editingTaskDraft.assigneeIds || []);
+  document.getElementById('taskAssigneeChecklist').innerHTML = allShowplannerUsers.length
+    ? allShowplannerUsers.map(u => `
+      <div class="checklist-row">
+        <input type="checkbox" id="taskAssignee-${u.id}" value="${u.id}" ${assignedSet.has(u.id) ? 'checked' : ''}>
+        <label for="taskAssignee-${u.id}">${escapeHtml(u.name)}</label>
+      </div>`).join('')
+    : '<p class="muted" style="padding:6px">No one else has ShowPlanner access yet.</p>';
+
+  renderTaskComments();
+  document.getElementById('taskCommentInput').value = '';
+  document.getElementById('taskDeleteBtn').style.display = existing ? '' : 'none';
+  document.getElementById('taskSaveStatusText').textContent = '';
+  document.getElementById('taskModal').style.display = 'flex';
+}
+document.getElementById('taskModalCloseBtn').addEventListener('click', () => { document.getElementById('taskModal').style.display = 'none'; });
+document.getElementById('taskModal').addEventListener('click', (e) => { if (e.target.id === 'taskModal') e.target.style.display = 'none'; });
+
+function renderTaskComments() {
+  const el = document.getElementById('taskCommentsList');
+  const comments = editingTaskDraft.comments || [];
+  el.innerHTML = comments.length
+    ? comments.map(c => `
+      <div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <strong>${escapeHtml(c.authorName || '')}</strong>
+        <span class="muted" style="font-size:11px">${c.createdAt ? new Date(c.createdAt).toLocaleString('en-GB') : ''}</span><br>
+        ${escapeHtml(c.text || '')}
+      </div>`).join('')
+    : '<p class="muted" style="font-size:13px">No comments yet.</p>';
+}
+document.getElementById('taskCommentAddBtn').addEventListener('click', () => {
+  const input = document.getElementById('taskCommentInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const user = firebase.auth().currentUser;
+  // Comments live inside an array field — Firestore rejects FieldValue.serverTimestamp() inside
+  // an array element, so this is a plain client-side epoch ms instead (only used for display
+  // ordering/formatting, never compared against anything server-side).
+  editingTaskDraft.comments.push({
+    authorUid: user?.uid || null,
+    authorName: currentUserData?.name || user?.email || 'Someone',
+    text,
+    createdAt: Date.now(),
+  });
+  input.value = '';
+  renderTaskComments();
+});
+
+function readTaskFormIntoDraft() {
+  editingTaskDraft.title = document.getElementById('taskTitleInput').value.trim();
+  editingTaskDraft.description = document.getElementById('taskDescInput').value.trim();
+  const newDueDate = document.getElementById('taskDueDateInput').value;
+  // A manual date edit always fixes a concrete date from here on — daysBeforeShow only describes
+  // how a template-generated task originally got its date, not something a hand edit preserves.
+  if (newDueDate !== editingTaskDraft.dueDate) { editingTaskDraft.dueMode = 'date'; editingTaskDraft.daysBeforeShow = null; }
+  editingTaskDraft.dueDate = newDueDate;
+  editingTaskDraft.status = document.getElementById('taskStatusSelect').value;
+  editingTaskDraft.roleId = document.getElementById('taskRoleSelect').value || null;
+  editingTaskDraft.parentTaskId = document.getElementById('taskParentSelect').value || null;
+  editingTaskDraft.assigneeIds = Array.from(document.querySelectorAll('#taskAssigneeChecklist input:checked')).map(cb => cb.value);
+}
+
+document.getElementById('taskSaveBtn').addEventListener('click', async () => {
+  readTaskFormIntoDraft();
+  if (!editingTaskDraft.title) { showToast('Enter a task title', 'error'); return; }
+  const statusEl = document.getElementById('taskSaveStatusText');
+  statusEl.textContent = 'Saving…';
+  const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
+  try {
+    const payload = {
+      title: editingTaskDraft.title,
+      description: editingTaskDraft.description || '',
+      dueDate: editingTaskDraft.dueDate || '',
+      dueMode: editingTaskDraft.dueMode || 'date',
+      daysBeforeShow: editingTaskDraft.daysBeforeShow ?? null,
+      roleId: editingTaskDraft.roleId || null,
+      assigneeIds: editingTaskDraft.assigneeIds || [],
+      status: editingTaskDraft.status || 'not_started',
+      parentTaskId: editingTaskDraft.parentTaskId || null,
+      comments: editingTaskDraft.comments || [],
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if (editingTaskId) {
+      await tasksCol.doc(editingTaskId).set(payload, { merge: true });
+    } else {
+      payload.order = currentShowTasks.length;
+      payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      await tasksCol.add(payload);
+    }
+    document.getElementById('taskModal').style.display = 'none';
+    showToast('Task saved', 'success');
+    await loadCurrentShowTasks();
+    renderTasksCard();
+    renderPlanCard();
+  } catch (err) {
+    statusEl.textContent = '';
+    showToast(err.message, 'error');
+  }
+});
+
+document.getElementById('taskDeleteBtn').addEventListener('click', async () => {
+  if (!editingTaskId) return;
+  if (!confirm('Delete this task? Any sub-tasks under it are also removed. This cannot be undone.')) return;
+  try {
+    const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
+    const batch = db.batch();
+    batch.delete(tasksCol.doc(editingTaskId));
+    currentShowTasks.filter(t => t.parentTaskId === editingTaskId).forEach(t => batch.delete(tasksCol.doc(t.id)));
+    await batch.commit();
+    document.getElementById('taskModal').style.display = 'none';
+    showToast('Task deleted', 'success');
+    await loadCurrentShowTasks();
+    renderTasksCard();
+    renderPlanCard();
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -675,6 +954,7 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
       producer: currentShow.producer || '',
       showType: currentShow.showType || '',
       roles: currentShow.roles || [],
+      roleAssignments: currentShow.roleAssignments || {},
       planTemplateId: currentShow.planTemplateId || null,
       isTemplate: currentShow.isTemplate === true,
       copiedFrom: currentShow.copiedFrom || null,
@@ -1075,6 +1355,7 @@ document.getElementById('changePasswordForm').addEventListener('submit', async (
 });
 
 let dashboardInitialized = false;
+let currentUserData = null; // the signed-in account's users/{uid} doc (name/email) — comment authorship
 
 firebase.auth().onAuthStateChanged(async user => {
   if (user) {
@@ -1086,6 +1367,7 @@ firebase.auth().onAuthStateChanged(async user => {
       document.getElementById('authGate').style.display = 'none';
       return;
     }
+    currentUserData = allowed;
     mountSuiteNav(allowed, 'showplanner', '../');
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('authGate').style.display = 'none';
@@ -1101,6 +1383,7 @@ firebase.auth().onAuthStateChanged(async user => {
         dashboardInitialized = true;
         document.getElementById('headerVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';
         await ensureTemplateExists();
+        await loadShowplannerUsers();
         await loadTemplates();
         await loadShows();
       }

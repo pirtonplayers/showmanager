@@ -193,6 +193,22 @@ input, textarea, select, [contenteditable] {
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 input[type="file"].form-control { padding: 7px 10px; }
 
+/* ── Checklist (assign-people pickers) ── */
+.checklist { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); padding: 6px; }
+.checklist-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px; }
+.checklist-row:hover { background: var(--bg); }
+.checklist-row input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
+.checklist-row label { font-size: 14px; cursor: pointer; }
+
+/* ── Task list (Plan) ── */
+.task-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+.task-row.subtask { margin-left: 28px; background: var(--bg); }
+.task-row .task-title { flex: 1; min-width: 0; font-weight: 500; }
+.task-row .task-title .task-desc { display: block; font-weight: 400; font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-row .task-due { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.task-row .task-meta { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.role-assignees { font-size: 12px; color: var(--text-muted); }
+
 /* ── Badges ── */
 .badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; }
 .badge-success { background: var(--success-light); color: var(--success); }
