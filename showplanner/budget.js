@@ -328,7 +328,9 @@ function renderEditor() {
   document.getElementById('showProducerInput').value = currentShow.producer || '';
   document.getElementById('showTypeInput').value = currentShow.showType || '';
   document.getElementById('printShowName').textContent = currentShow.name || '';
-  document.getElementById('printShowMeta').textContent = currentShow.isTemplate ? 'Template' : '';
+  document.getElementById('printShowMeta').textContent = currentShow.isTemplate ? 'Template' :
+    [currentShow.showType, currentShow.director && `Director: ${currentShow.director}`, currentShow.producer && `Producer: ${currentShow.producer}`]
+      .filter(Boolean).join(' · ');
 
   const fp = currentShow.fixedParams;
   document.getElementById('fpTicketPrice').value = fp.ticketPrice || 0;
@@ -598,6 +600,24 @@ function applyPlanCardVisibility() {
 const STATUS_LABEL = { not_started: 'Not started', in_progress: 'In progress', completed: 'Completed' };
 const STATUS_BADGE = { not_started: 'badge-danger', in_progress: 'badge-warning', completed: 'badge-success' };
 
+// Flattened [{ task, isSub }] in display order (top-level tasks by due date, each immediately
+// followed by its own sub-tasks by due date) — the one source of truth for both the on-screen
+// list (renderTasksCard) and the Excel export (exportExcelBtn), so they can never drift apart.
+function orderedTaskList() {
+  const byParent = {};
+  currentShowTasks.forEach(t => {
+    const key = t.parentTaskId || 'root';
+    (byParent[key] = byParent[key] || []).push(t);
+  });
+  const sortFn = (a, b) => (a.dueDate || '').localeCompare(b.dueDate || '') || (a.order ?? 0) - (b.order ?? 0);
+  const out = [];
+  (byParent['root'] || []).sort(sortFn).forEach(t => {
+    out.push({ task: t, isSub: false });
+    (byParent[t.id] || []).sort(sortFn).forEach(sub => out.push({ task: sub, isSub: true }));
+  });
+  return out;
+}
+
 function renderTasksCard() {
   const canEdit = currentUserCanEditPlan();
   document.getElementById('addTaskBtn').style.display = canEdit ? '' : 'none';
@@ -606,31 +626,20 @@ function renderTasksCard() {
     el.innerHTML = `<p class="empty-state">No tasks yet${canEdit ? ' — generate a plan from a task template above, or add one manually.' : '.'}</p>`;
     return;
   }
-  const byParent = {};
-  currentShowTasks.forEach(t => {
-    const key = t.parentTaskId || 'root';
-    (byParent[key] = byParent[key] || []).push(t);
-  });
-  const sortFn = (a, b) => (a.dueDate || '').localeCompare(b.dueDate || '') || (a.order ?? 0) - (b.order ?? 0);
-
-  function renderTask(t, isSub) {
+  el.innerHTML = orderedTaskList().map(({ task: t, isSub }) => {
     const assigneeNames = (t.assigneeIds || []).map(userName);
     const rName = roleName(t.roleId);
     const metaParts = [];
     if (rName) metaParts.push(rName);
     if (assigneeNames.length) metaParts.push(assigneeNames.join(', '));
-    const subHtml = (byParent[t.id] || []).sort(sortFn).map(sub => renderTask(sub, true)).join('');
     return `
       <div class="task-row${isSub ? ' subtask' : ''}" data-open-task="${t.id}">
         <span class="badge ${STATUS_BADGE[t.status] || 'badge-danger'}">${STATUS_LABEL[t.status] || 'Not started'}</span>
         <span class="task-title">${escapeHtml(t.title || '(untitled)')}${t.description ? `<span class="task-desc">${escapeHtml(t.description)}</span>` : ''}</span>
         ${metaParts.length ? `<span class="task-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
         <span class="task-due">${t.dueDate ? fmtPerfDate({ date: t.dueDate }) : 'No due date'}</span>
-      </div>
-      ${subHtml}`;
-  }
-
-  el.innerHTML = (byParent['root'] || []).sort(sortFn).map(t => renderTask(t, false)).join('');
+      </div>`;
+  }).join('');
 }
 document.getElementById('tasksList').addEventListener('click', (e) => {
   const target = e.target.closest('[data-open-task]');
@@ -1358,7 +1367,26 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Income: incomeTotal(currentShow), Spend: spendTotal(currentShow), Forecast: forecast(currentShow) }]), 'Forecast');
 
-  XLSX.writeFile(wb, `${(currentShow.name || 'show').replace(/[^a-z0-9]+/gi, '-')}-budget.xlsx`);
+  if (!currentShow.isTemplate && currentShow.roles.length) {
+    const roleRows = currentShow.roles.map(r => ({
+      Role: r.name || '(unnamed role)',
+      Assigned: (currentShow.roleAssignments[r.id] || []).map(userName).join(', ') || '—',
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(roleRows), 'Roles');
+  }
+  if (!currentShow.isTemplate && currentShowTasks.length) {
+    const taskRows = orderedTaskList().map(({ task: t, isSub }) => ({
+      Task: (isSub ? '— ' : '') + (t.title || '(untitled)'),
+      Description: t.description || '',
+      'Due date': t.dueDate ? fmtPerfDate({ date: t.dueDate }) : '',
+      Status: STATUS_LABEL[t.status] || 'Not started',
+      Role: roleName(t.roleId),
+      Assigned: (t.assigneeIds || []).map(userName).join(', '),
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(taskRows), 'Tasks');
+  }
+
+  XLSX.writeFile(wb, `${(currentShow.name || 'show').replace(/[^a-z0-9]+/gi, '-')}-plan.xlsx`);
 });
 
 document.getElementById('printBtn').addEventListener('click', () => window.print());

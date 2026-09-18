@@ -73,10 +73,12 @@ body.theme-showplanner {
 
 /* ── Print / PDF ──────────────────────────────────────────────────────────
    window.print() on the editor view: hide chrome (nav, buttons, inputs' surrounding controls,
-   the Performances editor and helper text) and print a compact, single-page report instead —
-   the browser's own "Save as PDF" destination is the PDF export the spec asks for, no extra
-   library needed. Every size below is deliberately tight: the goal is fitting show name, fixed
-   params, income, spend and forecast on one A4 page without looking cramped. */
+   the Performances editor and helper text) and print a compact report instead — the browser's
+   own "Save as PDF" destination is the PDF export the spec asks for, no extra library needed.
+   Budget (fixed params/income/spend/forecast) is sized to fit one A4 page on its own; Roles and
+   Tasks print too (the plan-access/generate-plan controls stay hidden, same as every other
+   no-print control) and are allowed to spill onto further pages — a show with any real number
+   of tasks was never going to fit one page next to the budget as well. */
 @media print {
   @page { size: A4 portrait; margin: 12mm; }
   body { font-size: 11px; }
@@ -119,6 +121,14 @@ body.theme-showplanner {
   .summary-card { padding: 8px; }
   .summary-card .snum { font-size: 16px; }
   .summary-card .slabel { font-size: 9px; }
+
+  /* Badge backgrounds are otherwise stripped by the browser's own print defaults — without this
+     every status badge below prints as plain, indistinguishable text. */
+  .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 9px; padding: 2px 7px; }
+  .task-row { break-inside: avoid; border: 1px solid #ccc; padding: 4px 8px; gap: 8px; font-size: 10px; }
+  .task-row.subtask { margin-left: 16px; }
+  .task-row .task-desc { font-size: 9px; }
+  .role-assignees { font-size: 10px; }
 
   input.form-control, textarea.form-control, select.form-control {
     border-color: transparent; padding: 0 !important; height: auto !important; font-size: 10px;
