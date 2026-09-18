@@ -305,14 +305,28 @@ document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
 });
 document.getElementById('backToShowsBtn').addEventListener('click', () => { currentShowId = null; currentShow = null; switchTab('shows'); loadShows(); });
 
+// A second, independent tab system nested inside the show editor (Details/Plan/Roles/Budget) —
+// deliberately separate from switchTab()/.tab-panel above, which queries the whole document and
+// would otherwise also toggle the outer Shows/Task Templates/editor panels on every click here.
+function switchShowSubtab(id) {
+  document.querySelectorAll('.show-subtab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('showsubtab-' + id).classList.add('active');
+  document.querySelectorAll('.show-subtab-btn[data-subtab]').forEach(b => b.classList.toggle('active', b.dataset.subtab === id));
+}
+document.querySelectorAll('.show-subtab-btn[data-subtab]').forEach(btn => {
+  btn.addEventListener('click', () => switchShowSubtab(btn.dataset.subtab));
+});
+
 async function openShow(id) {
   const doc = await db.collection('showplanner_shows').doc(id).get();
   if (!doc.exists) { showToast('Show not found', 'error'); return; }
   currentShowId = id;
   currentShow = withDefaults({ id: doc.id, ...doc.data() });
+  collapsedTaskIds = new Set();
   await loadCurrentShowTasks();
   renderEditor();
   switchTab('editor');
+  switchShowSubtab('details');
 }
 
 async function loadCurrentShowTasks() {
@@ -437,6 +451,7 @@ async function generatePlanFromTemplate(template, baseDate) {
   currentShow.roles = JSON.parse(JSON.stringify(template.roles || []));
   currentShow.roleAssignments = {};
   currentShow.planTemplateId = template.id;
+  collapsedTaskIds = new Set(); // every task just got a fresh id — nothing left for old ids to refer to
   await loadCurrentShowTasks();
   renderPlanCard();
   renderRolesCard();
@@ -590,6 +605,16 @@ function applyPlanCardVisibility() {
   document.getElementById('rolesCard').style.display = isTemplateShow ? 'none' : '';
   document.getElementById('tasksCard').style.display = isTemplateShow ? 'none' : '';
   document.getElementById('planAccessCard').style.display = (isTemplateShow || !canEdit) ? 'none' : '';
+
+  // The budget template has nothing to show on the Plan/Roles sub-tabs (see above) — hide those
+  // tab buttons outright rather than leave a click landing on an empty panel, and bounce off them
+  // if that's somehow the panel showing already (e.g. this show WAS a regular show a moment ago).
+  ['plan', 'roles'].forEach(id => {
+    const btn = document.querySelector(`.show-subtab-btn[data-subtab="${id}"]`);
+    btn.style.display = isTemplateShow ? 'none' : '';
+  });
+  if (isTemplateShow && document.getElementById('showsubtab-plan').classList.contains('active')) switchShowSubtab('details');
+  if (isTemplateShow && document.getElementById('showsubtab-roles').classList.contains('active')) switchShowSubtab('details');
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────
@@ -599,6 +624,25 @@ function applyPlanCardVisibility() {
 
 const STATUS_LABEL = { not_started: 'Not started', in_progress: 'In progress', completed: 'Completed' };
 const STATUS_BADGE = { not_started: 'badge-danger', in_progress: 'badge-warning', completed: 'badge-success' };
+
+let collapsedTaskIds = new Set(); // local UI state only (which parent tasks are collapsed) — never persisted
+
+// A task with sub-tasks doesn't carry its own status — it's derived: completed only once every
+// sub-task is completed, in progress as soon as any sub-task has started, otherwise not started.
+// A leaf task (no children) just reports its own stored status unchanged.
+function computeTaskStatus(task) {
+  const children = currentShowTasks.filter(t => t.parentTaskId === task.id);
+  if (!children.length) return task.status || 'not_started';
+  if (children.every(c => c.status === 'completed')) return 'completed';
+  if (children.some(c => c.status === 'in_progress' || c.status === 'completed')) return 'in_progress';
+  return 'not_started';
+}
+function isTaskOverdue(task, status) {
+  if (!task.dueDate || status === 'completed') return false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const [y, m, d] = task.dueDate.split('-').map(Number);
+  return new Date(y, m - 1, d) < today;
+}
 
 // Flattened [{ task, isSub }] in display order (top-level tasks by due date, each immediately
 // followed by its own sub-tasks by due date) — the one source of truth for both the on-screen
@@ -626,22 +670,41 @@ function renderTasksCard() {
     el.innerHTML = `<p class="empty-state">No tasks yet${canEdit ? ' — generate a plan from a task template above, or add one manually.' : '.'}</p>`;
     return;
   }
-  el.innerHTML = orderedTaskList().map(({ task: t, isSub }) => {
-    const assigneeNames = (t.assigneeIds || []).map(userName);
-    const rName = roleName(t.roleId);
-    const metaParts = [];
-    if (rName) metaParts.push(rName);
-    if (assigneeNames.length) metaParts.push(assigneeNames.join(', '));
-    return `
-      <div class="task-row${isSub ? ' subtask' : ''}" data-open-task="${t.id}">
-        <span class="badge ${STATUS_BADGE[t.status] || 'badge-danger'}">${STATUS_LABEL[t.status] || 'Not started'}</span>
-        <span class="task-title">${escapeHtml(t.title || '(untitled)')}${t.description ? `<span class="task-desc">${escapeHtml(t.description)}</span>` : ''}</span>
+  el.innerHTML = orderedTaskList()
+    .filter(({ task: t, isSub }) => !isSub || !collapsedTaskIds.has(t.parentTaskId))
+    .map(({ task: t, isSub }) => {
+      const children = isSub ? [] : currentShowTasks.filter(c => c.parentTaskId === t.id);
+      const hasChildren = children.length > 0;
+      const status = computeTaskStatus(t);
+      const overdue = isTaskOverdue(t, status);
+      const assigneeNames = (t.assigneeIds || []).map(userName);
+      const rName = roleName(t.roleId);
+      const metaParts = [];
+      if (rName) metaParts.push(rName);
+      if (assigneeNames.length) metaParts.push(assigneeNames.join(', '));
+      const toggleHtml = hasChildren
+        ? `<button class="task-toggle-btn" data-toggle-task="${t.id}" title="${collapsedTaskIds.has(t.id) ? 'Expand sub-tasks' : 'Collapse sub-tasks'}">${collapsedTaskIds.has(t.id) ? '▸' : '▾'}</button>`
+        : (isSub ? '' : '<span class="task-toggle-spacer"></span>');
+      const subcount = hasChildren
+        ? `<span class="task-subcount"> (${children.filter(c => c.status === 'completed').length}/${children.length} sub-tasks)</span>` : '';
+      return `
+      <div class="task-row${isSub ? ' subtask' : ''}${overdue ? ' overdue' : ''}" data-open-task="${t.id}">
+        ${toggleHtml}
+        <span class="badge ${STATUS_BADGE[status] || 'badge-danger'}">${STATUS_LABEL[status] || 'Not started'}</span>
+        <span class="task-title">${escapeHtml(t.title || '(untitled)')}${t.description ? `<span class="task-desc">${escapeHtml(t.description)}</span>` : ''}${subcount}</span>
         ${metaParts.length ? `<span class="task-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
-        <span class="task-due">${t.dueDate ? fmtPerfDate({ date: t.dueDate }) : 'No due date'}</span>
+        <span class="task-due">${t.dueDate ? fmtPerfDate({ date: t.dueDate }) : 'No due date'}${overdue ? ' · Overdue' : ''}</span>
       </div>`;
-  }).join('');
+    }).join('');
 }
 document.getElementById('tasksList').addEventListener('click', (e) => {
+  const toggleBtn = e.target.closest('[data-toggle-task]');
+  if (toggleBtn) {
+    const id = toggleBtn.getAttribute('data-toggle-task');
+    if (collapsedTaskIds.has(id)) collapsedTaskIds.delete(id); else collapsedTaskIds.add(id);
+    renderTasksCard();
+    return;
+  }
   const target = e.target.closest('[data-open-task]');
   if (target) openTaskModal(target.getAttribute('data-open-task'));
 });
@@ -662,11 +725,19 @@ function openTaskModal(taskId) {
   const canEditPlan = currentUserCanEditPlan();
   taskEditMode = canEditPlan ? 'full' : (existing && currentUserIsTaskAssignee(existing)) ? 'assignee' : 'readonly';
 
+  const children = existing ? currentShowTasks.filter(t => t.parentTaskId === existing.id) : [];
+  const hasChildren = children.length > 0;
+
   document.getElementById('taskModalTitle').textContent = existing ? 'Edit task' : 'New task';
   document.getElementById('taskTitleInput').value = editingTaskDraft.title || '';
   document.getElementById('taskDescInput').value = editingTaskDraft.description || '';
   document.getElementById('taskDueDateInput').value = editingTaskDraft.dueDate || '';
-  document.getElementById('taskStatusSelect').value = editingTaskDraft.status || 'not_started';
+  document.getElementById('taskStatusSelect').value = hasChildren ? computeTaskStatus(existing) : (editingTaskDraft.status || 'not_started');
+  const autoNoteEl = document.getElementById('taskStatusAutoNote');
+  autoNoteEl.style.display = hasChildren ? '' : 'none';
+  autoNoteEl.textContent = hasChildren
+    ? `Automatic — based on its ${children.length} sub-task${children.length === 1 ? '' : 's'} (completed once every one of them is).`
+    : '';
 
   document.getElementById('taskRoleSelect').innerHTML = '<option value="">—</option>' +
     currentShow.roles.map(r => `<option value="${r.id}"${r.id === editingTaskDraft.roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
@@ -691,7 +762,7 @@ function openTaskModal(taskId) {
     document.getElementById(id).disabled = taskEditMode !== 'full';
   });
   document.querySelectorAll('#taskAssigneeChecklist input').forEach(cb => { cb.disabled = taskEditMode !== 'full'; });
-  document.getElementById('taskStatusSelect').disabled = taskEditMode === 'readonly';
+  document.getElementById('taskStatusSelect').disabled = taskEditMode === 'readonly' || hasChildren;
   document.getElementById('taskCommentInput').disabled = taskEditMode === 'readonly';
   document.getElementById('taskCommentAddBtn').style.display = taskEditMode === 'readonly' ? 'none' : '';
   document.getElementById('taskSaveBtn').style.display = taskEditMode === 'readonly' ? 'none' : '';
@@ -1379,7 +1450,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
       Task: (isSub ? '— ' : '') + (t.title || '(untitled)'),
       Description: t.description || '',
       'Due date': t.dueDate ? fmtPerfDate({ date: t.dueDate }) : '',
-      Status: STATUS_LABEL[t.status] || 'Not started',
+      Status: STATUS_LABEL[computeTaskStatus(t)] || 'Not started',
       Role: roleName(t.roleId),
       Assigned: (t.assigneeIds || []).map(userName).join(', '),
     }));

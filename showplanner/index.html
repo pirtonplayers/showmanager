@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.207"></script>
+  <script src="../shared/embed.js?v=1.0.208"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#6d28d9">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowPlanner</title>
-  <link rel="manifest" href="manifest.json?v=1.0.207">
-  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.207">
-  <link rel="stylesheet" href="style.css?v=1.0.207">
+  <link rel="manifest" href="manifest.json?v=1.0.208">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.208">
+  <link rel="stylesheet" href="style.css?v=1.0.208">
 </head>
 <body class="theme-showplanner">
 
@@ -208,36 +208,46 @@
         <p id="printShowMeta" class="muted"></p>
       </div>
 
-      <div class="card show-name-card" style="margin-bottom:20px">
-        <div class="card-header"><h2>Show details</h2></div>
-        <div class="card-body">
-          <div class="form-group">
-            <label for="showNameInput">Show name</label>
-            <input type="text" id="showNameInput" class="form-control" placeholder="e.g. Summer Concert 2027">
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px">
-            <div class="form-group" style="margin-bottom:0">
-              <label for="showDirectorInput">Director</label>
-              <input type="text" id="showDirectorInput" class="form-control">
+      <div class="show-subtabs no-print">
+        <button class="show-subtab-btn active" data-subtab="details">Details</button>
+        <button class="show-subtab-btn" data-subtab="plan">Plan</button>
+        <button class="show-subtab-btn" data-subtab="roles">Roles</button>
+        <button class="show-subtab-btn" data-subtab="budget">Budget</button>
+      </div>
+
+      <div id="showsubtab-details" class="show-subtab-panel active">
+        <div class="card show-name-card" style="margin-bottom:20px">
+          <div class="card-header"><h2>Show details</h2></div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="showNameInput">Show name</label>
+              <input type="text" id="showNameInput" class="form-control" placeholder="e.g. Summer Concert 2027">
             </div>
-            <div class="form-group" style="margin-bottom:0">
-              <label for="showProducerInput">Producer</label>
-              <input type="text" id="showProducerInput" class="form-control">
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-              <label for="showTypeInput">Show type</label>
-              <input type="text" id="showTypeInput" class="form-control" list="showTypeOptions" placeholder="e.g. Straight play">
-              <datalist id="showTypeOptions">
-                <option value="Straight play"></option>
-                <option value="Musical"></option>
-                <option value="Pantomime"></option>
-                <option value="Revue"></option>
-              </datalist>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px">
+              <div class="form-group" style="margin-bottom:0">
+                <label for="showDirectorInput">Director</label>
+                <input type="text" id="showDirectorInput" class="form-control">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label for="showProducerInput">Producer</label>
+                <input type="text" id="showProducerInput" class="form-control">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label for="showTypeInput">Show type</label>
+                <input type="text" id="showTypeInput" class="form-control" list="showTypeOptions" placeholder="e.g. Straight play">
+                <datalist id="showTypeOptions">
+                  <option value="Straight play"></option>
+                  <option value="Musical"></option>
+                  <option value="Pantomime"></option>
+                  <option value="Revue"></option>
+                </datalist>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
+      <div id="showsubtab-plan" class="show-subtab-panel">
       <div class="card no-print" style="margin-bottom:20px" id="planCard">
         <div class="card-header"><h2>Plan</h2></div>
         <div class="card-body">
@@ -252,6 +262,18 @@
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:20px" id="tasksCard">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <h2>Tasks</h2>
+          <button class="btn btn-primary btn-sm no-print" id="addTaskBtn">+ Add task</button>
+        </div>
+        <div class="card-body">
+          <div class="item-list" id="tasksList"></div>
+        </div>
+      </div>
+      </div>
+
+      <div id="showsubtab-roles" class="show-subtab-panel">
       <div class="card" style="margin-bottom:20px" id="rolesCard">
         <div class="card-header"><h2>Roles</h2></div>
         <div class="card-body" style="padding:0">
@@ -266,17 +288,6 @@
           <button class="btn btn-secondary btn-sm" id="addRoleBtn">+ Add role</button>
         </div>
       </div>
-
-      <div class="card" style="margin-bottom:20px" id="tasksCard">
-        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-          <h2>Tasks</h2>
-          <button class="btn btn-primary btn-sm no-print" id="addTaskBtn">+ Add task</button>
-        </div>
-        <div class="card-body">
-          <div class="item-list" id="tasksList"></div>
-        </div>
-      </div>
-
       <div class="card no-print" style="margin-bottom:20px" id="planAccessCard">
         <div class="card-header"><h2>Plan access</h2></div>
         <div class="card-body">
@@ -289,7 +300,9 @@
           <div id="planAccessList" class="checklist"></div>
         </div>
       </div>
+      </div>
 
+      <div id="showsubtab-budget" class="show-subtab-panel">
       <div class="card" style="margin-bottom:20px">
         <div class="card-body" style="padding-top:20px">
           <div class="fixed-params-grid">
@@ -373,6 +386,7 @@
       </div>
 
       <div class="summary-grid" id="forecastCards"></div>
+      </div>
 
       <div class="no-print" style="margin:20px 0 60px">
         <button class="btn btn-primary" id="saveShowBtn">Save changes</button>
@@ -501,6 +515,7 @@
             <option value="in_progress">In progress</option>
             <option value="completed">Completed</option>
           </select>
+          <p id="taskStatusAutoNote" class="muted" style="font-size:11px;margin-top:4px;display:none"></p>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -542,11 +557,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.207"></script>
-<script src="../shared/load-script.js?v=1.0.207"></script>
-<script src="../shared/firebase-config.js?v=1.0.207"></script>
-<script src="../shared/auth.js?v=1.0.207"></script>
-<script src="../shared/suite-nav.js?v=1.0.207"></script>
-<script src="budget.js?v=1.0.207"></script>
+<script src="../shared/version.js?v=1.0.208"></script>
+<script src="../shared/load-script.js?v=1.0.208"></script>
+<script src="../shared/firebase-config.js?v=1.0.208"></script>
+<script src="../shared/auth.js?v=1.0.208"></script>
+<script src="../shared/suite-nav.js?v=1.0.208"></script>
+<script src="budget.js?v=1.0.208"></script>
 </body>
 </html>
