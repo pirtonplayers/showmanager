@@ -44,6 +44,7 @@ const APP_SUBNAV = {
   ],
   showplanner: [
     { id: 'shows', label: 'Shows', selector: '[data-tab="shows"]' },
+    { id: 'templates', label: 'Task Templates', selector: '[data-tab="templates"]' },
   ],
   // The restricted Tabs POS view has no visible nav buttons of its own (showdrinksAdmin's are
   // all hidden there except "Bar Tabs" — see body.tabs-only-mode in showdrinks/style.css), so

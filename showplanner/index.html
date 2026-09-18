@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.203"></script>
+  <script src="../shared/embed.js?v=1.0.204"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#6d28d9">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowPlanner</title>
-  <link rel="manifest" href="manifest.json?v=1.0.203">
-  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.203">
-  <link rel="stylesheet" href="style.css?v=1.0.203">
+  <link rel="manifest" href="manifest.json?v=1.0.204">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.204">
+  <link rel="stylesheet" href="style.css?v=1.0.204">
 </head>
 <body class="theme-showplanner">
 
@@ -86,6 +86,7 @@
         <div class="dropdown-divider"></div>
         <div class="suite-current-section">
           <button class="tab-btn active" data-tab="shows">Shows</button>
+          <button class="tab-btn" data-tab="templates">Task Templates</button>
         </div>
         <div class="dropdown-divider"></div>
         <button class="tab-btn" id="signOutBtn">Sign Out</button>
@@ -100,6 +101,7 @@
     <div class="dropdown-divider"></div>
     <div class="suite-current-section">
       <button class="tab-btn active" data-tab="shows">Shows</button>
+      <button class="tab-btn" data-tab="templates">Task Templates</button>
     </div>
     <div class="dropdown-divider"></div>
     <button class="tab-btn" id="sidebarSignOutBtn">Sign Out</button>
@@ -115,6 +117,77 @@
         <button class="btn btn-primary btn-sm" id="newShowBtn">+ New show</button>
       </div>
       <div class="item-list" id="showsList"></div>
+    </div>
+
+    <!-- ── TASK TEMPLATES LIST ── -->
+    <div id="tab-templates" class="tab-panel">
+      <div class="section-header">
+        <h2>Task Templates</h2>
+        <button class="btn btn-primary btn-sm" id="newTemplateBtn">+ New template</button>
+      </div>
+      <p class="muted" style="margin:-8px 0 16px">
+        Reusable task checklists (e.g. "Straight Play", "Musical") that a show's plan can be
+        generated from — separate from the budget template on the Shows tab.
+      </p>
+      <div class="item-list" id="templatesList"></div>
+    </div>
+
+    <!-- ── TASK TEMPLATE EDITOR ── -->
+    <div id="tab-templateEditor" class="tab-panel">
+      <div class="section-header">
+        <h2 id="templateEditorTitle">Task template</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" id="backToTemplatesBtn">← All templates</button>
+          <button class="btn btn-danger btn-sm" id="deleteTemplateBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Template name</h2></div>
+        <div class="card-body">
+          <div class="form-group" style="margin-bottom:0">
+            <input type="text" id="templateNameInput" class="form-control" placeholder="e.g. Straight Play">
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Roles</h2></div>
+        <div class="card-body" style="padding:0">
+          <div class="expense-table-wrap">
+            <table class="expense-table" id="templateRolesTable">
+              <thead><tr><th>Role name</th><th style="width:36px"></th></tr></thead>
+              <tbody id="templateRolesTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-body" style="padding-top:0">
+          <button class="btn btn-secondary btn-sm" id="addTemplateRoleBtn">+ Add role</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><h2>Tasks</h2></div>
+        <div class="card-body" style="padding:0">
+          <div class="expense-table-wrap">
+            <table class="expense-table" id="templateTasksTable">
+              <thead><tr><th>Task</th><th style="width:110px">Days before show</th><th style="width:150px">Role</th><th style="width:160px">Sub-task of</th><th style="width:36px"></th></tr></thead>
+              <tbody id="templateTasksTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-body" style="padding-top:0">
+          <button class="btn btn-secondary btn-sm" id="addTemplateTaskBtn">+ Add task</button>
+        </div>
+      </div>
+
+      <div style="margin:20px 0 60px">
+        <button class="btn btn-primary" id="saveTemplateBtn">Save template</button>
+        <span id="saveTemplateStatusText" class="muted" style="margin-left:10px"></span>
+      </div>
     </div>
 
     <!-- ── SHOW EDITOR ── -->
@@ -136,11 +209,46 @@
       </div>
 
       <div class="card show-name-card" style="margin-bottom:20px">
-        <div class="card-header"><h2>Show name</h2></div>
+        <div class="card-header"><h2>Show details</h2></div>
         <div class="card-body">
-          <div class="form-group" style="margin-bottom:0">
+          <div class="form-group">
+            <label for="showNameInput">Show name</label>
             <input type="text" id="showNameInput" class="form-control" placeholder="e.g. Summer Concert 2027">
           </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px">
+            <div class="form-group" style="margin-bottom:0">
+              <label for="showDirectorInput">Director</label>
+              <input type="text" id="showDirectorInput" class="form-control">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label for="showProducerInput">Producer</label>
+              <input type="text" id="showProducerInput" class="form-control">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label for="showTypeInput">Show type</label>
+              <input type="text" id="showTypeInput" class="form-control" list="showTypeOptions" placeholder="e.g. Straight play">
+              <datalist id="showTypeOptions">
+                <option value="Straight play"></option>
+                <option value="Musical"></option>
+                <option value="Pantomime"></option>
+                <option value="Revue"></option>
+              </datalist>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card no-print" style="margin-bottom:20px" id="planCard">
+        <div class="card-header"><h2>Plan</h2></div>
+        <div class="card-body">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+            <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px">
+              <label for="planTemplateSelect">Generate from task template</label>
+              <select id="planTemplateSelect" class="form-control"></select>
+            </div>
+            <button class="btn btn-primary btn-sm" id="generatePlanBtn" style="height:38px">Generate plan</button>
+          </div>
+          <div id="planSummary"></div>
         </div>
       </div>
 
@@ -249,8 +357,22 @@
         <label for="newShowName">Show name</label>
         <input type="text" id="newShowName" class="form-control" required>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label for="newShowDirector">Director</label>
+          <input type="text" id="newShowDirector" class="form-control">
+        </div>
+        <div class="form-group">
+          <label for="newShowProducer">Producer</label>
+          <input type="text" id="newShowProducer" class="form-control">
+        </div>
+      </div>
       <div class="form-group">
-        <label for="newShowSource">Start from</label>
+        <label for="newShowType">Show type</label>
+        <input type="text" id="newShowType" class="form-control" list="showTypeOptions">
+      </div>
+      <div class="form-group">
+        <label for="newShowSource">Start budget from</label>
         <select id="newShowSource" class="form-control"></select>
       </div>
       <p id="newShowError" class="muted" style="color:var(--danger);margin-bottom:12px"></p>
@@ -280,16 +402,34 @@
   </div>
 </div>
 
+<!-- New task template modal -->
+<div id="newTemplateModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>New task template</h3>
+      <button class="modal-close-btn" id="newTemplateCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="newTemplateName">Template name</label>
+        <input type="text" id="newTemplateName" class="form-control" required placeholder="e.g. Musical">
+      </div>
+      <p id="newTemplateError" class="muted" style="color:var(--danger);margin-bottom:12px"></p>
+      <button class="btn btn-primary btn-full" id="newTemplateCreateBtn">Create template</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-<script src="../shared/version.js?v=1.0.203"></script>
-<script src="../shared/load-script.js?v=1.0.203"></script>
-<script src="../shared/firebase-config.js?v=1.0.203"></script>
-<script src="../shared/auth.js?v=1.0.203"></script>
-<script src="../shared/suite-nav.js?v=1.0.203"></script>
-<script src="budget.js?v=1.0.203"></script>
+<script src="../shared/version.js?v=1.0.204"></script>
+<script src="../shared/load-script.js?v=1.0.204"></script>
+<script src="../shared/firebase-config.js?v=1.0.204"></script>
+<script src="../shared/auth.js?v=1.0.204"></script>
+<script src="../shared/suite-nav.js?v=1.0.204"></script>
+<script src="budget.js?v=1.0.204"></script>
 </body>
 </html>

@@ -135,6 +135,10 @@ function defaultTemplateData() {
 let allShows = [];      // [{id, ...data}]
 let currentShow = null; // the show doc currently open in the editor (working copy, unsaved edits live here)
 let currentShowId = null;
+let currentShowTasks = [];  // [{id, ...data}] — showplanner_shows/{id}/tasks for the open show
+let allTemplates = [];      // [{id, ...data}] — task-checklist templates (showplanner_templates)
+let currentTemplate = null; // working copy of the template doc currently open in its editor
+let currentTemplateId = null;
 
 async function loadShows() {
   const snap = await db.collection('showplanner_shows').get();
@@ -149,11 +153,15 @@ function renderShowsList() {
     el.innerHTML = '<p class="empty-state">No shows yet — the template is created automatically the first time you open this app.</p>';
     return;
   }
-  el.innerHTML = allShows.map(s => `
+  el.innerHTML = allShows.map(s => {
+    const subParts = [];
+    if (s.director) subParts.push(`Dir: ${escapeHtml(s.director)}`);
+    if (s.showType) subParts.push(escapeHtml(s.showType));
+    return `
     <div class="item-row" data-open-show="${s.id}" style="cursor:pointer">
       <div class="item-name-col">
         <div class="item-name">${escapeHtml(s.name || '(untitled)')}${s.isTemplate ? ' <span class="badge badge-primary">Template</span>' : ''}</div>
-        ${s.isTemplate ? '<div class="item-sub">Used to start new shows</div>' : ''}
+        ${s.isTemplate ? '<div class="item-sub">Used to start new shows</div>' : (subParts.length ? `<div class="item-sub">${subParts.join(' · ')}</div>` : '')}
       </div>
       <div class="item-actions">
         <button class="icon-btn" data-open-show="${s.id}" title="Open" aria-label="Open">${ICON_EDIT}</button>
@@ -161,7 +169,8 @@ function renderShowsList() {
         <button class="icon-btn icon-btn-danger" data-delete-show="${s.id}" ${s.isTemplate ? 'disabled title="Make another show the template first"' : 'title="Delete" aria-label="Delete"'}>${ICON_TRASH}</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 // The row itself also carries data-open-show (see above) so clicking anywhere on a row opens it,
@@ -212,6 +221,11 @@ function cleanSpend(spend) {
 function withDefaults(show) {
   return {
     ...show,
+    director: show.director || '',
+    producer: show.producer || '',
+    showType: show.showType || '',
+    roles: show.roles || [],
+    planTemplateId: show.planTemplateId || null,
     fixedParams: { ...emptyFixedParams(), ...(show.fixedParams || {}) },
     // Drop the old single "Ticket sales" formula line some shows still have saved from before
     // ticket sales became one line per performance — it now just sits there permanently reading
@@ -229,6 +243,9 @@ function openNewShowModal(preselectSourceId) {
   sel.innerHTML = allShows.map(s => `<option value="${s.id}">${escapeHtml(s.name)}${s.isTemplate ? ' (template)' : ''}</option>`).join('');
   if (preselectSourceId) sel.value = preselectSourceId;
   document.getElementById('newShowName').value = '';
+  document.getElementById('newShowDirector').value = '';
+  document.getElementById('newShowProducer').value = '';
+  document.getElementById('newShowType').value = '';
   document.getElementById('newShowError').textContent = '';
   document.getElementById('newShowModal').style.display = 'flex';
 }
@@ -238,6 +255,9 @@ document.getElementById('newShowModal').addEventListener('click', (e) => { if (e
 
 document.getElementById('newShowCreateBtn').addEventListener('click', async () => {
   const name = document.getElementById('newShowName').value.trim();
+  const director = document.getElementById('newShowDirector').value.trim();
+  const producer = document.getElementById('newShowProducer').value.trim();
+  const showType = document.getElementById('newShowType').value.trim();
   const sourceId = document.getElementById('newShowSource').value;
   const errEl = document.getElementById('newShowError');
   if (!name) { errEl.textContent = 'Enter a show name.'; return; }
@@ -247,6 +267,9 @@ document.getElementById('newShowCreateBtn').addEventListener('click', async () =
   const clone = withDefaults(source);
   const newDoc = {
     name,
+    director, producer, showType,
+    roles: [],
+    planTemplateId: null,
     isTemplate: false,
     copiedFrom: sourceId,
     fixedParams: JSON.parse(JSON.stringify(clone.fixedParams)),
@@ -283,14 +306,23 @@ async function openShow(id) {
   if (!doc.exists) { showToast('Show not found', 'error'); return; }
   currentShowId = id;
   currentShow = withDefaults({ id: doc.id, ...doc.data() });
+  await loadCurrentShowTasks();
   renderEditor();
   switchTab('editor');
+}
+
+async function loadCurrentShowTasks() {
+  const snap = await db.collection('showplanner_shows').doc(currentShowId).collection('tasks').orderBy('order').get();
+  currentShowTasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 function renderEditor() {
   document.getElementById('editorTitle').textContent = currentShow.name || 'Show budget';
   document.getElementById('headerTitle').textContent = 'Show Budget';
   document.getElementById('showNameInput').value = currentShow.name || '';
+  document.getElementById('showDirectorInput').value = currentShow.director || '';
+  document.getElementById('showProducerInput').value = currentShow.producer || '';
+  document.getElementById('showTypeInput').value = currentShow.showType || '';
   document.getElementById('printShowName').textContent = currentShow.name || '';
   document.getElementById('printShowMeta').textContent = currentShow.isTemplate ? 'Template' : '';
 
@@ -307,7 +339,112 @@ function renderEditor() {
   renderLinesTable('income', INCOME_FORMULAS);
   renderLinesTable('spend', SPEND_FORMULAS);
   renderForecast();
+  renderPlanCard();
 }
+
+document.getElementById('showDirectorInput').addEventListener('input', (e) => { currentShow.director = e.target.value; });
+document.getElementById('showProducerInput').addEventListener('input', (e) => { currentShow.producer = e.target.value; });
+document.getElementById('showTypeInput').addEventListener('input', (e) => { currentShow.showType = e.target.value; });
+
+// ── Plan (task templates → real tasks) ──────────────────────────────────
+
+function renderPlanCard() {
+  const sel = document.getElementById('planTemplateSelect');
+  sel.innerHTML = allTemplates.length
+    ? allTemplates.map(t => `<option value="${t.id}"${t.id === currentShow.planTemplateId ? ' selected' : ''}>${escapeHtml(t.name)}</option>`).join('')
+    : '<option value="">No task templates yet</option>';
+  document.getElementById('generatePlanBtn').disabled = !allTemplates.length;
+
+  const summaryEl = document.getElementById('planSummary');
+  if (currentShow.isTemplate) {
+    summaryEl.innerHTML = '<p class="muted">The budget template has no plan of its own.</p>';
+    return;
+  }
+  if (!currentShowTasks.length) {
+    summaryEl.innerHTML = '<p class="muted">No plan generated yet — pick a task template above and click Generate plan.</p>';
+    return;
+  }
+  const done = currentShowTasks.filter(t => t.status === 'completed').length;
+  const inProgress = currentShowTasks.filter(t => t.status === 'in_progress').length;
+  const sourceTemplate = allTemplates.find(t => t.id === currentShow.planTemplateId);
+  summaryEl.innerHTML = `
+    <p style="margin-bottom:10px">
+      <span class="badge badge-primary">${currentShowTasks.length} task${currentShowTasks.length === 1 ? '' : 's'}</span>
+      <span class="badge badge-success">${done} completed</span>
+      <span class="badge badge-warning">${inProgress} in progress</span>
+      ${currentShow.roles.length ? `<span class="badge">${currentShow.roles.length} role${currentShow.roles.length === 1 ? '' : 's'}</span>` : ''}
+    </p>
+    <p class="muted" style="font-size:13px">
+      Generated from "${escapeHtml(sourceTemplate?.name || 'a template')}". Full task list, assignment and status
+      tracking is coming in the next update — regenerating here replaces every task.
+    </p>
+  `;
+}
+
+function addDaysToIso(iso, days) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(y, m - 1, d - days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+async function generatePlanFromTemplate(template, baseDate) {
+  const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
+  const batch = db.batch();
+
+  currentShowTasks.forEach(t => batch.delete(tasksCol.doc(t.id)));
+
+  const templateTasks = template.tasks || [];
+  const newIds = templateTasks.map(() => tasksCol.doc().id);
+  templateTasks.forEach((tt, i) => {
+    const parentId = (tt.parentIndex ?? null) !== null ? newIds[tt.parentIndex] : null;
+    batch.set(tasksCol.doc(newIds[i]), {
+      title: tt.title || '(untitled task)',
+      description: tt.description || '',
+      dueMode: 'daysBeforeShow',
+      daysBeforeShow: Number(tt.daysBeforeShow) || 0,
+      dueDate: addDaysToIso(baseDate, Number(tt.daysBeforeShow) || 0),
+      roleId: tt.roleId || null,
+      assigneeIds: [],
+      status: 'not_started',
+      parentTaskId: parentId,
+      order: i,
+      comments: [],
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  batch.set(db.collection('showplanner_shows').doc(currentShowId), {
+    roles: JSON.parse(JSON.stringify(template.roles || [])),
+    planTemplateId: template.id,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  await batch.commit();
+  currentShow.roles = JSON.parse(JSON.stringify(template.roles || []));
+  currentShow.planTemplateId = template.id;
+  await loadCurrentShowTasks();
+  renderPlanCard();
+}
+
+document.getElementById('generatePlanBtn').addEventListener('click', async () => {
+  const templateId = document.getElementById('planTemplateSelect').value;
+  const template = allTemplates.find(t => t.id === templateId);
+  if (!template) { showToast('Choose a task template', 'error'); return; }
+
+  const perfDates = (currentShow.fixedParams.performances || []).map(p => p.date).filter(Boolean).sort();
+  if (!perfDates.length) { showToast('Add at least one performance date first', 'error'); return; }
+  const baseDate = perfDates[0];
+
+  if (currentShowTasks.length && !confirm(`This will replace the ${currentShowTasks.length} existing task(s) with a fresh plan from "${template.name}". Continue?`)) return;
+
+  try {
+    await generatePlanFromTemplate(template, baseDate);
+    showToast('Plan generated', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
 
 // ── Performances ─────────────────────────────────────────────────────────
 // Each performance is its own editable row: date and a ticket price that defaults to the show's
@@ -534,6 +671,11 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
   try {
     await db.collection('showplanner_shows').doc(currentShowId).set({
       name: currentShow.name.trim(),
+      director: currentShow.director || '',
+      producer: currentShow.producer || '',
+      showType: currentShow.showType || '',
+      roles: currentShow.roles || [],
+      planTemplateId: currentShow.planTemplateId || null,
       isTemplate: currentShow.isTemplate === true,
       copiedFrom: currentShow.copiedFrom || null,
       fixedParams: currentShow.fixedParams,
@@ -576,6 +718,229 @@ document.getElementById('deleteShowBtn').addEventListener('click', async () => {
     currentShowId = null; currentShow = null;
     switchTab('shows');
     await loadShows();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// ── Task Templates ───────────────────────────────────────────────────────
+// Reusable checklists (showplanner_templates) that generatePlanFromTemplate() turns into real
+// dated tasks on a show — kept entirely separate from the budget "template" concept above
+// (isTemplate on a show doc), which is why these are always called "task template" in the UI.
+
+async function loadTemplates() {
+  const snap = await db.collection('showplanner_templates').get();
+  allTemplates = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  renderTemplatesList();
+}
+
+function renderTemplatesList() {
+  const el = document.getElementById('templatesList');
+  if (!allTemplates.length) {
+    el.innerHTML = '<p class="empty-state">No task templates yet — create one to start generating show plans.</p>';
+    return;
+  }
+  el.innerHTML = allTemplates.map(t => `
+    <div class="item-row" data-open-template="${t.id}" style="cursor:pointer">
+      <div class="item-name-col">
+        <div class="item-name">${escapeHtml(t.name || '(untitled)')}</div>
+        <div class="item-sub">${(t.tasks || []).length} task${(t.tasks || []).length === 1 ? '' : 's'} · ${(t.roles || []).length} role${(t.roles || []).length === 1 ? '' : 's'}</div>
+      </div>
+      <div class="item-actions">
+        <button class="icon-btn" data-open-template="${t.id}" title="Open" aria-label="Open">${ICON_EDIT}</button>
+        <button class="icon-btn icon-btn-danger" data-delete-template="${t.id}" title="Delete" aria-label="Delete">${ICON_TRASH}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('templatesList').addEventListener('click', async (e) => {
+  const deleteBtn = e.target.closest('[data-delete-template]');
+  if (deleteBtn) {
+    const id = deleteBtn.getAttribute('data-delete-template');
+    const t = allTemplates.find(x => x.id === id);
+    if (!t) return;
+    if (!confirm(`Delete task template "${t.name}"? Shows already generated from it keep their tasks — this only removes it from the picker.`)) return;
+    try {
+      await db.collection('showplanner_templates').doc(id).delete();
+      showToast('Template deleted', 'success');
+      await loadTemplates();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+    return;
+  }
+  const openTarget = e.target.closest('[data-open-template]');
+  if (openTarget) openTemplate(openTarget.getAttribute('data-open-template'));
+});
+
+document.getElementById('newTemplateBtn').addEventListener('click', () => {
+  document.getElementById('newTemplateName').value = '';
+  document.getElementById('newTemplateError').textContent = '';
+  document.getElementById('newTemplateModal').style.display = 'flex';
+});
+document.getElementById('newTemplateCloseBtn').addEventListener('click', () => { document.getElementById('newTemplateModal').style.display = 'none'; });
+document.getElementById('newTemplateModal').addEventListener('click', (e) => { if (e.target.id === 'newTemplateModal') e.target.style.display = 'none'; });
+document.getElementById('newTemplateCreateBtn').addEventListener('click', async () => {
+  const name = document.getElementById('newTemplateName').value.trim();
+  const errEl = document.getElementById('newTemplateError');
+  if (!name) { errEl.textContent = 'Enter a template name.'; return; }
+  try {
+    const ref = await db.collection('showplanner_templates').add({
+      name, roles: [], tasks: [],
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    document.getElementById('newTemplateModal').style.display = 'none';
+    await loadTemplates();
+    openTemplate(ref.id);
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+});
+
+document.getElementById('backToTemplatesBtn').addEventListener('click', () => { currentTemplateId = null; currentTemplate = null; switchTab('templates'); loadTemplates(); });
+
+async function openTemplate(id) {
+  const doc = await db.collection('showplanner_templates').doc(id).get();
+  if (!doc.exists) { showToast('Template not found', 'error'); return; }
+  currentTemplateId = id;
+  currentTemplate = { roles: [], tasks: [], ...doc.data(), id: doc.id };
+  renderTemplateEditor();
+  switchTab('templateEditor');
+}
+
+function renderTemplateEditor() {
+  document.getElementById('templateEditorTitle').textContent = currentTemplate.name || 'Task template';
+  document.getElementById('templateNameInput').value = currentTemplate.name || '';
+  renderTemplateRolesTable();
+  renderTemplateTasksTable();
+}
+document.getElementById('templateNameInput').addEventListener('input', (e) => { currentTemplate.name = e.target.value; });
+
+function renderTemplateRolesTable() {
+  const tbody = document.getElementById('templateRolesTableBody');
+  const roles = currentTemplate.roles;
+  tbody.innerHTML = roles.length ? roles.map((r, i) => `
+    <tr>
+      <td><input type="text" class="form-control" value="${escapeHtml(r.name || '')}" placeholder="Role name" data-role-field="${i}"></td>
+      <td><button class="grid-del-btn" data-role-remove="${i}" title="Remove">×</button></td>
+    </tr>
+  `).join('') : '<tr><td colspan="2" class="empty-state">No roles yet.</td></tr>';
+}
+document.getElementById('addTemplateRoleBtn').addEventListener('click', () => {
+  currentTemplate.roles.push({ id: uid(), name: '' });
+  renderTemplateRolesTable();
+  renderTemplateTasksTable();
+});
+document.getElementById('templateRolesTableBody').addEventListener('input', (e) => {
+  const i = e.target.getAttribute('data-role-field');
+  if (i === null) return;
+  currentTemplate.roles[Number(i)].name = e.target.value;
+});
+// 'change' (fires on blur/commit, not per keystroke) is what refreshes the tasks table's role
+// selects — re-rendering THIS table (roles) on every keystroke would drop focus mid-edit, same
+// reasoning as the income/spend tables above; re-rendering the OTHER table (tasks) is safe.
+document.getElementById('templateRolesTableBody').addEventListener('change', (e) => {
+  if (e.target.getAttribute('data-role-field') === null) return;
+  renderTemplateTasksTable();
+});
+document.getElementById('templateRolesTableBody').addEventListener('click', (e) => {
+  const i = e.target.getAttribute('data-role-remove');
+  if (i === null) return;
+  const removed = currentTemplate.roles.splice(Number(i), 1)[0];
+  currentTemplate.tasks.forEach(t => { if (t.roleId === removed.id) t.roleId = null; });
+  renderTemplateRolesTable();
+  renderTemplateTasksTable();
+});
+
+function renderTemplateTasksTable() {
+  const tbody = document.getElementById('templateTasksTableBody');
+  const tasks = currentTemplate.tasks;
+  const roleOptions = (roleId) => `<option value=""${!roleId ? ' selected' : ''}>—</option>` +
+    currentTemplate.roles.map(r => `<option value="${r.id}"${r.id === roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
+  const parentOptions = (i, parentIndex) => `<option value=""${parentIndex === null || parentIndex === undefined ? ' selected' : ''}>Top-level</option>` +
+    tasks.map((t, pi) => pi === i ? '' : `<option value="${pi}"${parentIndex === pi ? ' selected' : ''}>${escapeHtml(t.title || `Task ${pi + 1}`)}</option>`).join('');
+  tbody.innerHTML = tasks.length ? tasks.map((t, i) => `
+    <tr>
+      <td>
+        <input type="text" class="form-control" style="margin-bottom:4px" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${i}:title">
+        <input type="text" class="form-control" style="font-size:12px" value="${escapeHtml(t.description || '')}" placeholder="Description (optional)" data-task-field="${i}:description">
+      </td>
+      <td><input type="number" class="form-control num-input" value="${t.daysBeforeShow ?? 0}" data-task-field="${i}:daysBeforeShow"></td>
+      <td><select class="form-control" data-task-field="${i}:roleId">${roleOptions(t.roleId)}</select></td>
+      <td><select class="form-control" data-task-field="${i}:parentIndex">${parentOptions(i, t.parentIndex ?? null)}</select></td>
+      <td><button class="grid-del-btn" data-task-remove="${i}" title="Remove">×</button></td>
+    </tr>
+  `).join('') : '<tr><td colspan="5" class="empty-state">No tasks yet.</td></tr>';
+}
+document.getElementById('addTemplateTaskBtn').addEventListener('click', () => {
+  currentTemplate.tasks.push({ title: '', description: '', daysBeforeShow: 0, roleId: null, parentIndex: null });
+  renderTemplateTasksTable();
+});
+// Text/number fields mutate in place with no re-render (typing would lose focus otherwise —
+// same pattern as handleLineAmountInput above); role/parent selects re-render afterwards since
+// that's safe on a 'change' and keeps the parent-task dropdown's title labels current.
+document.getElementById('templateTasksTableBody').addEventListener('input', (e) => {
+  const key = e.target.getAttribute('data-task-field');
+  if (!key) return;
+  const [idx, field] = key.split(':');
+  const t = currentTemplate.tasks[Number(idx)];
+  if (field === 'daysBeforeShow') t.daysBeforeShow = Math.round(Number(e.target.value) || 0);
+  else if (field === 'title') t.title = e.target.value;
+  else if (field === 'description') t.description = e.target.value;
+});
+document.getElementById('templateTasksTableBody').addEventListener('change', (e) => {
+  const key = e.target.getAttribute('data-task-field');
+  if (!key) return;
+  const [idx, field] = key.split(':');
+  const t = currentTemplate.tasks[Number(idx)];
+  if (field === 'roleId') t.roleId = e.target.value || null;
+  else if (field === 'parentIndex') t.parentIndex = e.target.value === '' ? null : Number(e.target.value);
+  else return;
+  renderTemplateTasksTable();
+});
+document.getElementById('templateTasksTableBody').addEventListener('click', (e) => {
+  const i = e.target.getAttribute('data-task-remove');
+  if (i === null) return;
+  const idx = Number(i);
+  currentTemplate.tasks.splice(idx, 1);
+  currentTemplate.tasks.forEach(t => {
+    if (t.parentIndex === idx) t.parentIndex = null;
+    else if (t.parentIndex != null && t.parentIndex > idx) t.parentIndex -= 1;
+  });
+  renderTemplateTasksTable();
+});
+
+document.getElementById('saveTemplateBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('saveTemplateStatusText');
+  if (!currentTemplate.name?.trim()) { showToast('Enter a template name', 'error'); return; }
+  statusEl.textContent = 'Saving…';
+  try {
+    await db.collection('showplanner_templates').doc(currentTemplateId).set({
+      name: currentTemplate.name.trim(),
+      roles: currentTemplate.roles,
+      tasks: currentTemplate.tasks,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    statusEl.textContent = 'Saved ' + new Date().toLocaleTimeString('en-GB');
+    showToast('Saved', 'success');
+    await loadTemplates();
+  } catch (err) {
+    statusEl.textContent = '';
+    showToast(err.message, 'error');
+  }
+});
+
+document.getElementById('deleteTemplateBtn').addEventListener('click', async () => {
+  if (!confirm(`Delete task template "${currentTemplate.name}"? This cannot be undone.`)) return;
+  try {
+    await db.collection('showplanner_templates').doc(currentTemplateId).delete();
+    showToast('Template deleted', 'success');
+    currentTemplateId = null; currentTemplate = null;
+    switchTab('templates');
+    await loadTemplates();
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -736,6 +1101,7 @@ firebase.auth().onAuthStateChanged(async user => {
         dashboardInitialized = true;
         document.getElementById('headerVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';
         await ensureTemplateExists();
+        await loadTemplates();
         await loadShows();
       }
     }

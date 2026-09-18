@@ -119,6 +119,9 @@ service cloud.firestore {
     match /showplanner_shows/{id}/tasks/{taskId} {
       allow read, write: if hasAccess('showplanner');
     }
+    match /showplanner_templates/{id} {
+      allow read, write: if hasAccess('showplanner');
+    }
 
     // ── Portal ───────────────────────────────────────────────────────────────
     match /portal_config/{id} {
