@@ -350,7 +350,7 @@ async function openShow(id) {
   if (!doc.exists) { showToast('Show not found', 'error'); return; }
   currentShowId = id;
   currentShow = withDefaults({ id: doc.id, ...doc.data() });
-  collapsedTaskIds = new Set(['__completed__']);
+  collapsedTaskIds = new Set();
   showEditorDirty = false;
   await loadCurrentShowTasks();
   renderEditor();
@@ -738,12 +738,14 @@ function taskRowHtml(t, isSub) {
       ${toggleHtml}
       <span class="badge ${STATUS_BADGE[status] || 'badge-danger'}">${STATUS_LABEL[status] || 'Not started'}</span>
       <span class="task-title">${escapeHtml(t.title || '(untitled)')}${t.description ? `<span class="task-desc">${escapeHtml(t.description)}</span>` : ''}${subcount}</span>
-      ${metaParts.length ? `<span class="task-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
-      <span class="task-due">${t.dueDate ? fmtPerfDate({ date: t.dueDate }) : 'No due date'}${overdue ? ' · Overdue' : ''}</span>
+      <span class="task-secondary">
+        ${metaParts.length ? `<span class="task-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
+        <span class="task-due">${t.dueDate ? fmtPerfDate({ date: t.dueDate }) : 'No due date'}${overdue ? ' · Overdue' : ''}</span>
+      </span>
     </div>`;
 }
-// A top-level task plus its (collapsible) sub-tasks — one unit in either the active list or the
-// Completed group below.
+// A top-level task plus its own (collapsible) sub-tasks, regardless of status — the toggle just
+// shows/hides whatever's under this one task, nothing more global than that.
 function taskBranchHtml(t) {
   const collapsed = collapsedTaskIds.has(t.id);
   const children = childTasksSorted(t.id);
@@ -758,24 +760,7 @@ function renderTasksCard() {
     el.innerHTML = `<p class="empty-state">No tasks yet${canEdit ? ' — generate a plan from a task template above, or add one manually.' : '.'}</p>`;
     return;
   }
-  const topLevel = topLevelTasksSorted();
-  const activeTop = topLevel.filter(t => computeTaskStatus(t) !== 'completed');
-  const doneTop = topLevel.filter(t => computeTaskStatus(t) === 'completed');
-
-  let html = activeTop.map(taskBranchHtml).join('');
-  if (doneTop.length) {
-    // Reuses the exact same collapse toggle as an individual task's sub-tasks (a synthetic
-    // '__completed__' id in the same collapsedTaskIds set) — finished top-level tasks tuck away
-    // together here by default so they don't clutter the active list, expandable on demand.
-    const groupCollapsed = collapsedTaskIds.has('__completed__');
-    html += `
-      <div class="task-row task-group-row" data-toggle-task="__completed__">
-        <button class="task-toggle-btn" data-toggle-task="__completed__" title="${groupCollapsed ? 'Show completed tasks' : 'Hide completed tasks'}">${groupCollapsed ? '▸' : '▾'}</button>
-        <span class="task-title">Completed (${doneTop.length})</span>
-      </div>`;
-    if (!groupCollapsed) html += doneTop.map(taskBranchHtml).join('');
-  }
-  el.innerHTML = html;
+  el.innerHTML = topLevelTasksSorted().map(taskBranchHtml).join('');
 }
 document.getElementById('tasksList').addEventListener('click', (e) => {
   const toggleBtn = e.target.closest('[data-toggle-task]');

@@ -224,22 +224,30 @@ input[type="file"].form-control { padding: 7px 10px; }
 .show-subtab-panel { display: none; }
 .show-subtab-panel.active { display: block; }
 
-/* ── Task list (Plan) ── */
-.task-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+/* ── Task list (Plan) ──
+   .task-secondary bundles the role/assignee meta and the due date into one flex item (instead of
+   two separate ones) purely so the mobile breakpoint below can push BOTH onto their own line
+   together with a single flex-basis:100%, rather than each wrapping onto its own separate line. */
+.task-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
 .task-row.subtask { margin-left: 28px; background: var(--bg); }
 .task-row.overdue { border-left: 3px solid var(--danger); }
-.task-row .task-title { flex: 1; min-width: 0; font-weight: 500; }
+.task-row .task-title { flex: 1 1 140px; min-width: 0; font-weight: 500; }
 .task-row .task-title .task-desc { display: block; font-weight: 400; font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-row .task-title .task-subcount { font-weight: 400; font-size: 12px; color: var(--text-muted); }
+.task-row .task-secondary { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto; }
 .task-row .task-due { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 .task-row.overdue .task-due { color: var(--danger); font-weight: 600; }
-.task-row .task-meta { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.task-row .task-meta { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
 .task-toggle-btn { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 18px; height: 18px; padding: 0; border: none; background: none; color: var(--text-muted); font-size: 11px; cursor: pointer; }
 .task-toggle-btn:hover { color: var(--text); }
 .task-toggle-spacer { flex-shrink: 0; width: 18px; }
-.task-row.task-group-row { background: var(--bg); border-style: dashed; }
-.task-row.task-group-row .task-title { font-size: 13px; font-weight: 600; color: var(--text-muted); }
 .role-assignees { font-size: 12px; color: var(--text-muted); }
+
+@media (max-width: 560px) {
+  .task-row.subtask { margin-left: 14px; }
+  .task-row .task-secondary { flex-basis: 100%; margin-left: 26px; justify-content: flex-start; }
+  .task-row .task-meta { max-width: none; }
+}
 
 /* ── Badges ── */
 .badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; }
