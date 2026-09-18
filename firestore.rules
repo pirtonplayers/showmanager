@@ -94,9 +94,11 @@ service cloud.firestore {
     // showdrinks_tabMembers doubles as the whole suite's shared members directory — the portal's
     // and Expenses' own Add user screens read it to populate their Member picker dropdown, so
     // expensesAdmin gets read-only access too (isManager already covers the portal via
-    // hasAccess('showdrinksAdmin')); only Bar Tabs POS/Bar Manager can write to it.
+    // hasAccess('showdrinksAdmin')); ShowPlanner reads it too, to assign roles/tasks to anyone in
+    // the general membership, not just accounts with their own ShowPlanner login. Only Bar Tabs
+    // POS/Bar Manager can write to it.
     match /showdrinks_tabMembers/{id} {
-      allow read: if hasAccess('showdrinksAdmin') || hasAccess('showdrinksTabsPos') || hasAccess('expensesAdmin');
+      allow read: if hasAccess('showdrinksAdmin') || hasAccess('showdrinksTabsPos') || hasAccess('expensesAdmin') || hasAccess('showplanner');
       allow write: if hasAccess('showdrinksAdmin') || hasAccess('showdrinksTabsPos');
     }
     match /showdrinks_tabOrders/{id} {

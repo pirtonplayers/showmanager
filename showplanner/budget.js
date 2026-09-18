@@ -141,6 +141,22 @@ let currentShowTasks = [];  // [{id, ...data}] — showplanner_shows/{id}/tasks 
 let allTemplates = [];      // [{id, ...data}] — task-checklist templates (showplanner_templates)
 let currentTemplate = null; // working copy of the template doc currently open in its editor
 let currentTemplateId = null;
+let showEditorDirty = false; // any pending edit to the OPEN show not yet written by Save changes
+function markDirty() { showEditorDirty = true; }
+// Text/number/select edits inside the editor (or the two modals that feed it — Add income/spend
+// item, Assign role) mark dirty generically; the handful of pure button actions with no typed
+// input of their own (generate/add/remove performance, add/remove role, remove income/spend
+// line) call markDirty() explicitly at their own call sites below. The Task modal is deliberately
+// excluded — task edits commit to Firestore immediately on their own, never part of this show
+// doc's pending Save changes.
+function isShowEditorScoped(el) { return !!el.closest('#tab-editor, #addItemModal, #assignRoleModal'); }
+document.addEventListener('input', (e) => { if (e.target.matches('input, textarea, select') && isShowEditorScoped(e.target)) markDirty(); });
+document.addEventListener('change', (e) => { if (e.target.matches('input, textarea, select') && isShowEditorScoped(e.target)) markDirty(); });
+window.addEventListener('beforeunload', (e) => {
+  if (!showEditorDirty) return;
+  e.preventDefault();
+  e.returnValue = ''; // required for Chrome to show its own native prompt
+});
 
 async function loadShows() {
   const snap = await db.collection('showplanner_shows').get();
@@ -300,10 +316,22 @@ function switchTab(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
 }
+function confirmLeaveEditor() {
+  if (!showEditorDirty) return true;
+  return confirm('You have unsaved changes on this show. Leave without saving?');
+}
 document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
-  btn.addEventListener('click', () => { switchTab(btn.dataset.tab); document.getElementById('mainMenuDropdown').classList.remove('open'); });
+  btn.addEventListener('click', () => {
+    const leavingEditor = document.getElementById('tab-editor').classList.contains('active') && btn.dataset.tab !== 'editor';
+    if (leavingEditor && !confirmLeaveEditor()) return;
+    switchTab(btn.dataset.tab);
+    document.getElementById('mainMenuDropdown').classList.remove('open');
+  });
 });
-document.getElementById('backToShowsBtn').addEventListener('click', () => { currentShowId = null; currentShow = null; switchTab('shows'); loadShows(); });
+document.getElementById('backToShowsBtn').addEventListener('click', () => {
+  if (!confirmLeaveEditor()) return;
+  currentShowId = null; currentShow = null; switchTab('shows'); loadShows();
+});
 
 // A second, independent tab system nested inside the show editor (Details/Plan/Roles/Budget) —
 // deliberately separate from switchTab()/.tab-panel above, which queries the whole document and
@@ -322,7 +350,8 @@ async function openShow(id) {
   if (!doc.exists) { showToast('Show not found', 'error'); return; }
   currentShowId = id;
   currentShow = withDefaults({ id: doc.id, ...doc.data() });
-  collapsedTaskIds = new Set();
+  collapsedTaskIds = new Set(['__completed__']);
+  showEditorDirty = false;
   await loadCurrentShowTasks();
   renderEditor();
   switchTab('editor');
@@ -380,6 +409,10 @@ function renderPlanCard() {
   const canEdit = currentUserCanEditPlan();
   sel.disabled = !canEdit;
   document.getElementById('generatePlanBtn').disabled = !allTemplates.length || !canEdit;
+  // Once a plan exists (any tasks at all — generated or hand-added), the "start from a template"
+  // control has nothing left to do — Generate always means "replace everything", which isn't
+  // what this row is for once there's already a real plan in progress.
+  document.getElementById('planGenerateRow').style.display = (currentShowTasks.length || !canEdit) ? 'none' : '';
 
   const summaryEl = document.getElementById('planSummary');
   if (currentShow.isTemplate) {
@@ -400,10 +433,7 @@ function renderPlanCard() {
       <span class="badge badge-warning">${inProgress} in progress</span>
       ${currentShow.roles.length ? `<span class="badge">${currentShow.roles.length} role${currentShow.roles.length === 1 ? '' : 's'}</span>` : ''}
     </p>
-    <p class="muted" style="font-size:13px">
-      Generated from "${escapeHtml(sourceTemplate?.name || 'a template')}". Full task list, assignment and status
-      tracking is coming in the next update — regenerating here replaces every task.
-    </p>
+    ${sourceTemplate ? `<p class="muted" style="font-size:13px">Generated from "${escapeHtml(sourceTemplate.name)}".</p>` : ''}
   `;
 }
 
@@ -479,7 +509,8 @@ document.getElementById('generatePlanBtn').addEventListener('click', async () =>
 
 // ── Roles (per-show — who holds each role) ──────────────────────────────
 
-let allShowplannerUsers = []; // [{id, name, email}] — everyone with access.showplanner, for assignment pickers
+let allShowplannerUsers = []; // [{id, name, email}] — everyone with an actual ShowPlanner login
+let allMembers = [];          // [{id, name, email}] — showdrinks_tabMembers, the whole suite's shared "everyone" directory
 
 async function loadShowplannerUsers() {
   try {
@@ -490,7 +521,30 @@ async function loadShowplannerUsers() {
     allShowplannerUsers = [];
   }
 }
-function userName(uidVal) { return allShowplannerUsers.find(u => u.id === uidVal)?.name || '(unknown)'; }
+async function loadShowplannerMembers() {
+  try {
+    const snap = await db.collection('showdrinks_tabMembers').orderBy('name').get();
+    allMembers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.warn('loadShowplannerMembers failed', err);
+    allMembers = [];
+  }
+}
+// Roles/tasks can be assigned to anyone in the general membership, not just accounts with their
+// own ShowPlanner login — most cast/crew never need one just to have a task next to their name.
+// Login accounts are listed first and a member already covered by one (matched by email) is
+// skipped, so the same person never shows up twice under two different ids.
+function assignablePeople() {
+  const loginEmails = new Set(allShowplannerUsers.map(u => (u.email || '').toLowerCase()).filter(Boolean));
+  const members = allMembers.filter(m => !loginEmails.has((m.email || '').toLowerCase()));
+  return [...allShowplannerUsers, ...members].map(p => ({ id: p.id, name: p.name || p.email || '(unnamed)' }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+function userName(idVal) {
+  return allShowplannerUsers.find(u => u.id === idVal)?.name
+    || allMembers.find(m => m.id === idVal)?.name
+    || '(unknown)';
+}
 function roleName(roleId) { return currentShow.roles.find(r => r.id === roleId)?.name || ''; }
 
 // Mirrors firestore.rules' showPlanEditable(): an empty/missing planAccess map is "open to
@@ -534,6 +588,7 @@ function renderRolesCard() {
 }
 document.getElementById('addRoleBtn').addEventListener('click', () => {
   currentShow.roles.push({ id: uid(), name: '' });
+  markDirty();
   renderRolesCard();
 });
 document.getElementById('rolesTableBody').addEventListener('input', (e) => {
@@ -546,6 +601,7 @@ document.getElementById('rolesTableBody').addEventListener('click', (e) => {
   if (delIdx !== null) {
     const removed = currentShow.roles.splice(Number(delIdx), 1)[0];
     delete currentShow.roleAssignments[removed.id];
+    markDirty();
     renderRolesCard();
     renderTasksCard();
     return;
@@ -560,8 +616,9 @@ function openAssignRoleModal(roleId) {
   const role = currentShow.roles.find(r => r.id === roleId);
   document.getElementById('assignRoleModalTitle').textContent = `Assign: ${role?.name || 'role'}`;
   const assigned = new Set(currentShow.roleAssignments[roleId] || []);
-  document.getElementById('assignRoleEmptyNote').style.display = allShowplannerUsers.length ? 'none' : '';
-  document.getElementById('assignRoleChecklist').innerHTML = allShowplannerUsers.map(u => `
+  const people = assignablePeople();
+  document.getElementById('assignRoleEmptyNote').style.display = people.length ? 'none' : '';
+  document.getElementById('assignRoleChecklist').innerHTML = people.map(u => `
     <div class="checklist-row">
       <input type="checkbox" id="assignUser-${u.id}" value="${u.id}" ${assigned.has(u.id) ? 'checked' : ''}>
       <label for="assignUser-${u.id}">${escapeHtml(u.name)}</label>
@@ -644,22 +701,53 @@ function isTaskOverdue(task, status) {
   return new Date(y, m - 1, d) < today;
 }
 
+const taskSortFn = (a, b) => (a.dueDate || '').localeCompare(b.dueDate || '') || (a.order ?? 0) - (b.order ?? 0);
+function topLevelTasksSorted() { return currentShowTasks.filter(t => !t.parentTaskId).sort(taskSortFn); }
+function childTasksSorted(parentId) { return currentShowTasks.filter(t => t.parentTaskId === parentId).sort(taskSortFn); }
+
 // Flattened [{ task, isSub }] in display order (top-level tasks by due date, each immediately
-// followed by its own sub-tasks by due date) — the one source of truth for both the on-screen
-// list (renderTasksCard) and the Excel export (exportExcelBtn), so they can never drift apart.
+// followed by its own sub-tasks by due date) — every completed/in-progress task included
+// regardless of the on-screen Completed-group collapse state, since this is also the one source
+// of truth the Excel export (exportExcelBtn) reads — an export can't have "collapsed" rows.
 function orderedTaskList() {
-  const byParent = {};
-  currentShowTasks.forEach(t => {
-    const key = t.parentTaskId || 'root';
-    (byParent[key] = byParent[key] || []).push(t);
-  });
-  const sortFn = (a, b) => (a.dueDate || '').localeCompare(b.dueDate || '') || (a.order ?? 0) - (b.order ?? 0);
   const out = [];
-  (byParent['root'] || []).sort(sortFn).forEach(t => {
+  topLevelTasksSorted().forEach(t => {
     out.push({ task: t, isSub: false });
-    (byParent[t.id] || []).sort(sortFn).forEach(sub => out.push({ task: sub, isSub: true }));
+    childTasksSorted(t.id).forEach(sub => out.push({ task: sub, isSub: true }));
   });
   return out;
+}
+
+function taskRowHtml(t, isSub) {
+  const children = isSub ? [] : childTasksSorted(t.id);
+  const hasChildren = children.length > 0;
+  const status = computeTaskStatus(t);
+  const overdue = isTaskOverdue(t, status);
+  const assigneeNames = (t.assigneeIds || []).map(userName);
+  const rName = roleName(t.roleId);
+  const metaParts = [];
+  if (rName) metaParts.push(rName);
+  if (assigneeNames.length) metaParts.push(assigneeNames.join(', '));
+  const toggleHtml = hasChildren
+    ? `<button class="task-toggle-btn" data-toggle-task="${t.id}" title="${collapsedTaskIds.has(t.id) ? 'Expand sub-tasks' : 'Collapse sub-tasks'}">${collapsedTaskIds.has(t.id) ? '▸' : '▾'}</button>`
+    : (isSub ? '' : '<span class="task-toggle-spacer"></span>');
+  const subcount = hasChildren
+    ? `<span class="task-subcount"> (${children.filter(c => c.status === 'completed').length}/${children.length} sub-tasks)</span>` : '';
+  return `
+    <div class="task-row${isSub ? ' subtask' : ''}${overdue ? ' overdue' : ''}" data-open-task="${t.id}">
+      ${toggleHtml}
+      <span class="badge ${STATUS_BADGE[status] || 'badge-danger'}">${STATUS_LABEL[status] || 'Not started'}</span>
+      <span class="task-title">${escapeHtml(t.title || '(untitled)')}${t.description ? `<span class="task-desc">${escapeHtml(t.description)}</span>` : ''}${subcount}</span>
+      ${metaParts.length ? `<span class="task-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
+      <span class="task-due">${t.dueDate ? fmtPerfDate({ date: t.dueDate }) : 'No due date'}${overdue ? ' · Overdue' : ''}</span>
+    </div>`;
+}
+// A top-level task plus its (collapsible) sub-tasks — one unit in either the active list or the
+// Completed group below.
+function taskBranchHtml(t) {
+  const collapsed = collapsedTaskIds.has(t.id);
+  const children = childTasksSorted(t.id);
+  return taskRowHtml(t, false) + (children.length && !collapsed ? children.map(sub => taskRowHtml(sub, true)).join('') : '');
 }
 
 function renderTasksCard() {
@@ -670,32 +758,24 @@ function renderTasksCard() {
     el.innerHTML = `<p class="empty-state">No tasks yet${canEdit ? ' — generate a plan from a task template above, or add one manually.' : '.'}</p>`;
     return;
   }
-  el.innerHTML = orderedTaskList()
-    .filter(({ task: t, isSub }) => !isSub || !collapsedTaskIds.has(t.parentTaskId))
-    .map(({ task: t, isSub }) => {
-      const children = isSub ? [] : currentShowTasks.filter(c => c.parentTaskId === t.id);
-      const hasChildren = children.length > 0;
-      const status = computeTaskStatus(t);
-      const overdue = isTaskOverdue(t, status);
-      const assigneeNames = (t.assigneeIds || []).map(userName);
-      const rName = roleName(t.roleId);
-      const metaParts = [];
-      if (rName) metaParts.push(rName);
-      if (assigneeNames.length) metaParts.push(assigneeNames.join(', '));
-      const toggleHtml = hasChildren
-        ? `<button class="task-toggle-btn" data-toggle-task="${t.id}" title="${collapsedTaskIds.has(t.id) ? 'Expand sub-tasks' : 'Collapse sub-tasks'}">${collapsedTaskIds.has(t.id) ? '▸' : '▾'}</button>`
-        : (isSub ? '' : '<span class="task-toggle-spacer"></span>');
-      const subcount = hasChildren
-        ? `<span class="task-subcount"> (${children.filter(c => c.status === 'completed').length}/${children.length} sub-tasks)</span>` : '';
-      return `
-      <div class="task-row${isSub ? ' subtask' : ''}${overdue ? ' overdue' : ''}" data-open-task="${t.id}">
-        ${toggleHtml}
-        <span class="badge ${STATUS_BADGE[status] || 'badge-danger'}">${STATUS_LABEL[status] || 'Not started'}</span>
-        <span class="task-title">${escapeHtml(t.title || '(untitled)')}${t.description ? `<span class="task-desc">${escapeHtml(t.description)}</span>` : ''}${subcount}</span>
-        ${metaParts.length ? `<span class="task-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
-        <span class="task-due">${t.dueDate ? fmtPerfDate({ date: t.dueDate }) : 'No due date'}${overdue ? ' · Overdue' : ''}</span>
+  const topLevel = topLevelTasksSorted();
+  const activeTop = topLevel.filter(t => computeTaskStatus(t) !== 'completed');
+  const doneTop = topLevel.filter(t => computeTaskStatus(t) === 'completed');
+
+  let html = activeTop.map(taskBranchHtml).join('');
+  if (doneTop.length) {
+    // Reuses the exact same collapse toggle as an individual task's sub-tasks (a synthetic
+    // '__completed__' id in the same collapsedTaskIds set) — finished top-level tasks tuck away
+    // together here by default so they don't clutter the active list, expandable on demand.
+    const groupCollapsed = collapsedTaskIds.has('__completed__');
+    html += `
+      <div class="task-row task-group-row" data-toggle-task="__completed__">
+        <button class="task-toggle-btn" data-toggle-task="__completed__" title="${groupCollapsed ? 'Show completed tasks' : 'Hide completed tasks'}">${groupCollapsed ? '▸' : '▾'}</button>
+        <span class="task-title">Completed (${doneTop.length})</span>
       </div>`;
-    }).join('');
+    if (!groupCollapsed) html += doneTop.map(taskBranchHtml).join('');
+  }
+  el.innerHTML = html;
 }
 document.getElementById('tasksList').addEventListener('click', (e) => {
   const toggleBtn = e.target.closest('[data-toggle-task]');
@@ -750,13 +830,14 @@ function openTaskModal(taskId) {
       .map(t => `<option value="${t.id}"${t.id === editingTaskDraft.parentTaskId ? ' selected' : ''}>${escapeHtml(t.title || '(untitled)')}</option>`).join('');
 
   const assignedSet = new Set(editingTaskDraft.assigneeIds || []);
-  document.getElementById('taskAssigneeChecklist').innerHTML = allShowplannerUsers.length
-    ? allShowplannerUsers.map(u => `
+  const assigneeOptions = assignablePeople();
+  document.getElementById('taskAssigneeChecklist').innerHTML = assigneeOptions.length
+    ? assigneeOptions.map(u => `
       <div class="checklist-row">
         <input type="checkbox" id="taskAssignee-${u.id}" value="${u.id}" ${assignedSet.has(u.id) ? 'checked' : ''}>
         <label for="taskAssignee-${u.id}">${escapeHtml(u.name)}</label>
       </div>`).join('')
-    : '<p class="muted" style="padding:6px">No one else has ShowPlanner access yet.</p>';
+    : '<p class="muted" style="padding:6px">No one in the members list yet.</p>';
 
   ['taskTitleInput', 'taskDescInput', 'taskDueDateInput', 'taskRoleSelect', 'taskParentSelect'].forEach(id => {
     document.getElementById(id).disabled = taskEditMode !== 'full';
@@ -928,12 +1009,14 @@ document.getElementById('generatePerfsBtn').addEventListener('click', () => {
     perfs.push({ date: iso, type: 'Evening', price: currentShow.fixedParams.ticketPrice || 0 });
   }
   currentShow.fixedParams.performances = perfs;
+  markDirty();
   renderPerfTable();
   refreshAfterPerfChange();
 });
 
 document.getElementById('addPerfBtn').addEventListener('click', () => {
   currentShow.fixedParams.performances.push({ date: '', type: 'Evening', price: currentShow.fixedParams.ticketPrice || 0 });
+  markDirty();
   renderPerfTable();
   refreshAfterPerfChange();
 });
@@ -955,6 +1038,7 @@ document.getElementById('perfTableBody').addEventListener('click', (e) => {
   const i = e.target.getAttribute('data-perf-remove');
   if (i === null) return;
   currentShow.fixedParams.performances.splice(Number(i), 1);
+  markDirty();
   renderPerfTable();
   refreshAfterPerfChange();
 });
@@ -1056,6 +1140,7 @@ function handleLineRemove(e, kind) {
   if (!key) return;
   const idx = Number(key.split(':')[1]);
   currentShow[kind].splice(idx, 1);
+  markDirty();
   renderLinesTable(kind, kind === 'income' ? INCOME_FORMULAS : SPEND_FORMULAS);
   renderForecast();
 }
@@ -1131,6 +1216,7 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
     }, { merge: true });
     statusEl.textContent = 'Saved ' + new Date().toLocaleTimeString('en-GB');
     showToast('Saved', 'success');
+    showEditorDirty = false;
     await loadShows();
   } catch (err) {
     statusEl.textContent = '';
@@ -1569,6 +1655,7 @@ firebase.auth().onAuthStateChanged(async user => {
         document.getElementById('headerVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';
         await ensureTemplateExists();
         await loadShowplannerUsers();
+        await loadShowplannerMembers();
         await loadTemplates();
         await loadShows();
       }

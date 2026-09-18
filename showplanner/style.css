@@ -49,25 +49,25 @@ body.theme-showplanner {
 
 .print-header { display: none; }
 
-/* ── Fixed parameters: label|value grid so every value lines up in its own column, params on
-   the left, Performances on the right. Label and input are direct grid children (no per-field
-   wrapper) — that's what lets a shared grid line up every value regardless of label length. ── */
-.fixed-params-grid { display: grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start; }
-/* Grid items default to min-width:auto (their content's own natural width) — without
-   overriding that, .fp-col-perf's 4-column performances table (esp. once it has a Type
-   dropdown too) can refuse to shrink to its 1fr track on a narrow phone and push the whole
-   page wider than the screen instead of scrolling inside its own .expense-table-wrap. */
+/* ── Fixed parameters: label|value grid so every value lines up in its own column. Label and
+   input are direct grid children (no per-field wrapper) — that's what lets a shared grid line up
+   every value regardless of label length. Ticket/income parameters (.fp-col-params, Budget tab)
+   and Performances (.fp-col-perf, Details tab) are two separate cards on two separate sub-tabs
+   now, not a shared two-column grid — each sizes to its own card's width. */
+/* min-width:0 overrides the grid-item default of min-width:auto (its content's own natural
+   width) — without it, .fp-col-perf's 4-column performances table (esp. once it has a Type
+   dropdown too) can refuse to shrink on a narrow phone and push the whole page wider than the
+   screen instead of scrolling inside its own .expense-table-wrap. */
 .fp-col-perf { min-width: 0; }
 .fp-col-params { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px 12px; min-width: 0; }
 .fp-col-params label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
 .fp-col-params input.num-input { text-align: right; font-variant-numeric: tabular-nums; }
-/* Date / count / Generate button on the Parameters card — was an inline style, which (being
+/* Date / count / Generate button on the Performances card — was an inline style, which (being
    higher specificity than any stylesheet rule) silently defeated any mobile stacking below and
    left this row a fixed 1fr-120px-auto no matter how narrow the screen, overflowing (a mobile
    date input's own minimum width doesn't shrink to fit a grid track). */
 .perf-gen-row { display: grid; grid-template-columns: 1fr 120px auto; gap: 12px; align-items: end; margin-bottom: 12px; }
 @media (max-width: 700px) {
-  .fixed-params-grid { grid-template-columns: 1fr; }
   .perf-gen-row { grid-template-columns: 1fr; }
 }
 
@@ -92,7 +92,7 @@ body.theme-showplanner {
   }
 
   .admin-header, .admin-sidebar, .sidebar-toggle, #updateBanner, .no-print,
-  .fp-col-perf, .show-name-card /* printShowName in the print header already covers this */ {
+  .show-name-card /* printShowName in the print header already covers this */ {
     display: none !important;
   }
   .admin-content { margin: 0 !important; padding: 0 !important; max-width: none; }
@@ -112,9 +112,6 @@ body.theme-showplanner {
   .card-body { padding: 6px 10px; }
   .section-header { margin-bottom: 8px; }
 
-  /* .fp-col-perf is hidden in print (below), leaving .fp-col-params as the grid's only visible
-     child — collapse back to a single column so it isn't left half-width next to empty space. */
-  .fixed-params-grid { grid-template-columns: 1fr; gap: 0; }
   .fp-col-params { grid-template-columns: max-content 70px; justify-content: start; gap: 4px 14px; }
   .fp-col-params label { font-size: 10px; white-space: nowrap; }
 
@@ -240,6 +237,8 @@ input[type="file"].form-control { padding: 7px 10px; }
 .task-toggle-btn { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 18px; height: 18px; padding: 0; border: none; background: none; color: var(--text-muted); font-size: 11px; cursor: pointer; }
 .task-toggle-btn:hover { color: var(--text); }
 .task-toggle-spacer { flex-shrink: 0; width: 18px; }
+.task-row.task-group-row { background: var(--bg); border-style: dashed; }
+.task-row.task-group-row .task-title { font-size: 13px; font-weight: 600; color: var(--text-muted); }
 .role-assignees { font-size: 12px; color: var(--text-muted); }
 
 /* ── Badges ── */
