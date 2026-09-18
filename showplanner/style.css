@@ -1,0 +1,557 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* No spin arrows on any number field — every editable amount here also sits next to a disabled
+   type="text" calculated one of the same width (see .num-input below); the spinner ate into
+   just the editable box's right-hand space, so digits in the two never actually lined up with
+   each other even though the boxes did. */
+input[type="number"] { -moz-appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+:root {
+  --primary: #0f766e;
+  --primary-dark: #115e59;
+  --primary-light: #ccfbf1;
+  --accent: #ca8a04;
+  --accent-light: #fef3c7;
+  --success: #059669;
+  --success-light: #d1fae5;
+  --warning: #d97706;
+  --warning-light: #fef3c7;
+  --danger: #dc2626;
+  --danger-light: #fee2e2;
+  --bg: #f1f5f9;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+  --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+}
+
+/* index.html carries this on <body> — a distinct purple so ShowPlanner never reads as either
+   expenses app (teal/amber) or ShowDrinks (indigo) when several are open side by side. */
+body.theme-showplanner {
+  --primary: #6d28d9;
+  --primary-dark: #5b21b6;
+  --primary-light: #ede9fe;
+}
+
+/* ── Date chips (performance dates) ── */
+.dates-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.date-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--primary-light); color: var(--primary); border-radius: 999px; font-size: 13px; font-weight: 500; }
+.date-chip button { background: none; border: none; cursor: pointer; color: var(--primary); opacity: .7; font-size: 16px; line-height: 1; padding: 0; }
+.date-chip button:hover { opacity: 1; }
+
+.grid-del-btn { width: 30px; height: 30px; border-radius: 50%; border: none; background: none; color: var(--text-muted); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.grid-del-btn:hover { background: var(--danger-light); color: var(--danger); }
+
+.print-header { display: none; }
+
+/* ── Fixed parameters: label|value grid so every value lines up in its own column, params on
+   the left, Performances on the right. Label and input are direct grid children (no per-field
+   wrapper) — that's what lets a shared grid line up every value regardless of label length. ── */
+.fixed-params-grid { display: grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start; }
+/* Grid items default to min-width:auto (their content's own natural width) — without
+   overriding that, .fp-col-perf's 4-column performances table (esp. once it has a Type
+   dropdown too) can refuse to shrink to its 1fr track on a narrow phone and push the whole
+   page wider than the screen instead of scrolling inside its own .expense-table-wrap. */
+.fp-col-perf { min-width: 0; }
+.fp-col-params { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px 12px; min-width: 0; }
+.fp-col-params label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+.fp-col-params input.num-input { text-align: right; font-variant-numeric: tabular-nums; }
+/* Date / count / Generate button on the Parameters card — was an inline style, which (being
+   higher specificity than any stylesheet rule) silently defeated any mobile stacking below and
+   left this row a fixed 1fr-120px-auto no matter how narrow the screen, overflowing (a mobile
+   date input's own minimum width doesn't shrink to fit a grid track). */
+.perf-gen-row { display: grid; grid-template-columns: 1fr 120px auto; gap: 12px; align-items: end; margin-bottom: 12px; }
+@media (max-width: 700px) {
+  .fixed-params-grid { grid-template-columns: 1fr; }
+  .perf-gen-row { grid-template-columns: 1fr; }
+}
+
+/* ── Print / PDF ──────────────────────────────────────────────────────────
+   window.print() on the editor view: hide chrome (nav, buttons, inputs' surrounding controls,
+   the Performances editor and helper text) and print a compact, single-page report instead —
+   the browser's own "Save as PDF" destination is the PDF export the spec asks for, no extra
+   library needed. Every size below is deliberately tight: the goal is fitting show name, fixed
+   params, income, spend and forecast on one A4 page without looking cramped. */
+@media print {
+  @page { size: A4 portrait; margin: 12mm; }
+  body { font-size: 11px; }
+
+  /* One weight, one typeface, everywhere — headings, labels, badges and amounts otherwise carry
+     their on-screen bold/semibold treatment (card headers, .amount-cell, .snum, badges...);
+     sizes are still set individually below, just not weight or family. */
+  .admin-content, .admin-content *, .print-header, .print-header * {
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-weight: 400 !important;
+  }
+
+  .admin-header, .admin-sidebar, .sidebar-toggle, #updateBanner, .no-print,
+  .fp-col-perf, .show-name-card /* printShowName in the print header already covers this */ {
+    display: none !important;
+  }
+  .admin-content { margin: 0 !important; padding: 0 !important; max-width: none; }
+
+  .print-header { display: block !important; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid #000; text-align: center; }
+  .print-header h1 { font-size: 20px; margin-bottom: 2px; }
+  .print-header p { font-size: 11px; }
+
+  .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; margin-bottom: 8px !important; }
+  .card-header { padding: 5px 10px; }
+  .card-header h2 { font-size: 12px; }
+  .card-body { padding: 6px 10px; }
+  .section-header { margin-bottom: 8px; }
+
+  /* .fp-col-perf is hidden in print (below), leaving .fp-col-params as the grid's only visible
+     child — collapse back to a single column so it isn't left half-width next to empty space. */
+  .fixed-params-grid { grid-template-columns: 1fr; gap: 0; }
+  .fp-col-params { grid-template-columns: max-content 70px; justify-content: start; gap: 4px 14px; }
+  .fp-col-params label { font-size: 10px; white-space: nowrap; }
+
+  .budget-columns { grid-template-columns: 1fr 1fr !important; gap: 10px; margin-bottom: 8px; }
+  .expense-table th { font-size: 9px; padding: 3px 8px; }
+  .expense-table td { padding: 2px 8px !important; font-size: 10px; height: auto !important; }
+
+  .summary-grid { gap: 6px; margin-bottom: 0; }
+  .summary-card { padding: 8px; }
+  .summary-card .snum { font-size: 16px; }
+  .summary-card .slabel { font-size: 9px; }
+
+  input.form-control, textarea.form-control, select.form-control {
+    border-color: transparent; padding: 0 !important; height: auto !important; font-size: 10px;
+  }
+
+  /* Every amount is an <input> sized to its own small box (num-input/pct-input), which text-align
+     alone doesn't reliably line up against the actual table/grid edge across browsers — stretch
+     each one to fill its cell and right-align the text against that, so every number in a column
+     (income, spend, fixed params) sits flush against the same right edge. */
+  .expense-table td.amount-cell input.num-input { width: 100% !important; display: block; text-align: right !important; }
+  /* Bar costs/VH levy's amount cell holds two inputs (% and the amount) — keep it a flex row
+     instead of letting the amount input's own width:100% above fight the % for space. */
+  .expense-table td.amount-cell.amount-cell-with-pct { display: flex !important; align-items: center; justify-content: flex-end; gap: 4px; }
+  .expense-table td.amount-cell.amount-cell-with-pct input.num-input { width: auto !important; flex: 1 1 auto; }
+  .fp-col-params input.form-control { width: 100% !important; text-align: right !important; }
+}
+
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+/* Mobile: no pinch/double-tap zoom (belt-and-braces alongside the viewport meta tag's own
+   maximum-scale/user-scalable, which iOS Safari doesn't always fully honour on its own), and no
+   OS text-selection callout (the Copy/Paste/Look Up bubble on long-press) — this is a touch-app
+   suite, not a document to select text out of. Inputs/textareas opt back in below, since typing
+   and selecting your own entry still has to work normally. */
+html, body { touch-action: manipulation; }
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, select, [contenteditable] {
+  -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
+}
+
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; transition: all .15s; text-decoration: none; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--bg); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-sm { padding: 5px 10px; font-size: 13px; }
+.btn-lg { padding: 12px 24px; font-size: 16px; }
+.btn-full { width: 100%; justify-content: center; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Cards ── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+/* flex-wrap so a long total (Income/Spend) drops to its own line on a narrow phone instead of
+   forcing the header — and with it the whole card — wider than the screen (nothing here clips
+   horizontal overflow, so it would otherwise scroll the whole page sideways). */
+.card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.card-header h2 { font-size: 16px; font-weight: 600; }
+.card-body { padding: 20px; }
+
+/* ── Forms ── */
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+/* font-size must be >= 16px — below that, iOS/Android auto-zoom the page on focus regardless
+   of the viewport meta's user-scalable=no/maximum-scale, which is what was really causing the
+   "can't stop it zooming" complaint (the meta tag alone doesn't prevent that specific zoom). */
+.form-control { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 16px; color: var(--text); background: var(--surface); transition: border-color .15s; font-family: inherit; }
+.form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(15,118,110,.12); }
+.form-control::placeholder { color: var(--text-muted); }
+.password-field { position: relative; }
+.password-field .form-control { padding-right: 40px; }
+.password-toggle-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px; line-height: 1; color: var(--text-muted); }
+
+/* Simple outline icon buttons (edit/remove on the pending-expenses list) */
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 30px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-muted); cursor: pointer; transition: all .15s; }
+.icon-btn svg { width: 15px; height: 15px; }
+.icon-btn:hover { background: var(--bg); color: var(--text); border-color: var(--text-muted); }
+.icon-btn.icon-btn-danger:hover { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
+.password-toggle-btn:hover { color: var(--text); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+input[type="file"].form-control { padding: 7px 10px; }
+
+/* ── Badges ── */
+.badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+.badge-success { background: var(--success-light); color: var(--success); }
+.badge-warning { background: var(--warning-light); color: var(--warning); }
+.badge-danger { background: var(--danger-light); color: var(--danger); }
+.badge-primary { background: var(--primary-light); color: var(--primary-dark); }
+
+/* ── Toast ── */
+#toast { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+/* pointer-events: auto (overriding the container's none) so the message can actually be
+   selected/copied — error toasts in particular don't auto-dismiss, precisely so there's time
+   to read and copy an error message rather than it vanishing in 3.5s. */
+.toast-msg { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: var(--radius); color: #fff; font-size: 14px; font-weight: 500; box-shadow: var(--shadow-md); animation: slideIn .25s ease; pointer-events: auto; user-select: text; }
+.toast-msg.success { background: var(--success); }
+.toast-msg.error { background: var(--danger); }
+.toast-msg.info { background: var(--primary); }
+.toast-close { background: none; border: none; color: inherit; opacity: .75; font-size: 18px; line-height: 1; cursor: pointer; padding: 0; margin-left: 4px; }
+.toast-close:hover { opacity: 1; }
+@keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Update banner ── */
+/* Normal document flow, not position:fixed — it's the first thing in <body>, so it pushes the
+   header down below it instead of floating on top and covering the version number in it. */
+#updateBanner { display: none; background: #0b3d38; color: #fff; padding: 10px 16px; align-items: center; justify-content: center; gap: 14px; font-size: 14px; font-weight: 500; }
+#updateBanner.visible { display: flex; }
+#updateBanner button { flex-shrink: 0; }
+
+/* ── Suite nav (shared/suite-nav.js) — switch between showmanager's apps from anywhere ── */
+/* App-level rows get a subtle resting background so they read as a distinct "shelf" above the
+   plain, indented sub-items nested under them. */
+.suite-app-link, .nav-app-btn { font-weight: 600; background: var(--bg); }
+.suite-app-link.current { color: var(--primary); cursor: default; }
+/* The nested section itself stays full width (indent lives on the buttons' own padding, not
+   the wrapper's box model) so an active sub-tab's highlight spans the whole strip, same as a
+   top-level app button's does — only the text sits indented, showing it's "under" that app. */
+.suite-current-section { display: flex; flex-direction: column; gap: 4px; }
+.suite-current-section .tab-btn { padding-left: 28px !important; position: relative; }
+.suite-current-section .tab-btn::before { content: '•'; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+/* A different colour from the app-level active highlight (primary), so it's obvious at a
+   glance which level — app name vs. the sub-item within it — is the one actually selected. */
+.suite-current-section .tab-btn.active { color: var(--accent) !important; background: var(--accent-light) !important; }
+.suite-current-section .tab-btn.active::before { color: var(--accent); }
+
+/* ── Auth gate — covers the page until the first onAuthStateChanged fires, so neither the
+   login screen nor the signed-in app ever flashes on a page that's actually already signed in
+   (Firebase Auth's local session takes a moment to rehydrate on every navigation). ── */
+#authGate { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+#authGate::after { content: ''; width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--primary); animation: authGateSpin .7s linear infinite; }
+@keyframes authGateSpin { to { transform: rotate(360deg); } }
+
+/* ── Embedded in the showmanager shell's iframe (shared/embed.js sets this on <html> before
+   first paint) — this page's own chrome is redundant with the shell's one strip. ── */
+.embedded #authGate, .embedded #loginScreen, .embedded #changePasswordScreen,
+.embedded .admin-header, .embedded .admin-sidebar, .embedded .sidebar-toggle {
+  display: none !important;
+}
+.embedded .admin-content { margin-left: 0 !important; }
+
+/* ════════════════════════ ADMIN LAYOUT ════════════════════════ */
+.admin-header { background: var(--primary); color: #fff; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 16px; box-shadow: var(--shadow-md); position: sticky; top: 0; z-index: 100; }
+.header-title { font-size: 14px; opacity: .85; }
+.hamburger-btn { background: none; border: none; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; }
+.hamburger-btn:hover { opacity: .8; }
+
+/* Animated open/close (slide + fade) instead of an instant display:none/flex swap — toggle the
+   .open class, not inline style.display. */
+.dropdown-menu {
+  position: absolute; left: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 6px; display: flex; flex-direction: column; gap: 4px; z-index: 50; min-width: 200px;
+  opacity: 0; visibility: hidden; transform: translateY(-8px) scale(.98); transform-origin: top left;
+  transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s;
+}
+.dropdown-menu.open {
+  opacity: 1; visibility: visible; transform: translateY(0) scale(1);
+  transition: opacity .16s ease, transform .16s ease;
+}
+/* .tab-btn is a <button> everywhere except the Help link, which is a real <a> (so it works
+   without JS) — text-decoration:none here undoes the underline that'd otherwise put on it. */
+.tab-btn { text-decoration: none; }
+.dropdown-menu .tab-btn { display: block; width: 100%; text-align: left; padding: 10px 12px; border: none; border-radius: 6px; background: none; font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer; white-space: nowrap; transition: all .15s; }
+.dropdown-menu .tab-btn:hover { background: var(--bg); }
+.dropdown-menu .tab-btn.active { color: var(--primary); background: var(--primary-light); }
+.dropdown-divider { height: 1px; background: var(--border); margin: 6px 2px; }
+
+/* Full-viewport tap target while the main nav menu is open — on a phone the menu can run taller
+   than the screen (nothing below it left exposed to tap), so this guarantees there's always an
+   "outside" to close it with. Sits under the menu's own z-index (50) so taps on the menu itself
+   still land on it; anything else bubbles up to the click-listener that closes the menu. */
+body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
+
+.admin-content { padding: 24px; max-width: 1300px; margin: 0 auto; }
+
+/* ── Desktop sidebar nav (hidden on mobile — the header hamburger/dropdown covers that) ── */
+.admin-sidebar { display: none; }
+.sidebar-toggle { display: none; }
+
+@media (min-width: 900px) {
+  .admin-header .hamburger-btn, .admin-header #mainMenuDropdown { display: none; }
+
+  .admin-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: fixed;
+    top: 60px; /* below .admin-header */
+    left: 0;
+    bottom: 0;
+    width: 220px;
+    padding: 20px 14px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    overflow-y: auto;
+    z-index: 90;
+    transition: transform .2s ease;
+  }
+  .admin-sidebar .tab-btn { display: block; width: 100%; text-align: left; padding: 10px 12px; border: none; border-radius: 6px; background: none; font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer; transition: all .15s; }
+  .admin-sidebar .tab-btn:hover { background: var(--bg); }
+  .admin-sidebar .tab-btn.active { color: var(--primary); background: var(--primary-light); }
+  .admin-sidebar .dropdown-divider { height: 1px; background: var(--border); margin: 6px 2px; }
+  .admin-sidebar .btn-danger { width: 100%; justify-content: center; }
+
+  body.sidebar-collapsed .admin-sidebar { transform: translateX(-100%); }
+
+  .sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 76px;
+    left: 220px;
+    width: 22px;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    z-index: 91;
+    transition: left .2s ease;
+  }
+  .sidebar-toggle:hover { color: var(--primary); }
+  body.sidebar-collapsed .sidebar-toggle { left: 0; }
+
+  .admin-content { margin-left: 220px; transition: margin-left .2s ease; }
+  body.sidebar-collapsed .admin-content { margin-left: 0; }
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+.section-header h2 { font-size: 20px; font-weight: 700; }
+
+/* ── Item lists (shows management) ── */
+.item-list { display: flex; flex-direction: column; gap: 8px; }
+.item-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.item-row.inactive { opacity: .55; }
+.item-row .item-name { flex: 1; font-weight: 500; }
+.item-row .item-sub { font-size: 13px; color: var(--text-muted); }
+.item-row .item-actions { display: flex; gap: 6px; align-items: center; }
+
+/* Shows list — a grid (name column | actions column) rather than the base .item-row's flex, so
+   Open/Copy/Delete start at the exact same x every row regardless of the name's length, instead
+   of only approximately lining up. */
+#showsList .item-row { display: grid; grid-template-columns: 1fr auto; }
+#showsList .item-name-col { min-width: 0; }
+#showsList .item-sub { margin-top: 2px; }
+
+/* ── Summary grid ── */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; }
+.summary-card .snum { font-size: 28px; font-weight: 700; color: var(--primary); }
+.summary-card .slabel { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+/* ── Filters toolbar ── */
+.filters-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+.filters-toolbar .form-control { width: auto; min-width: 160px; }
+
+/* ── Expense table ── */
+.expense-table-wrap { overflow-x: auto; }
+.expense-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.expense-table th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); white-space: nowrap; }
+.expense-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.expense-table tr:hover td { background: var(--bg); }
+.expense-table .amount-cell { font-weight: 600; text-align: right; white-space: nowrap; }
+/* Bar costs/VH levy's own editable % — sits right against the amount it produces (same cell,
+   flush right) rather than inline in the label. */
+.amount-cell-with-pct { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.pct-wrap { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.pct-sign { font-size: 13px; font-weight: 400; color: var(--text-muted); }
+
+/* ════════════════════════ PWA (index.html) ════════════════════════ */
+.pwa-body { min-height: 100vh; background: var(--primary); display: flex; flex-direction: column; }
+.pwa-hero { position: relative; background: var(--primary); text-align: center; padding: 32px 20px 16px; color: #fff; }
+.pwa-hero #heroMenuWrap { position: absolute; top: 14px; left: 14px; }
+
+/* Compact mode — applied once signed in (screenMain / screenExpenses), matching admin.html's
+   slim header instead of the big centered banner the login screens still use. */
+/* Three columns — hamburger | centered title | right-aligned version — rather than everything
+   flowing left after the hamburger. */
+.pwa-hero.compact { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; text-align: center; padding: 0 16px; height: 60px; box-shadow: var(--shadow-md); }
+.pwa-hero.compact svg, .pwa-hero.compact p { display: none; }
+.pwa-hero.compact h1 { font-size: 14px; font-weight: 500; opacity: .9; letter-spacing: 0; }
+.pwa-hero.compact #heroMenuWrap { position: static; }
+.pwa-hero.compact .hero-version { text-align: right; }
+.pwa-hero svg { width: 56px; height: 56px; margin-bottom: 10px; opacity: .95; }
+.pwa-hero h1 { font-size: 24px; font-weight: 800; letter-spacing: -.5px; }
+.pwa-hero p { font-size: 14px; opacity: .8; margin-top: 6px; }
+/* Fine on a phone at full width; on anything wider, a form/list stretched edge to edge looks
+   wrong, so it's capped and centered — a no-op until the viewport is actually wide enough to
+   matter. .with-sidebar's fixed-width nav (desktop only, see below) needs it left-aligned
+   instead of centered, so the sidebar doesn't overlap it. */
+.pwa-content { flex: 1; width: 100%; max-width: 560px; margin: 8px auto 0; background: var(--bg); border-radius: 24px 24px 0 0; padding: 24px 20px 40px; overflow-y: auto; }
+
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* ── Desktop sidebar nav (mirrors admin.html's) — hidden on mobile, and only relevant once
+   signed in (screenMain/screenExpenses show it; goTo() toggles both this and #pwaSidebar's
+   display since, unlike admin.html, the login screens share this same layout). ── */
+@media (min-width: 900px) {
+  .pwa-hero.compact #heroMenuWrap { display: none; }
+
+  /* Past this width the app reads as a desktop app, not a phone screen glued to the middle of
+     the window — drop the "rounded sheet floating on a colour" phone framing (the curved top
+     corners, the gap under the hero) for a flat page matching admin.html's own layout: a flush
+     content area directly under a plain header bar, square corners throughout. */
+  .pwa-body { background: var(--bg); }
+  .pwa-content { margin-top: 0; border-radius: 0; background: transparent; }
+
+  /* #pwaSidebar/#pwaSidebarToggleBtn reuse .admin-sidebar/.sidebar-toggle's styling as-is —
+     same 60px header height, same 220px width, nothing page-specific needed here. */
+  .pwa-content.with-sidebar {
+    /* Centered in the space to the right of the 220px sidebar (not flush against it), same
+       560px width as ever — 220px clears the sidebar, then half of whatever's left over after
+       fitting a 560px column in there; max(0, ...) keeps it from going negative right at the
+       900px edge, where there's barely more than 560px of room to begin with. */
+    margin-left: calc(220px + max(0px, (100vw - 220px - 560px) / 2));
+    margin-right: auto;
+    transition: margin-left .2s ease;
+  }
+  body.pwa-sidebar-collapsed #pwaSidebar { transform: translateX(-100%); }
+  body.pwa-sidebar-collapsed .pwa-content.with-sidebar { margin-left: auto; }
+  body.pwa-sidebar-collapsed #pwaSidebarToggleBtn { left: 0; }
+}
+
+.pwa-section-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.pwa-section-sub { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
+
+.welcome-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 12px; margin-bottom: 20px; box-shadow: var(--shadow); }
+.wc-emoji { font-size: 26px; }
+.wc-name { flex: 1; font-size: 17px; font-weight: 700; }
+.wc-name .wc-email { display: block; font-size: 12px; font-weight: 400; color: var(--text-muted); }
+
+.section-label { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin: 24px 0 10px; }
+.section-label:first-child { margin-top: 0; }
+
+.past-expense-card, .pending-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); }
+.past-expense-card.paid { border-color: var(--success); }
+.pec-info { flex: 1; min-width: 0; }
+.pec-desc { font-weight: 600; font-size: 15px; }
+.pec-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.pec-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.pec-amount { font-weight: 700; font-size: 15px; }
+
+.receipt-link { font-size: 13px; color: var(--primary); text-decoration: none; font-weight: 500; }
+.receipt-link:hover { text-decoration: underline; }
+
+.muted { color: var(--text-muted); font-size: 14px; }
+
+/* ── Toggle switch ── */
+.switch-label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; user-select: none; }
+.switch-label input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch { position: relative; width: 38px; height: 22px; background: var(--border); border-radius: 999px; transition: background .15s; flex-shrink: 0; }
+.switch::before { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.switch-label input:checked + .switch { background: var(--primary); }
+.switch-label input:checked + .switch::before { transform: translateX(16px); }
+.switch-label input:focus-visible + .switch { outline: 2px solid var(--primary); outline-offset: 2px; }
+.hero-version { font-size: 12px; font-weight: 400; opacity: .6; vertical-align: middle; }
+.empty-state { text-align: center; padding: 24px; color: var(--text-muted); font-size: 14px; }
+.past-expense-card { cursor: pointer; }
+
+/* ── Modal (expense detail) ── */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 200; }
+.modal-card { background: var(--surface); border-radius: 14px; max-width: 480px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow-md); }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+.modal-header h3 { font-size: 16px; font-weight: 700; }
+.modal-close-btn { background: none; border: none; font-size: 22px; line-height: 1; color: var(--text-muted); cursor: pointer; padding: 4px; }
+.modal-close-btn:hover { color: var(--text); }
+.modal-body { padding: 18px; }
+.detail-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.detail-row:last-child { border-bottom: none; }
+.detail-row .dr-label { color: var(--text-muted); }
+.detail-row .dr-value { font-weight: 600; text-align: right; }
+.receipt-thumb { width: 100%; border-radius: var(--radius); margin-top: 10px; display: block; border: 1px solid var(--border); cursor: pointer; }
+
+/* ── Small numeric entry fields (fixed params, income/spend amounts, performance rows) —
+   these sit one-per-cell/row and never need a full-width text box. ── */
+.num-input { width: 100px; text-align: right; }
+.expense-table .num-input { width: 90px; }
+/* Calculated (disabled) amount cells use the same <input class="num-input"> as editable ones —
+   same box, padding, width, right alignment, font — so the two columns line up and read as one
+   consistent control. Dimming to show it's read-only is fine (that's the point of :disabled);
+   only the layout/alignment needs to match, not the colour. A deliberate, consistent dim here
+   instead of the browser's own default keeps that dimming the same across browsers. */
+.expense-table input.num-input:disabled {
+  opacity: .55; cursor: default;
+}
+
+/* Bar costs/VH levy's editable percentage — small since it's only ever 1-3 digits, but still
+   big enough to tap/click comfortably and read at a glance. See .amount-cell-with-pct above for
+   where it sits (against the amount cell, not the label). */
+.pct-input {
+  display: inline-block; width: 52px; height: 30px; padding: 4px 6px; text-align: right;
+  font-size: 15px; border-color: var(--border);
+}
+
+/* ── Uniform row height in Income/Spend/Performances — a plain calculated-amount cell and a
+   cell holding an <input> would otherwise differ (the input's own padding/font-size adds
+   height on top of the table cell's), giving formula rows and editable rows a visibly
+   different height in the same table. Match the input down to the text row's own size instead
+   of the other way round, so every row is exactly as tall as the shortest one needs to be. ── */
+/* A fixed row height (not just matched padding) is what actually keeps every row — text or
+   input, Income column or Spend column — the same height as the shortest one: without it, a
+   longer label wrapping to two lines (Income and Spend rarely have the same label lengths)
+   would still make that one row taller than the rest, throwing the two columns' rows out of
+   line with each other even though nothing else differs. */
+#incomeTable tr, #spendTable tr, #perfTable tr { height: 36px; }
+#incomeTable td, #spendTable td, #perfTable td {
+  padding: 5px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#incomeTable input.form-control, #spendTable input.form-control, #perfTable input.form-control {
+  padding: 3px 8px; font-size: 14px; height: 30px;
+}
+
+/* ── Income | Spend side by side ── */
+.budget-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; align-items: start; }
+@media (max-width: 800px) {
+  .budget-columns { grid-template-columns: 1fr; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .admin-content { padding: 16px; }
+  .form-row { grid-template-columns: 1fr; }
+  .filters-toolbar { flex-direction: column; align-items: stretch; }
+  .filters-toolbar .form-control { width: 100%; }
+
+  /* Income/Spend run noticeably smaller on a phone (smaller heading, tighter table rows, a
+     narrower amount input) so both fit comfortably without needing horizontal scroll. */
+  .budget-columns .card-header { padding: 10px 14px; }
+  .budget-columns .card-header h2 { font-size: 14px; }
+  .budget-columns .card-body { padding: 14px; }
+  .budget-columns .expense-table { font-size: 12px; }
+  .budget-columns .expense-table th { font-size: 10px; padding: 6px 8px; }
+  .budget-columns .expense-table td { padding: 6px 8px; }
+  .budget-columns .expense-table .num-input { width: 70px; }
+  /* The Amount column's width:120px is set inline in the HTML (needs !important to override
+     here) — narrower on a phone so the Item column keeps enough room for a name to actually read. */
+  .budget-columns .expense-table th:nth-child(2), .budget-columns .expense-table td:nth-child(2) { width: 90px !important; }
+}

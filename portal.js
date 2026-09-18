@@ -36,6 +36,7 @@ const TILE_META = {
   showdrinksAdmin:   { emoji: '🍹', desc: 'Manage shows, menu, orders and Show Tabs.' },
   showdrinksTabsPos: { emoji: '🍺', desc: 'Take orders against a cast/crew member\'s tab.' },
   budget:            { emoji: '📊', desc: 'Plan and track show budgets.' },
+  showplanner:       { emoji: '🗓️', desc: 'Budgets and task checklists for a production.' },
 };
 
 // ── The shell ────────────────────────────────────────────────────────────

@@ -108,6 +108,18 @@ service cloud.firestore {
       allow read, write: if hasAccess('budget');
     }
 
+    // ── ShowPlanner ──────────────────────────────────────────────────────────
+    // New, independent app alongside ShowBudget (see shared/auth.js) — its own access key and
+    // collections, no coupling to budget_shows above. App-level gate for now, same shape as
+    // budget's own rule; per-show/per-task granularity (planAccess, assignee-only status/comment
+    // updates) lands once that UI exists.
+    match /showplanner_shows/{id} {
+      allow read, write: if hasAccess('showplanner');
+    }
+    match /showplanner_shows/{id}/tasks/{taskId} {
+      allow read, write: if hasAccess('showplanner');
+    }
+
     // ── Portal ───────────────────────────────────────────────────────────────
     match /portal_config/{id} {
       allow read, write: if isManager();

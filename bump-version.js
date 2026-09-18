@@ -96,5 +96,14 @@ bumpApp({
   ],
   html: ['index.html', 'admin.html', 'terms.html', 'privacy.html', 'manifest.json'],
 });
+bumpApp({
+  dir: 'showplanner', swCache: 'showplanner',
+  assets: [
+    'style.css', 'budget.js',
+    '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/load-script.js',
+    'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png',
+  ],
+  html: ['index.html', 'manifest.json'],
+});
 
 console.log(`Version: ${version}`);

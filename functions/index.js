@@ -131,6 +131,7 @@ exports.createUser = onCall({ region: 'europe-west1' }, async (request) => {
       showdrinksAdmin: access?.showdrinksAdmin === true,
       showdrinksTabsPos: access?.showdrinksTabsPos === true,
       budget: access?.budget === true,
+      showplanner: access?.showplanner === true,
     },
     mustChangePassword: true,
     createdAt: FieldValue.serverTimestamp(),
@@ -168,6 +169,7 @@ exports.updateUserProfile = onCall({ region: 'europe-west1' }, async (request) =
       showdrinksAdmin: access?.showdrinksAdmin === true,
       showdrinksTabsPos: access?.showdrinksTabsPos === true,
       budget: access?.budget === true,
+      showplanner: access?.showplanner === true,
     },
   });
 
@@ -201,7 +203,7 @@ exports.createExpensesUser = onCall({ region: 'europe-west1' }, async (request) 
     name,
     email,
     isManager: false,
-    access: { expenses: true, expensesAdmin: false, showdrinksAdmin: false, showdrinksTabsPos: false, budget: false },
+    access: { expenses: true, expensesAdmin: false, showdrinksAdmin: false, showdrinksTabsPos: false, budget: false, showplanner: false },
     mustChangePassword: true,
     createdAt: FieldValue.serverTimestamp(),
   });

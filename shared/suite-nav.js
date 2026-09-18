@@ -42,6 +42,9 @@ const APP_SUBNAV = {
   budget: [
     { id: 'shows', label: 'Shows', selector: '[data-tab="shows"]' },
   ],
+  showplanner: [
+    { id: 'shows', label: 'Shows', selector: '[data-tab="shows"]' },
+  ],
   // The restricted Tabs POS view has no visible nav buttons of its own (showdrinksAdmin's are
   // all hidden there except "Bar Tabs" — see body.tabs-only-mode in showdrinks/style.css), so
   // "POS" targets a hidden, purely-functional button (#tabPosHiddenNavBtn in admin.html) that

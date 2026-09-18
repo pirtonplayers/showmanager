@@ -27,4 +27,9 @@ const ACCESS_APPS = [
   { key: 'showdrinksAdmin',   label: 'Bar Manager',         href: 'showdrinks/admin.html' },
   { key: 'showdrinksTabsPos', label: 'Bar Tabs POS',        href: 'showdrinks/admin.html?view=tabs' },
   { key: 'budget',            label: 'ShowBudget',          href: 'budget/index.html' },
+  // New, independent app alongside ShowBudget — its own access key, its own showplanner_*
+  // collections, deliberately not sharing anything live with budget/ (which stays exactly as it
+  // is: a demo is happening on it in days). Once ShowPlanner's proven, access.budget grants move
+  // to access.showplanner and budget/ is retired — that cutover is a future, separate step.
+  { key: 'showplanner',       label: 'ShowPlanner',         href: 'showplanner/index.html' },
 ];
