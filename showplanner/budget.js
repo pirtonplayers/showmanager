@@ -1372,25 +1372,41 @@ document.getElementById('templateRolesTableBody').addEventListener('click', (e) 
   renderTemplateTasksTable();
 });
 
+// A card per task rather than a table row — five columns' worth of fields (title, description,
+// days-before, role, parent) has no good table layout on a phone; a card that lets the field
+// grid below the title wrap onto as many rows as the screen needs does.
 function renderTemplateTasksTable() {
-  const tbody = document.getElementById('templateTasksTableBody');
+  const el = document.getElementById('templateTasksList');
   const tasks = currentTemplate.tasks;
   const roleOptions = (roleId) => `<option value=""${!roleId ? ' selected' : ''}>—</option>` +
     currentTemplate.roles.map(r => `<option value="${r.id}"${r.id === roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
   const parentOptions = (i, parentIndex) => `<option value=""${parentIndex === null || parentIndex === undefined ? ' selected' : ''}>Top-level</option>` +
     tasks.map((t, pi) => pi === i ? '' : `<option value="${pi}"${parentIndex === pi ? ' selected' : ''}>${escapeHtml(t.title || `Task ${pi + 1}`)}</option>`).join('');
-  tbody.innerHTML = tasks.length ? tasks.map((t, i) => `
-    <tr>
-      <td>
-        <input type="text" class="form-control" style="margin-bottom:4px" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${i}:title">
-        <input type="text" class="form-control" style="font-size:12px" value="${escapeHtml(t.description || '')}" placeholder="Description (optional)" data-task-field="${i}:description">
-      </td>
-      <td><input type="number" class="form-control num-input" value="${t.daysBeforeShow ?? 0}" data-task-field="${i}:daysBeforeShow"></td>
-      <td><select class="form-control" data-task-field="${i}:roleId">${roleOptions(t.roleId)}</select></td>
-      <td><select class="form-control" data-task-field="${i}:parentIndex">${parentOptions(i, t.parentIndex ?? null)}</select></td>
-      <td><button class="grid-del-btn" data-task-remove="${i}" title="Remove">×</button></td>
-    </tr>
-  `).join('') : '<tr><td colspan="5" class="empty-state">No tasks yet.</td></tr>';
+  el.innerHTML = tasks.length ? tasks.map((t, i) => `
+    <div class="tpl-task-card">
+      <div class="tpl-task-card-top">
+        <div style="flex:1;min-width:0">
+          <input type="text" class="form-control" style="margin-bottom:6px" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${i}:title">
+          <input type="text" class="form-control" style="font-size:12px" value="${escapeHtml(t.description || '')}" placeholder="Description (optional)" data-task-field="${i}:description">
+        </div>
+        <button class="grid-del-btn" data-task-remove="${i}" title="Remove">×</button>
+      </div>
+      <div class="tpl-task-card-fields">
+        <div class="form-group">
+          <label>Days before show</label>
+          <input type="number" class="form-control num-input" value="${t.daysBeforeShow ?? 0}" data-task-field="${i}:daysBeforeShow">
+        </div>
+        <div class="form-group">
+          <label>Role</label>
+          <select class="form-control" data-task-field="${i}:roleId">${roleOptions(t.roleId)}</select>
+        </div>
+        <div class="form-group">
+          <label>Sub-task of</label>
+          <select class="form-control" data-task-field="${i}:parentIndex">${parentOptions(i, t.parentIndex ?? null)}</select>
+        </div>
+      </div>
+    </div>
+  `).join('') : '<p class="empty-state">No tasks yet.</p>';
 }
 document.getElementById('addTemplateTaskBtn').addEventListener('click', () => {
   currentTemplate.tasks.push({ title: '', description: '', daysBeforeShow: 0, roleId: null, parentIndex: null });
@@ -1399,7 +1415,7 @@ document.getElementById('addTemplateTaskBtn').addEventListener('click', () => {
 // Text/number fields mutate in place with no re-render (typing would lose focus otherwise —
 // same pattern as handleLineAmountInput above); role/parent selects re-render afterwards since
 // that's safe on a 'change' and keeps the parent-task dropdown's title labels current.
-document.getElementById('templateTasksTableBody').addEventListener('input', (e) => {
+document.getElementById('templateTasksList').addEventListener('input', (e) => {
   const key = e.target.getAttribute('data-task-field');
   if (!key) return;
   const [idx, field] = key.split(':');
@@ -1408,7 +1424,7 @@ document.getElementById('templateTasksTableBody').addEventListener('input', (e) 
   else if (field === 'title') t.title = e.target.value;
   else if (field === 'description') t.description = e.target.value;
 });
-document.getElementById('templateTasksTableBody').addEventListener('change', (e) => {
+document.getElementById('templateTasksList').addEventListener('change', (e) => {
   const key = e.target.getAttribute('data-task-field');
   if (!key) return;
   const [idx, field] = key.split(':');
@@ -1418,7 +1434,7 @@ document.getElementById('templateTasksTableBody').addEventListener('change', (e)
   else return;
   renderTemplateTasksTable();
 });
-document.getElementById('templateTasksTableBody').addEventListener('click', (e) => {
+document.getElementById('templateTasksList').addEventListener('click', (e) => {
   const i = e.target.getAttribute('data-task-remove');
   if (i === null) return;
   const idx = Number(i);

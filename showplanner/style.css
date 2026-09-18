@@ -441,6 +441,17 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .pct-wrap { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
 .pct-sign { font-size: 13px; font-weight: 400; color: var(--text-muted); }
 
+/* ── Task template's task list — cards, not a table ──
+   Five columns' worth of fields (title, description, days-before, role, parent) has no decent
+   table layout at phone width; a card per task with the field grid below wrapping onto as many
+   rows as the screen needs (auto-fit/minmax) does. */
+.tpl-task-list { display: flex; flex-direction: column; gap: 10px; }
+.tpl-task-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; background: var(--bg); }
+.tpl-task-card-top { display: flex; gap: 10px; align-items: flex-start; }
+.tpl-task-card-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 10px; }
+.tpl-task-card-fields .form-group { margin-bottom: 0; }
+.tpl-task-card-fields label { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
+
 /* ════════════════════════ PWA (index.html) ════════════════════════ */
 .pwa-body { min-height: 100vh; background: var(--primary); display: flex; flex-direction: column; }
 .pwa-hero { position: relative; background: var(--primary); text-align: center; padding: 32px 20px 16px; color: #fff; }
