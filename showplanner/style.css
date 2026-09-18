@@ -447,10 +447,14 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
    rows as the screen needs (auto-fit/minmax) does. */
 .tpl-task-list { display: flex; flex-direction: column; gap: 10px; }
 .tpl-task-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; background: var(--bg); }
+.tpl-task-card.subtask { margin-left: 28px; background: var(--surface); }
 .tpl-task-card-top { display: flex; gap: 10px; align-items: flex-start; }
 .tpl-task-card-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 10px; }
 .tpl-task-card-fields .form-group { margin-bottom: 0; }
 .tpl-task-card-fields label { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
+@media (max-width: 560px) {
+  .tpl-task-card.subtask { margin-left: 14px; }
+}
 
 /* ════════════════════════ PWA (index.html) ════════════════════════ */
 .pwa-body { min-height: 100vh; background: var(--primary); display: flex; flex-direction: column; }

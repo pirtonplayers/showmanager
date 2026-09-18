@@ -1375,15 +1375,35 @@ document.getElementById('templateRolesTableBody').addEventListener('click', (e) 
 // A card per task rather than a table row — five columns' worth of fields (title, description,
 // days-before, role, parent) has no good table layout on a phone; a card that lets the field
 // grid below the title wrap onto as many rows as the screen needs does.
+//
+// Sub-tasks nest one level deep only (matching the real show's own task list, which only ever
+// looks at a top-level task's DIRECT children) — "Sub-task of" only ever offers other top-level
+// tasks, and each top-level card gets its own "+ Add sub-task" that appends a new task with
+// parentIndex already set, so a whole checklist under one task is a few clicks with no dropdown
+// fiddling. Cards render top-level-then-its-children (not raw array order) so sub-tasks visually
+// sit under their parent, but data-task-field="{i}:..." always uses the task's real position in
+// currentTemplate.tasks — visual grouping never touches the underlying array or its indices.
+function templateTopLevelIndices() {
+  return currentTemplate.tasks.map((t, i) => i).filter(i => currentTemplate.tasks[i].parentIndex == null);
+}
+function templateChildIndices(parentIdx) {
+  return currentTemplate.tasks.map((t, i) => i).filter(i => currentTemplate.tasks[i].parentIndex === parentIdx);
+}
 function renderTemplateTasksTable() {
   const el = document.getElementById('templateTasksList');
   const tasks = currentTemplate.tasks;
+  if (!tasks.length) { el.innerHTML = '<p class="empty-state">No tasks yet.</p>'; return; }
+
   const roleOptions = (roleId) => `<option value=""${!roleId ? ' selected' : ''}>—</option>` +
     currentTemplate.roles.map(r => `<option value="${r.id}"${r.id === roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
+  const topLevel = templateTopLevelIndices();
   const parentOptions = (i, parentIndex) => `<option value=""${parentIndex === null || parentIndex === undefined ? ' selected' : ''}>Top-level</option>` +
-    tasks.map((t, pi) => pi === i ? '' : `<option value="${pi}"${parentIndex === pi ? ' selected' : ''}>${escapeHtml(t.title || `Task ${pi + 1}`)}</option>`).join('');
-  el.innerHTML = tasks.length ? tasks.map((t, i) => `
-    <div class="tpl-task-card">
+    topLevel.filter(pi => pi !== i).map(pi => `<option value="${pi}"${parentIndex === pi ? ' selected' : ''}>${escapeHtml(tasks[pi].title || `Task ${pi + 1}`)}</option>`).join('');
+
+  function cardHtml(i, isSub) {
+    const t = tasks[i];
+    return `
+    <div class="tpl-task-card${isSub ? ' subtask' : ''}">
       <div class="tpl-task-card-top">
         <div style="flex:1;min-width:0">
           <input type="text" class="form-control" style="margin-bottom:6px" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${i}:title">
@@ -1405,8 +1425,23 @@ function renderTemplateTasksTable() {
           <select class="form-control" data-task-field="${i}:parentIndex">${parentOptions(i, t.parentIndex ?? null)}</select>
         </div>
       </div>
-    </div>
-  `).join('') : '<p class="empty-state">No tasks yet.</p>';
+      ${!isSub ? `<button class="btn btn-secondary btn-sm" style="margin-top:10px" data-task-add-sub="${i}">+ Add sub-task</button>` : ''}
+    </div>`;
+  }
+
+  const rendered = new Set();
+  let html = '';
+  topLevel.forEach(i => {
+    html += cardHtml(i, false);
+    rendered.add(i);
+    templateChildIndices(i).forEach(ci => { html += cardHtml(ci, true); rendered.add(ci); });
+  });
+  // Safety net: a task whose parentIndex points at something that's no longer top-level (should
+  // only happen to data saved before this nesting restriction existed) still renders — as its
+  // own top-level-styled card — rather than silently vanishing from the list.
+  tasks.forEach((t, i) => { if (!rendered.has(i)) html += cardHtml(i, false); });
+
+  el.innerHTML = html;
 }
 document.getElementById('addTemplateTaskBtn').addEventListener('click', () => {
   currentTemplate.tasks.push({ title: '', description: '', daysBeforeShow: 0, roleId: null, parentIndex: null });
@@ -1435,15 +1470,28 @@ document.getElementById('templateTasksList').addEventListener('change', (e) => {
   renderTemplateTasksTable();
 });
 document.getElementById('templateTasksList').addEventListener('click', (e) => {
-  const i = e.target.getAttribute('data-task-remove');
-  if (i === null) return;
-  const idx = Number(i);
-  currentTemplate.tasks.splice(idx, 1);
-  currentTemplate.tasks.forEach(t => {
-    if (t.parentIndex === idx) t.parentIndex = null;
-    else if (t.parentIndex != null && t.parentIndex > idx) t.parentIndex -= 1;
-  });
-  renderTemplateTasksTable();
+  const removeIdx = e.target.getAttribute('data-task-remove');
+  if (removeIdx !== null) {
+    const idx = Number(removeIdx);
+    currentTemplate.tasks.splice(idx, 1);
+    currentTemplate.tasks.forEach(t => {
+      if (t.parentIndex === idx) t.parentIndex = null;
+      else if (t.parentIndex != null && t.parentIndex > idx) t.parentIndex -= 1;
+    });
+    renderTemplateTasksTable();
+    return;
+  }
+  const addSubIdx = e.target.getAttribute('data-task-add-sub');
+  if (addSubIdx !== null) {
+    // Always appended at the end, so no existing task's index (and so no other parentIndex
+    // reference) ever shifts — same reasoning as the top-level +Add task button.
+    currentTemplate.tasks.push({ title: '', description: '', daysBeforeShow: 0, roleId: null, parentIndex: Number(addSubIdx) });
+    renderTemplateTasksTable();
+    // Jump straight into naming the new sub-task — this button exists specifically so a whole
+    // checklist under one task is click, type, click, type, not click-then-hunt-for-the-input.
+    const newRow = currentTemplate.tasks.length - 1;
+    document.querySelector(`[data-task-field="${newRow}:title"]`)?.focus();
+  }
 });
 
 document.getElementById('saveTemplateBtn').addEventListener('click', async () => {
