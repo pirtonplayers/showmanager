@@ -110,14 +110,54 @@ service cloud.firestore {
 
     // ── ShowPlanner ──────────────────────────────────────────────────────────
     // New, independent app alongside ShowBudget (see shared/auth.js) — its own access key and
-    // collections, no coupling to budget_shows above. App-level gate for now, same shape as
-    // budget's own rule; per-show/per-task granularity (planAccess, assignee-only status/comment
-    // updates) lands once that UI exists.
+    // collections, no coupling to budget_shows above.
+    //
+    // planAccess narrows only the PLAN fields on a show (roles, roleAssignments,
+    // planTemplateId) and its tasks subcollection — budget fields (fixedParams/income/spend) and
+    // show identity (name/director/producer/showType) stay open to anyone with access.showplanner
+    // regardless, same as budget/ today, since "the budget should remain as is" was the whole
+    // point of building this as a separate app. An empty/missing planAccess map means "open to
+    // everyone" — a fresh show, or any show nobody's ever restricted, is fully editable by any
+    // access.showplanner account; only once a producer explicitly sets planAccess does anyone
+    // else drop to read-only there.
+    function showPlanEditable(show) {
+      return isManager() ||
+        !('planAccess' in show) || show.planAccess.size() == 0 ||
+        show.planAccess[request.auth.uid] == 'edit';
+    }
+    function parentShowPlanEditable(showId) {
+      return showPlanEditable(get(/databases/$(database)/documents/showplanner_shows/$(showId)).data);
+    }
+    // A task's own assignee (by uid in assigneeIds, or by holding its roleId per the parent
+    // show's roleAssignments) can still update just that task's status/comments without full
+    // plan-edit rights — "individual users should be able to update the status and any comments
+    // assigned to their role" from the spec this was built against.
+    function isTaskAssignee(showId, task) {
+      let show = get(/databases/$(database)/documents/showplanner_shows/$(showId)).data;
+      return request.auth != null && (
+        request.auth.uid in task.assigneeIds ||
+        (task.roleId != null && ('roleAssignments' in show) &&
+         (task.roleId in show.roleAssignments) && request.auth.uid in show.roleAssignments[task.roleId])
+      );
+    }
+
     match /showplanner_shows/{id} {
-      allow read, write: if hasAccess('showplanner');
+      allow read: if hasAccess('showplanner');
+      allow create, delete: if hasAccess('showplanner');
+      allow update: if hasAccess('showplanner') && (
+        showPlanEditable(resource.data) ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'director', 'producer', 'showType', 'fixedParams', 'income', 'spend', 'isTemplate', 'copiedFrom', 'updatedAt'])
+      );
     }
     match /showplanner_shows/{id}/tasks/{taskId} {
-      allow read, write: if hasAccess('showplanner');
+      allow read: if hasAccess('showplanner');
+      allow create, delete: if hasAccess('showplanner') && parentShowPlanEditable(id);
+      allow update: if hasAccess('showplanner') && (
+        parentShowPlanEditable(id) ||
+        (isTaskAssignee(id, resource.data) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'comments', 'updatedAt']))
+      );
     }
     match /showplanner_templates/{id} {
       allow read, write: if hasAccess('showplanner');

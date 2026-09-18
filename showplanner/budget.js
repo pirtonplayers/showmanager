@@ -228,6 +228,7 @@ function withDefaults(show) {
     showType: show.showType || '',
     roles: show.roles || [],
     roleAssignments: show.roleAssignments || {},
+    planAccess: show.planAccess || {},
     planTemplateId: show.planTemplateId || null,
     fixedParams: { ...emptyFixedParams(), ...(show.fixedParams || {}) },
     // Drop the old single "Ticket sales" formula line some shows still have saved from before
@@ -345,6 +346,8 @@ function renderEditor() {
   renderPlanCard();
   renderRolesCard();
   renderTasksCard();
+  renderPlanAccessCard();
+  applyPlanCardVisibility();
 }
 
 document.getElementById('showDirectorInput').addEventListener('input', (e) => { currentShow.director = e.target.value; });
@@ -358,7 +361,9 @@ function renderPlanCard() {
   sel.innerHTML = allTemplates.length
     ? allTemplates.map(t => `<option value="${t.id}"${t.id === currentShow.planTemplateId ? ' selected' : ''}>${escapeHtml(t.name)}</option>`).join('')
     : '<option value="">No task templates yet</option>';
-  document.getElementById('generatePlanBtn').disabled = !allTemplates.length;
+  const canEdit = currentUserCanEditPlan();
+  sel.disabled = !canEdit;
+  document.getElementById('generatePlanBtn').disabled = !allTemplates.length || !canEdit;
 
   const summaryEl = document.getElementById('planSummary');
   if (currentShow.isTemplate) {
@@ -471,20 +476,44 @@ async function loadShowplannerUsers() {
 function userName(uidVal) { return allShowplannerUsers.find(u => u.id === uidVal)?.name || '(unknown)'; }
 function roleName(roleId) { return currentShow.roles.find(r => r.id === roleId)?.name || ''; }
 
+// Mirrors firestore.rules' showPlanEditable(): an empty/missing planAccess map is "open to
+// everyone" (a fresh show, or one nobody's ever restricted) — only once a producer explicitly
+// sets it does anyone without an 'edit' entry drop to read-only. Client-side this only decides
+// what the UI shows; the rule above is the actual enforcement.
+function currentUserCanEditPlan() {
+  if (currentUserData?.isManager === true) return true;
+  const map = currentShow.planAccess || {};
+  if (Object.keys(map).length === 0) return true;
+  const uidVal = firebase.auth().currentUser?.uid;
+  return map[uidVal] === 'edit';
+}
+function currentUserIsTaskAssignee(t) {
+  const uidVal = firebase.auth().currentUser?.uid;
+  if (!uidVal) return false;
+  if ((t.assigneeIds || []).includes(uidVal)) return true;
+  if (t.roleId && (currentShow.roleAssignments[t.roleId] || []).includes(uidVal)) return true;
+  return false;
+}
+
 function renderRolesCard() {
+  const canEdit = currentUserCanEditPlan();
+  document.getElementById('addRoleBtn').style.display = canEdit ? '' : 'none';
   const tbody = document.getElementById('rolesTableBody');
   const roles = currentShow.roles;
   tbody.innerHTML = roles.length ? roles.map((r, i) => {
     const assignedIds = currentShow.roleAssignments[r.id] || [];
     const assignedNames = assignedIds.length ? assignedIds.map(userName).join(', ') : '—';
+    const nameCell = canEdit
+      ? `<input type="text" class="form-control" placeholder="Role name" value="${escapeHtml(r.name || '')}" data-role-name="${i}">`
+      : escapeHtml(r.name || '(unnamed role)');
     return `
       <tr>
-        <td><input type="text" class="form-control" placeholder="Role name" value="${escapeHtml(r.name || '')}" data-role-name="${i}"></td>
+        <td>${nameCell}</td>
         <td class="role-assignees">${escapeHtml(assignedNames)}</td>
-        <td><button class="btn btn-secondary btn-sm" data-assign-role="${r.id}">Assign</button></td>
-        <td><button class="grid-del-btn" data-role-delete="${i}" title="Remove">×</button></td>
+        <td>${canEdit ? `<button class="btn btn-secondary btn-sm" data-assign-role="${r.id}">Assign</button>` : ''}</td>
+        <td>${canEdit ? `<button class="grid-del-btn" data-role-delete="${i}" title="Remove">×</button>` : ''}</td>
       </tr>`;
-  }).join('') : '<tr><td colspan="4" class="empty-state">No roles yet — add one, or generate a plan from a task template above.</td></tr>';
+  }).join('') : `<tr><td colspan="4" class="empty-state">No roles yet${canEdit ? ' — add one, or generate a plan from a task template above.' : '.'}</td></tr>`;
 }
 document.getElementById('addRoleBtn').addEventListener('click', () => {
   currentShow.roles.push({ id: uid(), name: '' });
@@ -533,6 +562,34 @@ document.getElementById('assignRoleSaveBtn').addEventListener('click', () => {
   showToast('Assignment updated — click Save changes below to store it', 'success');
 });
 
+function renderPlanAccessCard() {
+  const el = document.getElementById('planAccessList');
+  if (!allShowplannerUsers.length) {
+    el.innerHTML = '<p class="muted" style="padding:6px">No other ShowPlanner accounts yet.</p>';
+    return;
+  }
+  const explicit = Object.keys(currentShow.planAccess || {}).length > 0;
+  el.innerHTML = allShowplannerUsers.map(u => {
+    const checked = explicit ? currentShow.planAccess[u.id] === 'edit' : true;
+    return `
+      <div class="checklist-row">
+        <input type="checkbox" id="planAccess-${u.id}" value="${u.id}" ${checked ? 'checked' : ''}>
+        <label for="planAccess-${u.id}">${escapeHtml(u.name)}</label>
+      </div>`;
+  }).join('');
+}
+
+// isTemplate: the budget template has no plan at all. Plan access card specifically: only a
+// plan editor manages who else can edit — mirrors the Roles/Tasks cards' own canEdit gating.
+function applyPlanCardVisibility() {
+  const isTemplateShow = currentShow.isTemplate;
+  const canEdit = currentUserCanEditPlan();
+  document.getElementById('planCard').style.display = isTemplateShow ? 'none' : '';
+  document.getElementById('rolesCard').style.display = isTemplateShow ? 'none' : '';
+  document.getElementById('tasksCard').style.display = isTemplateShow ? 'none' : '';
+  document.getElementById('planAccessCard').style.display = (isTemplateShow || !canEdit) ? 'none' : '';
+}
+
 // ── Tasks ─────────────────────────────────────────────────────────────────
 // Manual task CRUD, on top of whatever generatePlanFromTemplate() seeded — each write here goes
 // straight to Firestore (unlike roles/budget lines above, which wait for the page's own Save
@@ -542,9 +599,11 @@ const STATUS_LABEL = { not_started: 'Not started', in_progress: 'In progress', c
 const STATUS_BADGE = { not_started: 'badge-danger', in_progress: 'badge-warning', completed: 'badge-success' };
 
 function renderTasksCard() {
+  const canEdit = currentUserCanEditPlan();
+  document.getElementById('addTaskBtn').style.display = canEdit ? '' : 'none';
   const el = document.getElementById('tasksList');
   if (!currentShowTasks.length) {
-    el.innerHTML = '<p class="empty-state">No tasks yet — generate a plan from a task template above, or add one manually.</p>';
+    el.innerHTML = `<p class="empty-state">No tasks yet${canEdit ? ' — generate a plan from a task template above, or add one manually.' : '.'}</p>`;
     return;
   }
   const byParent = {};
@@ -581,6 +640,7 @@ document.getElementById('addTaskBtn').addEventListener('click', () => openTaskMo
 
 let editingTaskId = null;   // null while creating a new task
 let editingTaskDraft = null; // working copy of the task while the modal is open
+let taskEditMode = 'full';   // 'full' | 'assignee' (status/comments only) | 'readonly'
 
 function openTaskModal(taskId) {
   editingTaskId = taskId;
@@ -589,6 +649,9 @@ function openTaskModal(taskId) {
     ? { ...existing, comments: [...(existing.comments || [])] }
     : { title: '', description: '', dueDate: '', dueMode: 'date', daysBeforeShow: null,
         roleId: null, assigneeIds: [], status: 'not_started', parentTaskId: null, comments: [] };
+
+  const canEditPlan = currentUserCanEditPlan();
+  taskEditMode = canEditPlan ? 'full' : (existing && currentUserIsTaskAssignee(existing)) ? 'assignee' : 'readonly';
 
   document.getElementById('taskModalTitle').textContent = existing ? 'Edit task' : 'New task';
   document.getElementById('taskTitleInput').value = editingTaskDraft.title || '';
@@ -615,9 +678,18 @@ function openTaskModal(taskId) {
       </div>`).join('')
     : '<p class="muted" style="padding:6px">No one else has ShowPlanner access yet.</p>';
 
+  ['taskTitleInput', 'taskDescInput', 'taskDueDateInput', 'taskRoleSelect', 'taskParentSelect'].forEach(id => {
+    document.getElementById(id).disabled = taskEditMode !== 'full';
+  });
+  document.querySelectorAll('#taskAssigneeChecklist input').forEach(cb => { cb.disabled = taskEditMode !== 'full'; });
+  document.getElementById('taskStatusSelect').disabled = taskEditMode === 'readonly';
+  document.getElementById('taskCommentInput').disabled = taskEditMode === 'readonly';
+  document.getElementById('taskCommentAddBtn').style.display = taskEditMode === 'readonly' ? 'none' : '';
+  document.getElementById('taskSaveBtn').style.display = taskEditMode === 'readonly' ? 'none' : '';
+
   renderTaskComments();
   document.getElementById('taskCommentInput').value = '';
-  document.getElementById('taskDeleteBtn').style.display = existing ? '' : 'none';
+  document.getElementById('taskDeleteBtn').style.display = (existing && taskEditMode === 'full') ? '' : 'none';
   document.getElementById('taskSaveStatusText').textContent = '';
   document.getElementById('taskModal').style.display = 'flex';
 }
@@ -675,7 +747,14 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
   statusEl.textContent = 'Saving…';
   const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
   try {
-    const payload = {
+    // An assignee without full plan-edit rights can only ever change status/comments — matches
+    // firestore.rules' isTaskAssignee() exception exactly (anything else in the payload would be
+    // rejected outright, so it's never sent).
+    const payload = taskEditMode === 'assignee' ? {
+      status: editingTaskDraft.status || 'not_started',
+      comments: editingTaskDraft.comments || [],
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    } : {
       title: editingTaskDraft.title,
       description: editingTaskDraft.description || '',
       dueDate: editingTaskDraft.dueDate || '',
@@ -946,6 +1025,12 @@ document.getElementById('addItemSubmitBtn').addEventListener('click', () => {
 document.getElementById('saveShowBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('saveStatusText');
   if (!currentShow.name?.trim()) { showToast('Enter a show name', 'error'); return; }
+  if (!currentShow.isTemplate && currentUserCanEditPlan()) {
+    const checked = new Set(Array.from(document.querySelectorAll('#planAccessList input:checked')).map(cb => cb.value));
+    const map = {};
+    allShowplannerUsers.forEach(u => { map[u.id] = checked.has(u.id) ? 'edit' : 'read'; });
+    currentShow.planAccess = map;
+  }
   statusEl.textContent = 'Saving…';
   try {
     await db.collection('showplanner_shows').doc(currentShowId).set({
@@ -955,6 +1040,7 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
       showType: currentShow.showType || '',
       roles: currentShow.roles || [],
       roleAssignments: currentShow.roleAssignments || {},
+      planAccess: currentShow.planAccess || {},
       planTemplateId: currentShow.planTemplateId || null,
       isTemplate: currentShow.isTemplate === true,
       copiedFrom: currentShow.copiedFrom || null,
