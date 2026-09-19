@@ -686,12 +686,15 @@ let collapsedTaskIds = new Set(); // local UI state only (which parent tasks are
 
 // A task with sub-tasks doesn't carry its own status — it's derived: completed only once every
 // sub-task is completed, in progress as soon as any sub-task has started, otherwise not started.
-// A leaf task (no children) just reports its own stored status unchanged.
+// A leaf task (no children) just reports its own stored status unchanged. Recursive — a child
+// that itself has children is judged by ITS derived status, not its raw (usually stale/unused)
+// stored one, so a deeply-nested tree's status bubbles up correctly at every level.
 function computeTaskStatus(task) {
   const children = currentShowTasks.filter(t => t.parentTaskId === task.id);
   if (!children.length) return task.status || 'not_started';
-  if (children.every(c => c.status === 'completed')) return 'completed';
-  if (children.some(c => c.status === 'in_progress' || c.status === 'completed')) return 'in_progress';
+  const childStatuses = children.map(computeTaskStatus);
+  if (childStatuses.every(s => s === 'completed')) return 'completed';
+  if (childStatuses.some(s => s === 'in_progress' || s === 'completed')) return 'in_progress';
   return 'not_started';
 }
 function isTaskOverdue(task, status) {
@@ -704,22 +707,37 @@ function isTaskOverdue(task, status) {
 const taskSortFn = (a, b) => (a.dueDate || '').localeCompare(b.dueDate || '') || (a.order ?? 0) - (b.order ?? 0);
 function topLevelTasksSorted() { return currentShowTasks.filter(t => !t.parentTaskId).sort(taskSortFn); }
 function childTasksSorted(parentId) { return currentShowTasks.filter(t => t.parentTaskId === parentId).sort(taskSortFn); }
+// Every id reachable by following parentTaskId down from this task — any depth. Used to keep a
+// task from being made a sub-task of its own descendant (which would create a cycle).
+function descendantTaskIds(taskId) {
+  const out = new Set();
+  (function walk(id) { childTasksSorted(id).forEach(c => { out.add(c.id); walk(c.id); }); })(taskId);
+  return out;
+}
+// How many parentTaskId hops up to a top-level task — used only to indent a task's label in the
+// flat "Sub-task of" <option> list so its place in the tree is legible there too.
+function taskDepth(id) {
+  let depth = 0, cur = currentShowTasks.find(t => t.id === id), seen = new Set();
+  while (cur?.parentTaskId && !seen.has(cur.id)) { seen.add(cur.id); cur = currentShowTasks.find(t => t.id === cur.parentTaskId); depth++; }
+  return depth;
+}
 
-// Flattened [{ task, isSub }] in display order (top-level tasks by due date, each immediately
-// followed by its own sub-tasks by due date) — every completed/in-progress task included
-// regardless of the on-screen Completed-group collapse state, since this is also the one source
-// of truth the Excel export (exportExcelBtn) reads — an export can't have "collapsed" rows.
+// Flattened [{ task, depth }] in display order (each task immediately followed by all of its
+// descendants, any depth, each due-date sorted within its own parent) — every task included
+// regardless of on-screen collapse state, since this is also the one source of truth the Excel
+// export (exportExcelBtn) reads — an export can't have "collapsed" rows.
 function orderedTaskList() {
   const out = [];
-  topLevelTasksSorted().forEach(t => {
-    out.push({ task: t, isSub: false });
-    childTasksSorted(t.id).forEach(sub => out.push({ task: sub, isSub: true }));
-  });
+  function walk(task, depth) {
+    out.push({ task, depth });
+    childTasksSorted(task.id).forEach(sub => walk(sub, depth + 1));
+  }
+  topLevelTasksSorted().forEach(t => walk(t, 0));
   return out;
 }
 
-function taskRowHtml(t, isSub) {
-  const children = isSub ? [] : childTasksSorted(t.id);
+function taskRowHtml(t, depth) {
+  const children = childTasksSorted(t.id);
   const hasChildren = children.length > 0;
   const status = computeTaskStatus(t);
   const overdue = isTaskOverdue(t, status);
@@ -730,11 +748,11 @@ function taskRowHtml(t, isSub) {
   if (assigneeNames.length) metaParts.push(assigneeNames.join(', '));
   const toggleHtml = hasChildren
     ? `<button class="task-toggle-btn" data-toggle-task="${t.id}" title="${collapsedTaskIds.has(t.id) ? 'Expand sub-tasks' : 'Collapse sub-tasks'}">${collapsedTaskIds.has(t.id) ? '▸' : '▾'}</button>`
-    : (isSub ? '' : '<span class="task-toggle-spacer"></span>');
+    : '<span class="task-toggle-spacer"></span>';
   const subcount = hasChildren
-    ? `<span class="task-subcount"> (${children.filter(c => c.status === 'completed').length}/${children.length} sub-tasks)</span>` : '';
+    ? `<span class="task-subcount"> (${children.filter(c => computeTaskStatus(c) === 'completed').length}/${children.length} sub-tasks)</span>` : '';
   return `
-    <div class="task-row${isSub ? ' subtask' : ''}${overdue ? ' overdue' : ''}" data-open-task="${t.id}">
+    <div class="task-row${depth > 0 ? ' subtask' : ''}${overdue ? ' overdue' : ''}" style="${depth > 0 ? `--depth:${depth}` : ''}" data-open-task="${t.id}">
       ${toggleHtml}
       <span class="badge ${STATUS_BADGE[status] || 'badge-danger'}">${STATUS_LABEL[status] || 'Not started'}</span>
       <span class="task-title">${escapeHtml(t.title || '(untitled)')}${t.description ? `<span class="task-desc">${escapeHtml(t.description)}</span>` : ''}${subcount}</span>
@@ -744,12 +762,14 @@ function taskRowHtml(t, isSub) {
       </span>
     </div>`;
 }
-// A top-level task plus its own (collapsible) sub-tasks, regardless of status — the toggle just
-// shows/hides whatever's under this one task, nothing more global than that.
-function taskBranchHtml(t) {
+// A task plus its own (collapsible) descendants, any depth — the toggle just shows/hides
+// whatever's under this one task, nothing more global than that; collapsing a task hides its
+// whole subtree regardless of how many further levels it has.
+function taskBranchHtml(t, depth) {
   const collapsed = collapsedTaskIds.has(t.id);
-  const children = childTasksSorted(t.id);
-  return taskRowHtml(t, false) + (children.length && !collapsed ? children.map(sub => taskRowHtml(sub, true)).join('') : '');
+  let html = taskRowHtml(t, depth);
+  if (!collapsed) childTasksSorted(t.id).forEach(sub => { html += taskBranchHtml(sub, depth + 1); });
+  return html;
 }
 
 function renderTasksCard() {
@@ -760,7 +780,7 @@ function renderTasksCard() {
     el.innerHTML = `<p class="empty-state">No tasks yet${canEdit ? ' — generate a plan from a task template above, or add one manually.' : '.'}</p>`;
     return;
   }
-  el.innerHTML = topLevelTasksSorted().map(taskBranchHtml).join('');
+  el.innerHTML = topLevelTasksSorted().map(t => taskBranchHtml(t, 0)).join('');
 }
 document.getElementById('tasksList').addEventListener('click', (e) => {
   const toggleBtn = e.target.closest('[data-toggle-task]');
@@ -807,12 +827,13 @@ function openTaskModal(taskId) {
   document.getElementById('taskRoleSelect').innerHTML = '<option value="">—</option>' +
     currentShow.roles.map(r => `<option value="${r.id}"${r.id === editingTaskDraft.roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
 
-  // Sub-tasks can only nest one level deep — a task's own possible parents are every OTHER
-  // top-level task, never another sub-task (keeps the two-level task-row/subtask CSS/rendering
-  // above correct without a recursive tree).
+  // Any other task can be the parent, any depth — only itself and its own descendants are
+  // excluded (picking one of those would create a cycle). Indented per its own depth so the
+  // flat <option> list still shows roughly where each candidate sits in the tree.
+  const excludedParents = taskId ? new Set([taskId, ...descendantTaskIds(taskId)]) : new Set();
   document.getElementById('taskParentSelect').innerHTML = '<option value="">Top-level</option>' +
-    currentShowTasks.filter(t => t.id !== taskId && !t.parentTaskId)
-      .map(t => `<option value="${t.id}"${t.id === editingTaskDraft.parentTaskId ? ' selected' : ''}>${escapeHtml(t.title || '(untitled)')}</option>`).join('');
+    currentShowTasks.filter(t => !excludedParents.has(t.id))
+      .map(t => `<option value="${t.id}"${t.id === editingTaskDraft.parentTaskId ? ' selected' : ''}>${'— '.repeat(taskDepth(t.id))}${escapeHtml(t.title || '(untitled)')}</option>`).join('');
 
   const assignedSet = new Set(editingTaskDraft.assigneeIds || []);
   const assigneeOptions = assignablePeople();
@@ -1376,18 +1397,37 @@ document.getElementById('templateRolesTableBody').addEventListener('click', (e) 
 // days-before, role, parent) has no good table layout on a phone; a card that lets the field
 // grid below the title wrap onto as many rows as the screen needs does.
 //
-// Sub-tasks nest one level deep only (matching the real show's own task list, which only ever
-// looks at a top-level task's DIRECT children) — "Sub-task of" only ever offers other top-level
-// tasks, and each top-level card gets its own "+ Add sub-task" that appends a new task with
-// parentIndex already set, so a whole checklist under one task is a few clicks with no dropdown
-// fiddling. Cards render top-level-then-its-children (not raw array order) so sub-tasks visually
-// sit under their parent, but data-task-field="{i}:..." always uses the task's real position in
+// Sub-tasks nest any number of levels deep — a sub-task can itself have sub-tasks. Every card
+// (any depth) gets its own "+ Add sub-task" that appends a new task with parentIndex already set
+// to it, so a whole checklist under one task is a few clicks with no dropdown fiddling. Cards
+// render top-level-then-its-descendants (not raw array order) so a task's sub-tasks visually sit
+// under it, but data-task-field="{i}:..." always uses the task's real position in
 // currentTemplate.tasks — visual grouping never touches the underlying array or its indices.
 function templateTopLevelIndices() {
   return currentTemplate.tasks.map((t, i) => i).filter(i => currentTemplate.tasks[i].parentIndex == null);
 }
 function templateChildIndices(parentIdx) {
   return currentTemplate.tasks.map((t, i) => i).filter(i => currentTemplate.tasks[i].parentIndex === parentIdx);
+}
+// Every index reachable by following parentIndex down from this one — any depth. Excluded from
+// its own "Sub-task of" choices, same reasoning as the real show's descendantTaskIds(): picking
+// one of these as a parent would create a cycle.
+function templateDescendantIndices(idx) {
+  const out = new Set();
+  (function walk(i) { templateChildIndices(i).forEach(ci => { out.add(ci); walk(ci); }); })(idx);
+  return out;
+}
+// Parent hops up to a top-level task — indents a candidate's label in the flat "Sub-task of"
+// <option> list so its place in the tree is legible there too. seen guards against looping
+// forever if any already-saved data has a cycle in it.
+function templateDepth(idx) {
+  let depth = 0, cur = idx, seen = new Set();
+  while (currentTemplate.tasks[cur]?.parentIndex != null && !seen.has(cur)) {
+    seen.add(cur);
+    cur = currentTemplate.tasks[cur].parentIndex;
+    depth++;
+  }
+  return depth;
 }
 function renderTemplateTasksTable() {
   const el = document.getElementById('templateTasksList');
@@ -1396,18 +1436,21 @@ function renderTemplateTasksTable() {
 
   const roleOptions = (roleId) => `<option value=""${!roleId ? ' selected' : ''}>—</option>` +
     currentTemplate.roles.map(r => `<option value="${r.id}"${r.id === roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
-  const topLevel = templateTopLevelIndices();
-  const parentOptions = (i, parentIndex) => `<option value=""${parentIndex === null || parentIndex === undefined ? ' selected' : ''}>Top-level</option>` +
-    topLevel.filter(pi => pi !== i).map(pi => `<option value="${pi}"${parentIndex === pi ? ' selected' : ''}>${escapeHtml(tasks[pi].title || `Task ${pi + 1}`)}</option>`).join('');
+  const parentOptions = (i, parentIndex) => {
+    const excluded = new Set([i, ...templateDescendantIndices(i)]);
+    return `<option value=""${parentIndex === null || parentIndex === undefined ? ' selected' : ''}>Top-level</option>` +
+      tasks.map((t, pi) => pi).filter(pi => !excluded.has(pi))
+        .map(pi => `<option value="${pi}"${parentIndex === pi ? ' selected' : ''}>${'— '.repeat(templateDepth(pi))}${escapeHtml(tasks[pi].title || `Task ${pi + 1}`)}</option>`).join('');
+  };
 
-  function cardHtml(i, isSub) {
+  function cardHtml(i, depth) {
     const t = tasks[i];
     return `
-    <div class="tpl-task-card${isSub ? ' subtask' : ''}">
+    <div class="tpl-task-card${depth > 0 ? ' subtask' : ''}" style="${depth > 0 ? `--depth:${depth}` : ''}">
       <div class="tpl-task-card-top">
         <div style="flex:1;min-width:0">
           <input type="text" class="form-control" style="margin-bottom:6px" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${i}:title">
-          <input type="text" class="form-control" style="font-size:12px" value="${escapeHtml(t.description || '')}" placeholder="Description (optional)" data-task-field="${i}:description">
+          <input type="text" class="form-control" value="${escapeHtml(t.description || '')}" placeholder="Description (optional)" data-task-field="${i}:description">
         </div>
         <button class="grid-del-btn" data-task-remove="${i}" title="Remove">×</button>
       </div>
@@ -1425,21 +1468,21 @@ function renderTemplateTasksTable() {
           <select class="form-control" data-task-field="${i}:parentIndex">${parentOptions(i, t.parentIndex ?? null)}</select>
         </div>
       </div>
-      ${!isSub ? `<button class="btn btn-secondary btn-sm" style="margin-top:10px" data-task-add-sub="${i}">+ Add sub-task</button>` : ''}
+      <button class="btn btn-secondary btn-sm" style="margin-top:10px" data-task-add-sub="${i}">+ Add sub-task</button>
     </div>`;
   }
 
   const rendered = new Set();
   let html = '';
-  topLevel.forEach(i => {
-    html += cardHtml(i, false);
+  function walk(i, depth) {
+    html += cardHtml(i, depth);
     rendered.add(i);
-    templateChildIndices(i).forEach(ci => { html += cardHtml(ci, true); rendered.add(ci); });
-  });
-  // Safety net: a task whose parentIndex points at something that's no longer top-level (should
-  // only happen to data saved before this nesting restriction existed) still renders — as its
-  // own top-level-styled card — rather than silently vanishing from the list.
-  tasks.forEach((t, i) => { if (!rendered.has(i)) html += cardHtml(i, false); });
+    templateChildIndices(i).forEach(ci => walk(ci, depth + 1));
+  }
+  templateTopLevelIndices().forEach(i => walk(i, 0));
+  // Safety net: a task whose parentIndex points at a since-removed/invalid index still renders —
+  // as its own top-level-styled subtree — rather than silently vanishing from the list.
+  tasks.forEach((t, i) => { if (!rendered.has(i)) walk(i, 0); });
 
   el.innerHTML = html;
 }
@@ -1581,8 +1624,8 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(roleRows), 'Roles');
   }
   if (!currentShow.isTemplate && currentShowTasks.length) {
-    const taskRows = orderedTaskList().map(({ task: t, isSub }) => ({
-      Task: (isSub ? '— ' : '') + (t.title || '(untitled)'),
+    const taskRows = orderedTaskList().map(({ task: t, depth }) => ({
+      Task: '— '.repeat(depth) + (t.title || '(untitled)'),
       Description: t.description || '',
       'Due date': t.dueDate ? fmtPerfDate({ date: t.dueDate }) : '',
       Status: STATUS_LABEL[computeTaskStatus(t)] || 'Not started',
