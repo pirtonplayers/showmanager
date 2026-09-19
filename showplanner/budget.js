@@ -79,7 +79,7 @@ function performanceIncomeLines(show) {
     id: `perf-${i}`,
     label: `Ticket sales — ${fmtPerfDate(p)}`,
     formula: 'perf',
-    amount: (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0) * pct,
+    amount: (p.price ?? 0) * (fp.seatsPerPerformance || 0) * pct,
     isPerformance: true,
   }));
 }
@@ -98,7 +98,7 @@ function forecast(show) { return incomeTotal(show) - spendTotal(show); }
 function emptyFixedParams() {
   return {
     performances: [],
-    ticketPrice: 0, seatsPerPerformance: 0, expectedSalesPct: 100, castSize: 0,
+    seatsPerPerformance: 0, expectedSalesPct: 100, castSize: 0,
     rehearsalSubsPerCast: 0,
   };
 }
@@ -241,6 +241,8 @@ function withDefaults(show) {
     ...show,
     roles: show.roles || [],
     roleAssignments: show.roleAssignments || {},
+    cast: show.cast || [],
+    castAssignments: show.castAssignments || {},
     planAccess: show.planAccess || {},
     planTemplateId: show.planTemplateId || null,
     fixedParams: { ...emptyFixedParams(), ...(show.fixedParams || {}) },
@@ -363,7 +365,6 @@ function renderEditor() {
   document.getElementById('printShowMeta').textContent = currentShow.isTemplate ? 'Template' : '';
 
   const fp = currentShow.fixedParams;
-  document.getElementById('fpTicketPrice').value = fp.ticketPrice || 0;
   document.getElementById('fpSeats').value = fp.seatsPerPerformance || 0;
   document.getElementById('fpExpectedSalesPct').value = fp.expectedSalesPct ?? 100;
   document.getElementById('fpCastSize').value = fp.castSize || 0;
@@ -377,6 +378,7 @@ function renderEditor() {
   renderForecast();
   renderPlanCard();
   renderRolesCard();
+  renderCastCard();
   renderTasksCard();
   renderPlanAccessCard();
   applyPlanCardVisibility();
@@ -528,11 +530,20 @@ function assignablePeople() {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 function userName(idVal) {
+  if (isGuestId(idVal)) return idVal.slice(6);
   return allShowplannerUsers.find(u => u.id === idVal)?.name
     || allMembers.find(m => m.id === idVal)?.name
     || '(unknown)';
 }
 function roleName(roleId) { return currentShow.roles.find(r => r.id === roleId)?.name || ''; }
+function castName(castId) { return currentShow.cast.find(c => c.id === castId)?.name || ''; }
+// A free-text ("guest") assignee has no real users/showdrinks_tabMembers doc behind it — its
+// whole identity is the literal name typed into the people picker, string-encoded as
+// "guest:<name>" so it can still live in the same plain array-of-strings shape assigneeIds/
+// roleAssignments/castAssignments already use everywhere (including firestore.rules' own
+// membership checks, which assume exactly that shape).
+function makeGuestId(name) { return 'guest:' + name.trim(); }
+function isGuestId(id) { return typeof id === 'string' && id.startsWith('guest:'); }
 
 // Mirrors firestore.rules' showPlanEditable(): an empty/missing planAccess map is "open to
 // everyone" (a fresh show, or one nobody's ever restricted) — only once a producer explicitly
@@ -553,35 +564,59 @@ function currentUserIsTaskAssignee(t) {
   return false;
 }
 
-function renderRolesCard() {
+// Crew and Cast are two independent, identically-behaved rosters (currentShow.roles/
+// roleAssignments and currentShow.cast/castAssignments) — one render function parameterised by
+// which one, rather than two near-duplicate copies.
+function renderGroupCard(kind) {
+  const isCast = kind === 'cast';
+  const items = isCast ? currentShow.cast : currentShow.roles;
+  const assignments = isCast ? currentShow.castAssignments : currentShow.roleAssignments;
   const canEdit = currentUserCanEditPlan();
-  document.getElementById('addRoleBtn').style.display = canEdit ? '' : 'none';
-  const tbody = document.getElementById('rolesTableBody');
-  const roles = currentShow.roles;
-  tbody.innerHTML = roles.length ? roles.map((r, i) => {
-    const assignedIds = currentShow.roleAssignments[r.id] || [];
+  document.getElementById(isCast ? 'addCastBtn' : 'addRoleBtn').style.display = canEdit ? '' : 'none';
+  const tbody = document.getElementById(isCast ? 'castTableBody' : 'rolesTableBody');
+  const nameAttr = isCast ? 'data-cast-name' : 'data-role-name';
+  const assignAttr = isCast ? 'data-assign-cast' : 'data-assign-role';
+  const deleteAttr = isCast ? 'data-cast-delete' : 'data-role-delete';
+  const noun = isCast ? 'part' : 'role';
+  tbody.innerHTML = items.length ? items.map((r, i) => {
+    const assignedIds = assignments[r.id] || [];
     const assignedNames = assignedIds.length ? assignedIds.map(userName).join(', ') : '—';
     const nameCell = canEdit
-      ? `<input type="text" class="form-control" placeholder="Role name" value="${escapeHtml(r.name || '')}" data-role-name="${i}">`
-      : escapeHtml(r.name || '(unnamed role)');
+      ? '<input type="text" class="form-control" placeholder="' + (isCast ? 'Part' : 'Role') + ' name" value="' + escapeHtml(r.name || '') + '" ' + nameAttr + '="' + i + '">'
+      : escapeHtml(r.name || ('(unnamed ' + noun + ')'));
     return `
       <tr>
         <td>${nameCell}</td>
         <td class="role-assignees">${escapeHtml(assignedNames)}</td>
-        <td>${canEdit ? `<button class="btn btn-secondary btn-sm" data-assign-role="${r.id}">Assign</button>` : ''}</td>
-        <td>${canEdit ? `<button class="grid-del-btn" data-role-delete="${i}" title="Remove">×</button>` : ''}</td>
+        <td>${canEdit ? ('<button class="btn btn-secondary btn-sm" ' + assignAttr + '="' + r.id + '">Assign</button>') : ''}</td>
+        <td>${canEdit ? ('<button class="grid-del-btn" ' + deleteAttr + '="' + i + '" title="Remove">×</button>') : ''}</td>
       </tr>`;
-  }).join('') : `<tr><td colspan="4" class="empty-state">No roles yet${canEdit ? ' — add one, or generate a plan from a task template above.' : '.'}</td></tr>`;
+  }).join('') : `<tr><td colspan="4" class="empty-state">No ${noun}s yet${canEdit ? (` — add one${isCast ? '' : ', or generate a plan from a task template above'}.`) : '.'}</td></tr>`;
 }
+function renderRolesCard() { renderGroupCard('crew'); }
+function renderCastCard() { renderGroupCard('cast'); }
+
 document.getElementById('addRoleBtn').addEventListener('click', () => {
   currentShow.roles.push({ id: uid(), name: '' });
   markDirty();
   renderRolesCard();
 });
+document.getElementById('addCastBtn').addEventListener('click', () => {
+  currentShow.cast.push({ id: uid(), name: '' });
+  markDirty();
+  renderCastCard();
+});
 document.getElementById('rolesTableBody').addEventListener('input', (e) => {
   const i = e.target.getAttribute('data-role-name');
   if (i === null) return;
   currentShow.roles[Number(i)].name = e.target.value;
+  markDirty();
+});
+document.getElementById('castTableBody').addEventListener('input', (e) => {
+  const i = e.target.getAttribute('data-cast-name');
+  if (i === null) return;
+  currentShow.cast[Number(i)].name = e.target.value;
+  markDirty();
 });
 document.getElementById('rolesTableBody').addEventListener('click', (e) => {
   const delIdx = e.target.getAttribute('data-role-delete');
@@ -594,34 +629,92 @@ document.getElementById('rolesTableBody').addEventListener('click', (e) => {
     return;
   }
   const assignRoleId = e.target.getAttribute('data-assign-role');
-  if (assignRoleId) openAssignRoleModal(assignRoleId);
+  if (assignRoleId) {
+    const role = currentShow.roles.find(r => r.id === assignRoleId);
+    openPeopleModal(`Assign: ${role?.name || 'role'}`, currentShow.roleAssignments[assignRoleId] || [], (selected) => {
+      currentShow.roleAssignments[assignRoleId] = selected;
+      markDirty();
+      renderRolesCard();
+      showToast('Assignment updated — click Save changes below to store it', 'success');
+    });
+  }
+});
+document.getElementById('castTableBody').addEventListener('click', (e) => {
+  const delIdx = e.target.getAttribute('data-cast-delete');
+  if (delIdx !== null) {
+    const removed = currentShow.cast.splice(Number(delIdx), 1)[0];
+    delete currentShow.castAssignments[removed.id];
+    markDirty();
+    renderCastCard();
+    return;
+  }
+  const assignCastId = e.target.getAttribute('data-assign-cast');
+  if (assignCastId) {
+    const part = currentShow.cast.find(r => r.id === assignCastId);
+    openPeopleModal(`Assign: ${part?.name || 'part'}`, currentShow.castAssignments[assignCastId] || [], (selected) => {
+      currentShow.castAssignments[assignCastId] = selected;
+      markDirty();
+      renderCastCard();
+      showToast('Assignment updated — click Save changes below to store it', 'success');
+    });
+  }
 });
 
-let assigningRoleId = null;
-function openAssignRoleModal(roleId) {
-  assigningRoleId = roleId;
-  const role = currentShow.roles.find(r => r.id === roleId);
-  document.getElementById('assignRoleModalTitle').textContent = `Assign: ${role?.name || 'role'}`;
-  const assigned = new Set(currentShow.roleAssignments[roleId] || []);
-  const people = assignablePeople();
-  document.getElementById('assignRoleEmptyNote').style.display = people.length ? 'none' : '';
-  document.getElementById('assignRoleChecklist').innerHTML = people.map(u => `
-    <div class="checklist-row">
-      <input type="checkbox" id="assignUser-${u.id}" value="${u.id}" ${assigned.has(u.id) ? 'checked' : ''}>
-      <label for="assignUser-${u.id}">${escapeHtml(u.name)}</label>
-    </div>
-  `).join('');
+// ── Shared people picker (Crew/Cast assignment, and the real show's task assignees) ─────────
+// One modal, driven by whatever opened it: a search box filters assignablePeople() by name, an
+// exact-no-match query offers "+ Add "<text>" as a guest" (a free-text, non-member assignee —
+// see makeGuestId() above), and a Save button hands the final selected id list back to whoever
+// opened the modal via onSave.
+let peopleModalOnSave = null;
+function openPeopleModal(title, selectedIds, onSave) {
+  peopleModalOnSave = onSave;
+  document.getElementById('assignRoleModalTitle').textContent = title;
+  document.getElementById('assignRoleFilter').value = '';
+  renderPeopleModalList(selectedIds || [], '');
   document.getElementById('assignRoleModal').style.display = 'flex';
 }
+function renderPeopleModalList(selectedIds, filterText) {
+  const selectedSet = new Set(selectedIds);
+  const people = assignablePeople();
+  // Guests already assigned won't be in assignablePeople() (they're not real accounts/members)
+  // — surface them too, so they still show up checked and can be unchecked/removed.
+  const guestExtras = selectedIds.filter(id => isGuestId(id) && !people.some(p => p.id === id))
+    .map(id => ({ id, name: userName(id), isGuest: true }));
+  let list = [...people, ...guestExtras].sort((a, b) => a.name.localeCompare(b.name));
+  const q = filterText.trim().toLowerCase();
+  if (q) list = list.filter(p => selectedSet.has(p.id) || p.name.toLowerCase().includes(q));
+  document.getElementById('assignRoleChecklist').innerHTML = list.length ? list.map(u => `
+    <div class="checklist-row">
+      <input type="checkbox" id="assignUser-${u.id}" value="${u.id}" ${selectedSet.has(u.id) ? 'checked' : ''}>
+      <label for="assignUser-${u.id}">${escapeHtml(u.name)}${u.isGuest ? ' <span class="muted" style="font-size:11px">(guest)</span>' : ''}</label>
+    </div>
+  `).join('') : '<p class="muted" style="padding:6px">No matches.</p>';
+  const exactMatch = q && list.some(p => p.name.toLowerCase() === q);
+  const guestRow = document.getElementById('assignRoleAddGuestRow');
+  guestRow.style.display = (filterText.trim() && !exactMatch) ? '' : 'none';
+  document.getElementById('assignRoleAddGuestLabel').textContent = `+ Add "${filterText.trim()}" as a guest`;
+}
+document.getElementById('assignRoleFilter').addEventListener('input', (e) => {
+  const checked = Array.from(document.querySelectorAll('#assignRoleChecklist input:checked')).map(cb => cb.value);
+  renderPeopleModalList(checked, e.target.value);
+});
+document.getElementById('assignRoleAddGuestRow').addEventListener('click', () => {
+  const filterInput = document.getElementById('assignRoleFilter');
+  const name = filterInput.value.trim();
+  if (!name) return;
+  const checked = Array.from(document.querySelectorAll('#assignRoleChecklist input:checked')).map(cb => cb.value);
+  checked.push(makeGuestId(name));
+  filterInput.value = '';
+  renderPeopleModalList(checked, '');
+});
 document.getElementById('assignRoleCloseBtn').addEventListener('click', () => { document.getElementById('assignRoleModal').style.display = 'none'; });
 document.getElementById('assignRoleModal').addEventListener('click', (e) => { if (e.target.id === 'assignRoleModal') e.target.style.display = 'none'; });
 document.getElementById('assignRoleSaveBtn').addEventListener('click', () => {
   const checked = Array.from(document.querySelectorAll('#assignRoleChecklist input:checked')).map(cb => cb.value);
-  currentShow.roleAssignments[assigningRoleId] = checked;
   document.getElementById('assignRoleModal').style.display = 'none';
-  renderRolesCard();
-  showToast('Assignment updated — click Save changes below to store it', 'success');
+  peopleModalOnSave?.(checked);
 });
+
 
 function renderPlanAccessCard() {
   const el = document.getElementById('planAccessList');
@@ -696,11 +789,12 @@ function isTaskOverdue(task, status) {
   return new Date(y, m - 1, d) < today;
 }
 
-const taskSortFn = (a, b) => (a.dueDate || '').localeCompare(b.dueDate || '') || (a.order ?? 0) - (b.order ?? 0);
+const taskSortFn = (a, b) => (a.order ?? 0) - (b.order ?? 0);
 function topLevelTasksSorted() { return currentShowTasks.filter(t => !t.parentTaskId).sort(taskSortFn); }
 function childTasksSorted(parentId) { return currentShowTasks.filter(t => t.parentTaskId === parentId).sort(taskSortFn); }
 // Every id reachable by following parentTaskId down from this task — any depth. Used to keep a
-// task from being made a sub-task of its own descendant (which would create a cycle).
+// task from being made a sub-task of its own descendant (which would create a cycle), and as a
+// valid drag target.
 function descendantTaskIds(taskId) {
   const out = new Set();
   (function walk(id) { childTasksSorted(id).forEach(c => { out.add(c.id); walk(c.id); }); })(taskId);
@@ -715,9 +809,9 @@ function taskDepth(id) {
 }
 
 // Flattened [{ task, depth }] in display order (each task immediately followed by all of its
-// descendants, any depth, each due-date sorted within its own parent) — every task included
-// regardless of on-screen collapse state, since this is also the one source of truth the Excel
-// export (exportExcelBtn) reads — an export can't have "collapsed" rows.
+// descendants, any depth, each in manual drag order within its own parent) — every task included
+// regardless of on-screen collapse/filter state, since this is also the one source of truth the
+// Excel export (exportExcelBtn) reads — an export can't have "collapsed" or "filtered" rows.
 function orderedTaskList() {
   const out = [];
   function walk(task, depth) {
@@ -728,7 +822,7 @@ function orderedTaskList() {
   return out;
 }
 
-function taskRowHtml(t, depth) {
+function taskRowHtml(t, depth, canEdit) {
   const children = childTasksSorted(t.id);
   const hasChildren = children.length > 0;
   const status = computeTaskStatus(t);
@@ -743,8 +837,10 @@ function taskRowHtml(t, depth) {
     : '<span class="task-toggle-spacer"></span>';
   const subcount = hasChildren
     ? `<span class="task-subcount"> (${children.filter(c => computeTaskStatus(c) === 'completed').length}/${children.length} sub-tasks)</span>` : '';
+  const handleHtml = canEdit ? '<span class="task-drag-handle" title="Drag to move">⠿</span>' : '';
   return `
-    <div class="task-row${depth > 0 ? ' subtask' : ''}${overdue ? ' overdue' : ''}" style="${depth > 0 ? `--depth:${depth}` : ''}" data-open-task="${t.id}">
+    <div class="task-row${depth > 0 ? ' subtask' : ''}${overdue ? ' overdue' : ''}" data-open-task="${t.id}">
+      ${handleHtml}
       ${toggleHtml}
       <span class="badge ${STATUS_BADGE[status] || 'badge-danger'}">${STATUS_LABEL[status] || 'Not started'}</span>
       <span class="task-title">${escapeHtml(t.title || '(untitled)')}${t.description ? `<span class="task-desc">${escapeHtml(t.description)}</span>` : ''}${subcount}</span>
@@ -754,27 +850,36 @@ function taskRowHtml(t, depth) {
       </span>
     </div>`;
 }
-// A task plus its own (collapsible) descendants, any depth — the toggle just shows/hides
-// whatever's under this one task, nothing more global than that; collapsing a task hides its
-// whole subtree regardless of how many further levels it has.
-function taskBranchHtml(t, depth) {
+// A task card: its own row, plus an ACTUAL nested .task-children container for its descendants
+// (not a flat sibling with a visual indent) — always rendered, even empty, so Sortable's own
+// nested-list dragging can drop a task onto a currently-childless one, and so the collapse toggle
+// and the "hide completed" filter can each just show/hide one container element.
+function taskCardHtml(t, depth, canEdit) {
   const collapsed = collapsedTaskIds.has(t.id);
-  let html = taskRowHtml(t, depth);
-  if (!collapsed) childTasksSorted(t.id).forEach(sub => { html += taskBranchHtml(sub, depth + 1); });
-  return html;
+  const children = childTasksSorted(t.id);
+  return `
+    <div class="task-card" data-task-id="${t.id}">
+      ${taskRowHtml(t, depth, canEdit)}
+      <div class="task-children" data-parent-id="${t.id}">${(!collapsed) ? children.map(c => taskCardHtml(c, depth + 1, canEdit)).join('') : ''}</div>
+    </div>`;
 }
 
 function renderTasksCard() {
   const canEdit = currentUserCanEditPlan();
   document.getElementById('addTaskBtn').style.display = canEdit ? '' : 'none';
   const el = document.getElementById('tasksList');
+  document.getElementById('taskFilterBar').style.display = currentShowTasks.length ? '' : 'none';
   if (!currentShowTasks.length) {
     el.innerHTML = `<p class="empty-state">No tasks yet${canEdit ? ' — generate a plan from a task template above, or add one manually.' : '.'}</p>`;
+    destroyTaskSortables();
     return;
   }
-  el.innerHTML = topLevelTasksSorted().map(t => taskBranchHtml(t, 0)).join('');
+  el.innerHTML = topLevelTasksSorted().map(t => taskCardHtml(t, 0, canEdit)).join('');
+  applyTaskCompletionFilter();
+  if (canEdit) initTaskSortables(); else destroyTaskSortables();
 }
 document.getElementById('tasksList').addEventListener('click', (e) => {
+  if (e.target.closest('.task-drag-handle')) return;
   const toggleBtn = e.target.closest('[data-toggle-task]');
   if (toggleBtn) {
     const id = toggleBtn.getAttribute('data-toggle-task');
@@ -787,9 +892,98 @@ document.getElementById('tasksList').addEventListener('click', (e) => {
 });
 document.getElementById('addTaskBtn').addEventListener('click', () => openTaskModal(null));
 
-let editingTaskId = null;   // null while creating a new task
+// ── Hide-completed filter — purely a display toggle (hides/shows whole .task-card elements after
+// render) — never touches currentShowTasks or the Sortable DOM structure/order, so dragging still
+// works exactly the same whether or not the filter is active. "All tasks" hides any completed
+// task, top-level or sub-task; "Parent tasks only" hides a completed task only when it's itself
+// top-level (a completed sub-task inside a still-open parent stays visible either way).
+function applyTaskCompletionFilter() {
+  const hideCompleted = document.getElementById('taskHideCompletedToggle').checked;
+  const scope = document.getElementById('taskHideCompletedScope').value;
+  document.getElementById('taskHideCompletedScope').disabled = !hideCompleted;
+  document.querySelectorAll('#tasksList .task-card').forEach(card => {
+    const t = currentShowTasks.find(x => x.id === card.dataset.taskId);
+    if (!t) return;
+    const completed = computeTaskStatus(t) === 'completed';
+    const isTopLevel = !t.parentTaskId;
+    card.hidden = hideCompleted && completed && (scope === 'all' || isTopLevel);
+  });
+}
+document.getElementById('taskHideCompletedToggle').addEventListener('change', applyTaskCompletionFilter);
+document.getElementById('taskHideCompletedScope').addEventListener('change', applyTaskCompletionFilter);
+
+// ── Drag-and-drop ordering — same Sortable.js pattern as the task template editor: one instance
+// per drop zone (the top-level list, plus every task's own .task-children container), all sharing
+// a group so dragging between any of them reparents, and within one reorders. Persisted
+// immediately to Firestore on drop, matching "saved automatically" everywhere else in this modal.
+// Only wired up for a full plan editor — an assignee/read-only viewer never gets a drag handle.
+let realTaskSortables = [];
+function destroyTaskSortables() { realTaskSortables.forEach(s => s.destroy()); realTaskSortables = []; }
+async function initTaskSortables() {
+  try {
+    await loadScript(SORTABLE_LIB_URL, 'Sortable');
+  } catch (err) {
+    console.warn('Sortable failed to load — drag reordering unavailable this session', err);
+    return;
+  }
+  destroyTaskSortables();
+  const containers = [document.getElementById('tasksList'), ...document.querySelectorAll('#tasksList .task-children')];
+  containers.forEach(container => {
+    realTaskSortables.push(Sortable.create(container, {
+      group: 'real-tasks',
+      handle: '.task-drag-handle',
+      animation: 150,
+      easing: 'cubic-bezier(0.2, 0, 0, 1)',
+      fallbackOnBody: true,
+      swapThreshold: 0.65,
+      delay: 250,
+      delayOnTouchOnly: true,
+      touchStartThreshold: 6,
+      ghostClass: 'task-drag-ghost',
+      chosenClass: 'task-drag-chosen',
+      dragClass: 'task-drag-active',
+      onMove: (evt) => {
+        const draggedId = evt.dragged.dataset.taskId;
+        const targetParentId = evt.to.id === 'tasksList' ? null : evt.to.dataset.parentId;
+        if (!draggedId || !targetParentId) return true; // dropping to top-level is always fine
+        if (targetParentId === draggedId || descendantTaskIds(draggedId).has(targetParentId)) return false;
+        return true;
+      },
+      onEnd: handleTaskSortEnd,
+    }));
+  });
+}
+async function handleTaskSortEnd(evt) {
+  const task = currentShowTasks.find(t => t.id === evt.item.dataset.taskId);
+  if (!task) return;
+  task.parentTaskId = evt.to.id === 'tasksList' ? null : (evt.to.dataset.parentId || null);
+  const touched = [];
+  const reindex = (container) => {
+    Array.from(container.children).forEach((el, idx) => {
+      const t = currentShowTasks.find(t => t.id === el.dataset.taskId);
+      if (t) { t.order = idx; touched.push(t); }
+    });
+  };
+  reindex(evt.to);
+  if (evt.from !== evt.to) reindex(evt.from);
+  renderTasksCard();
+  try {
+    const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
+    const batch = db.batch();
+    touched.forEach(t => {
+      batch.set(tasksCol.doc(t.id), { order: t.order, parentTaskId: t.parentTaskId || null, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    });
+    await batch.commit();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+
+let editingTaskId = null;   // null while creating a new task (not yet written to Firestore)
 let editingTaskDraft = null; // working copy of the task while the modal is open
 let taskEditMode = 'full';   // 'full' | 'assignee' (status/comments only) | 'readonly'
+let taskAutoSaveTimer = null;
 
 function openTaskModal(taskId) {
   editingTaskId = taskId;
@@ -804,17 +998,22 @@ function openTaskModal(taskId) {
 
   const children = existing ? currentShowTasks.filter(t => t.parentTaskId === existing.id) : [];
   const hasChildren = children.length > 0;
+  // A task with sub-tasks doesn't carry its own status — see computeTaskStatus() — so its pills
+  // just mirror that derived value and can't be clicked.
+  const effectiveStatus = hasChildren ? computeTaskStatus(existing) : (editingTaskDraft.status || 'not_started');
+  editingTaskDraft.status = effectiveStatus;
 
   document.getElementById('taskModalTitle').textContent = existing ? 'Edit task' : 'New task';
   document.getElementById('taskTitleInput').value = editingTaskDraft.title || '';
-  document.getElementById('taskDescInput').value = editingTaskDraft.description || '';
+  const descEl = document.getElementById('taskDescInput');
+  descEl.value = editingTaskDraft.description || '';
+  autoGrowTextarea(descEl);
   document.getElementById('taskDueDateInput').value = editingTaskDraft.dueDate || '';
-  document.getElementById('taskStatusSelect').value = hasChildren ? computeTaskStatus(existing) : (editingTaskDraft.status || 'not_started');
-  const autoNoteEl = document.getElementById('taskStatusAutoNote');
-  autoNoteEl.style.display = hasChildren ? '' : 'none';
-  autoNoteEl.textContent = hasChildren
-    ? `Automatic — based on its ${children.length} sub-task${children.length === 1 ? '' : 's'} (completed once every one of them is).`
-    : '';
+
+  document.querySelectorAll('#taskStatusPills .status-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-status-pill') === effectiveStatus);
+    btn.disabled = taskEditMode === 'readonly' || hasChildren;
+  });
 
   document.getElementById('taskRoleSelect').innerHTML = '<option value="">—</option>' +
     currentShow.roles.map(r => `<option value="${r.id}"${r.id === editingTaskDraft.roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
@@ -827,33 +1026,56 @@ function openTaskModal(taskId) {
     currentShowTasks.filter(t => !excludedParents.has(t.id))
       .map(t => `<option value="${t.id}"${t.id === editingTaskDraft.parentTaskId ? ' selected' : ''}>${'— '.repeat(taskDepth(t.id))}${escapeHtml(t.title || '(untitled)')}</option>`).join('');
 
-  const assignedSet = new Set(editingTaskDraft.assigneeIds || []);
-  const assigneeOptions = assignablePeople();
-  document.getElementById('taskAssigneeChecklist').innerHTML = assigneeOptions.length
-    ? assigneeOptions.map(u => `
-      <div class="checklist-row">
-        <input type="checkbox" id="taskAssignee-${u.id}" value="${u.id}" ${assignedSet.has(u.id) ? 'checked' : ''}>
-        <label for="taskAssignee-${u.id}">${escapeHtml(u.name)}</label>
-      </div>`).join('')
-    : '<p class="muted" style="padding:6px">No one in the members list yet.</p>';
+  document.getElementById('taskAssigneesCount').textContent = (editingTaskDraft.assigneeIds || []).length;
+  document.getElementById('taskCommentsCount').textContent = (editingTaskDraft.comments || []).length;
 
   ['taskTitleInput', 'taskDescInput', 'taskDueDateInput', 'taskRoleSelect', 'taskParentSelect'].forEach(id => {
     document.getElementById(id).disabled = taskEditMode !== 'full';
   });
-  document.querySelectorAll('#taskAssigneeChecklist input').forEach(cb => { cb.disabled = taskEditMode !== 'full'; });
-  document.getElementById('taskStatusSelect').disabled = taskEditMode === 'readonly' || hasChildren;
-  document.getElementById('taskCommentInput').disabled = taskEditMode === 'readonly';
-  document.getElementById('taskCommentAddBtn').style.display = taskEditMode === 'readonly' ? 'none' : '';
-  document.getElementById('taskSaveBtn').style.display = taskEditMode === 'readonly' ? 'none' : '';
+  document.getElementById('taskAssigneesBtn').disabled = taskEditMode !== 'full';
 
-  renderTaskComments();
-  document.getElementById('taskCommentInput').value = '';
   document.getElementById('taskDeleteBtn').style.display = (existing && taskEditMode === 'full') ? '' : 'none';
   document.getElementById('taskSaveStatusText').textContent = '';
   document.getElementById('taskModal').style.display = 'flex';
 }
 document.getElementById('taskModalCloseBtn').addEventListener('click', () => { document.getElementById('taskModal').style.display = 'none'; });
 document.getElementById('taskModal').addEventListener('click', (e) => { if (e.target.id === 'taskModal') e.target.style.display = 'none'; });
+
+function autoGrowTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+document.getElementById('taskDescInput').addEventListener('input', (e) => {
+  autoGrowTextarea(e.target);
+  scheduleTaskAutoSave();
+});
+
+document.querySelectorAll('#taskStatusPills .status-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    editingTaskDraft.status = btn.getAttribute('data-status-pill');
+    document.querySelectorAll('#taskStatusPills .status-pill').forEach(b => b.classList.toggle('active', b === btn));
+    scheduleTaskAutoSave(true);
+  });
+});
+
+document.getElementById('taskAssigneesBtn').addEventListener('click', () => {
+  openPeopleModal('Assigned people', editingTaskDraft.assigneeIds || [], (selected) => {
+    editingTaskDraft.assigneeIds = selected;
+    document.getElementById('taskAssigneesCount').textContent = selected.length;
+    scheduleTaskAutoSave(true);
+  });
+});
+
+document.getElementById('taskCommentsBtn').addEventListener('click', () => {
+  renderTaskComments();
+  document.getElementById('taskCommentInput').value = '';
+  document.getElementById('taskCommentInput').disabled = taskEditMode === 'readonly';
+  document.getElementById('taskCommentAddBtn').style.display = taskEditMode === 'readonly' ? 'none' : '';
+  document.getElementById('taskCommentsModal').style.display = 'flex';
+});
+document.getElementById('taskCommentsCloseBtn').addEventListener('click', () => { document.getElementById('taskCommentsModal').style.display = 'none'; });
+document.getElementById('taskCommentsModal').addEventListener('click', (e) => { if (e.target.id === 'taskCommentsModal') e.target.style.display = 'none'; });
 
 function renderTaskComments() {
   const el = document.getElementById('taskCommentsList');
@@ -883,6 +1105,8 @@ document.getElementById('taskCommentAddBtn').addEventListener('click', () => {
   });
   input.value = '';
   renderTaskComments();
+  document.getElementById('taskCommentsCount').textContent = editingTaskDraft.comments.length;
+  scheduleTaskAutoSave(true);
 });
 
 function readTaskFormIntoDraft() {
@@ -893,16 +1117,32 @@ function readTaskFormIntoDraft() {
   // how a template-generated task originally got its date, not something a hand edit preserves.
   if (newDueDate !== editingTaskDraft.dueDate) { editingTaskDraft.dueMode = 'date'; editingTaskDraft.daysBeforeShow = null; }
   editingTaskDraft.dueDate = newDueDate;
-  editingTaskDraft.status = document.getElementById('taskStatusSelect').value;
   editingTaskDraft.roleId = document.getElementById('taskRoleSelect').value || null;
   editingTaskDraft.parentTaskId = document.getElementById('taskParentSelect').value || null;
-  editingTaskDraft.assigneeIds = Array.from(document.querySelectorAll('#taskAssigneeChecklist input:checked')).map(cb => cb.value);
 }
 
-document.getElementById('taskSaveBtn').addEventListener('click', async () => {
+['taskTitleInput', 'taskDueDateInput', 'taskRoleSelect', 'taskParentSelect'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => scheduleTaskAutoSave());
+  document.getElementById(id).addEventListener('change', () => scheduleTaskAutoSave(true));
+});
+
+// Debounced for free-typed text (title/description), immediate for discrete choices (status
+// pill, due date, role/parent select, assignee picker, a posted comment) — matches the template
+// task editor's "don't hammer Firestore on every keystroke" approach while still feeling instant
+// for anything that's a single click.
+function scheduleTaskAutoSave(immediate) {
+  if (taskEditMode === 'readonly') return;
+  clearTimeout(taskAutoSaveTimer);
+  if (immediate) { performTaskAutoSave(); return; }
+  taskAutoSaveTimer = setTimeout(performTaskAutoSave, 600);
+}
+
+async function performTaskAutoSave() {
   readTaskFormIntoDraft();
-  if (!editingTaskDraft.title) { showToast('Enter a task title', 'error'); return; }
   const statusEl = document.getElementById('taskSaveStatusText');
+  // Mirrors the template task editor: a task with no title is never written to Firestore — an
+  // abandoned "New task" modal just closes with nothing saved.
+  if (!editingTaskDraft.title) { statusEl.textContent = editingTaskId ? '' : 'Enter a title to save'; return; }
   statusEl.textContent = 'Saving…';
   const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
   try {
@@ -931,10 +1171,12 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
     } else {
       payload.order = currentShowTasks.length;
       payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-      await tasksCol.add(payload);
+      const ref = await tasksCol.add(payload);
+      editingTaskId = ref.id;
+      document.getElementById('taskModalTitle').textContent = 'Edit task';
+      document.getElementById('taskDeleteBtn').style.display = taskEditMode === 'full' ? '' : 'none';
     }
-    document.getElementById('taskModal').style.display = 'none';
-    showToast('Task saved', 'success');
+    statusEl.textContent = 'Saved';
     await loadCurrentShowTasks();
     renderTasksCard();
     renderPlanCard();
@@ -942,7 +1184,7 @@ document.getElementById('taskSaveBtn').addEventListener('click', async () => {
     statusEl.textContent = '';
     showToast(err.message, 'error');
   }
-});
+}
 
 document.getElementById('taskDeleteBtn').addEventListener('click', async () => {
   if (!editingTaskId) return;
@@ -982,7 +1224,7 @@ function renderPerfTable() {
     <tr>
       <td><input type="date" class="form-control" value="${p.date || ''}" data-perf-field="${i}:date"></td>
       <td><select class="form-control" data-perf-field="${i}:type">${PERF_TYPES.map(t => `<option value="${t}"${(p.type || 'Evening') === t ? ' selected' : ''}>${t}</option>`).join('')}</select></td>
-      <td><input type="number" class="form-control num-input" min="0" step="1" value="${p.price ?? currentShow.fixedParams.ticketPrice ?? 0}" data-perf-field="${i}:price"></td>
+      <td><input type="number" class="form-control num-input" min="0" step="1" value="${p.price ?? 0}" data-perf-field="${i}:price"></td>
       <td class="no-print"><button class="grid-del-btn" data-perf-remove="${i}" title="Remove">×</button></td>
     </tr>
   `).join('') : '<tr><td colspan="4" class="empty-state">No performances yet — generate some above.</td></tr>';
@@ -1004,7 +1246,7 @@ document.getElementById('generatePerfsBtn').addEventListener('click', () => {
   for (let i = 0; i < count; i++) {
     const dt = new Date(y, m - 1, d + i);
     const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-    perfs.push({ date: iso, type: 'Evening', price: currentShow.fixedParams.ticketPrice || 0 });
+    perfs.push({ date: iso, type: 'Evening', price: 0 });
   }
   currentShow.fixedParams.performances = perfs;
   markDirty();
@@ -1013,7 +1255,9 @@ document.getElementById('generatePerfsBtn').addEventListener('click', () => {
 });
 
 document.getElementById('addPerfBtn').addEventListener('click', () => {
-  currentShow.fixedParams.performances.push({ date: '', type: 'Evening', price: currentShow.fixedParams.ticketPrice || 0 });
+  const perfs = currentShow.fixedParams.performances;
+  const lastPrice = perfs.length ? (perfs[perfs.length - 1].price || 0) : 0;
+  perfs.push({ date: '', type: 'Evening', price: lastPrice });
   markDirty();
   renderPerfTable();
   refreshAfterPerfChange();
@@ -1041,10 +1285,10 @@ document.getElementById('perfTableBody').addEventListener('click', (e) => {
   refreshAfterPerfChange();
 });
 
-['fpTicketPrice', 'fpSeats', 'fpExpectedSalesPct', 'fpCastSize', 'fpRehearsalSubs'].forEach(id => {
+['fpSeats', 'fpExpectedSalesPct', 'fpCastSize', 'fpRehearsalSubs'].forEach(id => {
   document.getElementById(id).addEventListener('input', (e) => {
     const map = {
-      fpTicketPrice: 'ticketPrice', fpSeats: 'seatsPerPerformance', fpExpectedSalesPct: 'expectedSalesPct',
+      fpSeats: 'seatsPerPerformance', fpExpectedSalesPct: 'expectedSalesPct',
       fpCastSize: 'castSize', fpRehearsalSubs: 'rehearsalSubsPerCast',
     };
     currentShow.fixedParams[map[id]] = Math.round(Number(e.target.value) || 0);
@@ -1200,6 +1444,8 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
       name: currentShow.name.trim(),
       roles: currentShow.roles || [],
       roleAssignments: currentShow.roleAssignments || {},
+      cast: currentShow.cast || [],
+      castAssignments: currentShow.castAssignments || {},
       planAccess: currentShow.planAccess || {},
       planTemplateId: currentShow.planTemplateId || null,
       isTemplate: currentShow.isTemplate === true,
@@ -1773,7 +2019,6 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
   const fp = currentShow.fixedParams;
   const paramsRows = [
     { Parameter: 'Show name', Value: currentShow.name },
-    { Parameter: 'Default ticket price', Value: fp.ticketPrice },
     { Parameter: 'Seats per performance', Value: fp.seatsPerPerformance },
     { Parameter: 'Expected sales %', Value: fp.expectedSalesPct ?? 100 },
     { Parameter: 'Number of performances', Value: fp.performances.length },
@@ -1784,9 +2029,9 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
 
   const salesPct = (fp.expectedSalesPct ?? 100) / 100;
   const perfRows = fp.performances.map(p => ({
-    Date: fmtPerfDate(p), Type: p.type || 'Evening', 'Ticket price': p.price ?? fp.ticketPrice ?? 0,
+    Date: fmtPerfDate(p), Type: p.type || 'Evening', 'Ticket price': p.price ?? 0,
     Seats: fp.seatsPerPerformance, 'Expected sales %': fp.expectedSalesPct ?? 100,
-    'Expected income': (p.price ?? fp.ticketPrice ?? 0) * (fp.seatsPerPerformance || 0) * salesPct,
+    'Expected income': (p.price ?? 0) * (fp.seatsPerPerformance || 0) * salesPct,
   }));
   if (perfRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(perfRows), 'Performances');
 
@@ -1806,6 +2051,13 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
       Assigned: (currentShow.roleAssignments[r.id] || []).map(userName).join(', ') || '—',
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(roleRows), 'Roles');
+  }
+  if (!currentShow.isTemplate && currentShow.cast.length) {
+    const castRows = currentShow.cast.map(c => ({
+      Part: c.name || '(unnamed part)',
+      Assigned: (currentShow.castAssignments[c.id] || []).map(userName).join(', ') || '—',
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(castRows), 'Cast');
   }
   if (!currentShow.isTemplate && currentShowTasks.length) {
     const taskRows = orderedTaskList().map(({ task: t, depth }) => ({

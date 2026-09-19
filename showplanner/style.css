@@ -212,6 +212,17 @@ input[type="file"].form-control { padding: 7px 10px; }
 .checklist-row input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .checklist-row label { font-size: 14px; cursor: pointer; }
 
+/* ── Task modal: status pills, auto-grow description, count buttons ── */
+.task-desc-textarea { resize: none; overflow: hidden; min-height: 40px; }
+.status-pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.status-pill { padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; transition: all .15s; }
+.status-pill:hover:not(:disabled) { border-color: var(--primary); color: var(--text); }
+.status-pill:disabled { cursor: not-allowed; opacity: .6; }
+.status-pill.active[data-status-pill="not_started"] { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
+.status-pill.active[data-status-pill="in_progress"] { background: var(--warning-light); color: var(--warning); border-color: var(--warning); }
+.status-pill.active[data-status-pill="completed"] { background: var(--success-light); color: var(--success); border-color: var(--success); }
+.count-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
+
 /* ── Show editor sub-tabs (Details/Plan/Roles/Budget) ──
    A second, independent tab system nested inside the Shows tab's own editor panel — deliberately
    NOT the same .tab-panel/[data-tab] machinery the outer Shows/Task Templates/editor tabs use
@@ -233,8 +244,9 @@ input[type="file"].form-control { padding: 7px 10px; }
    indent, capped with min() so a deep tree doesn't run out of room on a phone; per-level indent
    is smaller again under the mobile breakpoint for the same reason. */
 .task-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; font-size: 13px; }
-.task-row.subtask { margin-left: min(calc(var(--depth, 1) * 24px), 96px); background: var(--bg); }
+.task-row.subtask { background: var(--bg); }
 .task-row.overdue { border-left: 3px solid var(--danger); }
+.task-row .task-drag-handle { margin-right: -4px; }
 .task-row .task-title { flex: 1 1 140px; min-width: 0; font-weight: 500; }
 .task-row .task-title .task-desc { display: block; font-weight: 400; font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-row .task-title .task-subcount { font-weight: 400; font-size: 11px; color: var(--text-muted); }
@@ -251,8 +263,21 @@ input[type="file"].form-control { padding: 7px 10px; }
 .task-toggle-spacer { flex-shrink: 0; width: 48px; }
 .role-assignees { font-size: 12px; color: var(--text-muted); }
 
+/* Nested containers (mirrors .tpl-task-card/.tpl-task-children) so each level's indent compounds
+   naturally and Sortable's own nested-list dragging handles reparenting for free — see the task
+   template editor's own comment for the full reasoning, reused verbatim here. */
+.task-card[hidden] { display: none; }
+.task-children { padding-left: 18px; border-left: 2px solid var(--border); }
+.task-children:not(:empty) { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+.task-drag-handle { flex-shrink: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 20px; cursor: grab; touch-action: none; border-radius: 8px; user-select: none; }
+.task-drag-handle:hover { background: var(--surface); color: var(--text); }
+.task-drag-handle:active { cursor: grabbing; }
+.task-drag-ghost { opacity: .35; }
+.task-drag-chosen .task-row { background: var(--primary-light); }
+.task-drag-active { box-shadow: var(--shadow-md); }
+
 @media (max-width: 560px) {
-  .task-row.subtask { margin-left: min(calc(var(--depth, 1) * 12px), 60px); }
+  .task-children { padding-left: 10px; }
   .task-row .task-secondary { flex-basis: 100%; margin-left: 24px; justify-content: flex-start; }
   .task-row .task-meta { max-width: none; }
 }
@@ -606,6 +631,13 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 
 /* ── Modal (expense detail) ── */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 200; }
+/* The shared people picker (#assignRoleModal) and the comments dialog (#taskCommentsModal) can
+   both be opened FROM WITHIN the task detail modal (assigning people / viewing comments on a task
+   being edited) as well as standalone (Crew/Cast assignment) — stacked above every other modal by
+   z-index rather than relying on DOM order, which the task modal being defined later in the
+   document would otherwise win. */
+#assignRoleModal { z-index: 220; }
+#taskCommentsModal { z-index: 210; }
 .modal-card { background: var(--surface); border-radius: 14px; max-width: 480px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow-md); }
 .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
 .modal-header h3 { font-size: 16px; font-weight: 700; }

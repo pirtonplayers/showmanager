@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.224"></script>
+  <script src="../shared/embed.js?v=1.0.225"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#6d28d9">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowPlanner</title>
-  <link rel="manifest" href="manifest.json?v=1.0.224">
-  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.224">
-  <link rel="stylesheet" href="style.css?v=1.0.224">
+  <link rel="manifest" href="manifest.json?v=1.0.225">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.225">
+  <link rel="stylesheet" href="style.css?v=1.0.225">
 </head>
 <body class="theme-showplanner">
 
@@ -206,7 +206,7 @@
       <div class="show-subtabs no-print">
         <button class="show-subtab-btn active" data-subtab="details">Details</button>
         <button class="show-subtab-btn" data-subtab="plan">Plan</button>
-        <button class="show-subtab-btn" data-subtab="roles">Roles</button>
+        <button class="show-subtab-btn" data-subtab="roles">Crew &amp; Cast</button>
         <button class="show-subtab-btn" data-subtab="budget">Budget</button>
       </div>
 
@@ -269,6 +269,16 @@
           <button class="btn btn-primary btn-sm no-print" id="addTaskBtn">+ Add task</button>
         </div>
         <div class="card-body">
+          <div class="no-print" id="taskFilterBar" style="display:none;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="taskHideCompletedToggle">
+              Hide completed
+            </label>
+            <select id="taskHideCompletedScope" class="form-control" style="width:auto;font-size:13px;padding:4px 8px" disabled>
+              <option value="all">All tasks</option>
+              <option value="parent">Parent tasks only</option>
+            </select>
+          </div>
           <div class="item-list" id="tasksList"></div>
         </div>
       </div>
@@ -276,7 +286,7 @@
 
       <div id="showsubtab-roles" class="show-subtab-panel">
       <div class="card" style="margin-bottom:20px" id="rolesCard">
-        <div class="card-header"><h2>Roles</h2></div>
+        <div class="card-header"><h2>Crew</h2></div>
         <div class="card-body" style="padding:0">
           <div class="expense-table-wrap">
             <table class="expense-table" id="rolesTable">
@@ -286,7 +296,21 @@
           </div>
         </div>
         <div class="card-body no-print" style="padding-top:0">
-          <button class="btn btn-secondary btn-sm" id="addRoleBtn">+ Add role</button>
+          <button class="btn btn-secondary btn-sm" id="addRoleBtn">+ Add crew role</button>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:20px" id="castCard">
+        <div class="card-header"><h2>Cast</h2></div>
+        <div class="card-body" style="padding:0">
+          <div class="expense-table-wrap">
+            <table class="expense-table" id="castTable">
+              <thead><tr><th>Part</th><th>Assigned</th><th class="no-print" style="width:80px"></th><th class="no-print" style="width:36px"></th></tr></thead>
+              <tbody id="castTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-body no-print" style="padding-top:0">
+          <button class="btn btn-secondary btn-sm" id="addCastBtn">+ Add cast part</button>
         </div>
       </div>
       <div class="card no-print" style="margin-bottom:20px" id="planAccessCard">
@@ -308,9 +332,6 @@
         <div class="card-header"><h2>Ticket &amp; income parameters</h2></div>
         <div class="card-body" style="padding-top:20px">
           <div class="fp-col-params">
-            <label for="fpTicketPrice">Default ticket price</label>
-            <input type="number" id="fpTicketPrice" class="form-control num-input" min="0" step="1">
-
             <label for="fpSeats">Seats per performance</label>
             <input type="number" id="fpSeats" class="form-control num-input" min="0" step="1">
 
@@ -445,8 +466,11 @@
       <button class="modal-close-btn" id="assignRoleCloseBtn" aria-label="Close">×</button>
     </div>
     <div class="modal-body">
+      <input type="text" class="form-control" id="assignRoleFilter" placeholder="Search people…" style="margin-bottom:10px">
       <div class="checklist" id="assignRoleChecklist"></div>
-      <p class="muted" id="assignRoleEmptyNote" style="display:none">No one else has ShowPlanner access yet.</p>
+      <button class="btn btn-secondary btn-full" id="assignRoleAddGuestRow" style="display:none;margin-top:8px">
+        <span id="assignRoleAddGuestLabel">+ Add as a guest</span>
+      </button>
       <button class="btn btn-primary btn-full" id="assignRoleSaveBtn" style="margin-top:14px">Save</button>
     </div>
   </div>
@@ -466,7 +490,15 @@
       </div>
       <div class="form-group">
         <label for="taskDescInput">Description</label>
-        <textarea id="taskDescInput" class="form-control" rows="2"></textarea>
+        <textarea id="taskDescInput" class="form-control task-desc-textarea" rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <div class="status-pill-row" id="taskStatusPills">
+          <button type="button" class="status-pill" data-status-pill="not_started">Not started</button>
+          <button type="button" class="status-pill" data-status-pill="in_progress">In progress</button>
+          <button type="button" class="status-pill" data-status-pill="completed">Completed</button>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div class="form-group">
@@ -474,43 +506,42 @@
           <input type="date" id="taskDueDateInput" class="form-control">
         </div>
         <div class="form-group">
-          <label for="taskStatusSelect">Status</label>
-          <select id="taskStatusSelect" class="form-control">
-            <option value="not_started">Not started</option>
-            <option value="in_progress">In progress</option>
-            <option value="completed">Completed</option>
-          </select>
-          <p id="taskStatusAutoNote" class="muted" style="font-size:11px;margin-top:4px;display:none"></p>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-        <div class="form-group">
           <label for="taskRoleSelect">Role</label>
           <select id="taskRoleSelect" class="form-control"></select>
         </div>
-        <div class="form-group">
-          <label for="taskParentSelect">Sub-task of</label>
-          <select id="taskParentSelect" class="form-control"></select>
-        </div>
       </div>
       <div class="form-group">
-        <label>Assigned people</label>
-        <div class="checklist" id="taskAssigneeChecklist"></div>
+        <label for="taskParentSelect">Sub-task of <span class="muted" style="font-weight:400">(optional)</span></label>
+        <select id="taskParentSelect" class="form-control"></select>
       </div>
-      <div class="form-group">
-        <label>Comments</label>
-        <div id="taskCommentsList" style="margin-bottom:8px"></div>
-        <div style="display:flex;gap:8px">
-          <input type="text" id="taskCommentInput" class="form-control" placeholder="Add a comment…">
-          <button class="btn btn-secondary btn-sm" id="taskCommentAddBtn" style="flex-shrink:0">Post</button>
-        </div>
+      <div class="form-group" style="display:flex;gap:10px">
+        <button type="button" class="btn btn-secondary count-btn" id="taskAssigneesBtn" style="flex:1">
+          Assigned people <span class="badge badge-primary" id="taskAssigneesCount">0</span>
+        </button>
+        <button type="button" class="btn btn-secondary count-btn" id="taskCommentsBtn" style="flex:1">
+          Comments <span class="badge badge-primary" id="taskCommentsCount">0</span>
+        </button>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
         <button class="btn btn-danger btn-sm" id="taskDeleteBtn">Delete task</button>
-        <span style="display:flex;gap:8px;align-items:center">
-          <span id="taskSaveStatusText" class="muted"></span>
-          <button class="btn btn-primary" id="taskSaveBtn">Save task</button>
-        </span>
+        <span id="taskSaveStatusText" class="muted"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Task comments -->
+<div id="taskCommentsModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Comments</h3>
+      <button class="modal-close-btn" id="taskCommentsCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="taskCommentsList" style="margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="taskCommentInput" class="form-control" placeholder="Add a comment…">
+        <button class="btn btn-secondary btn-sm" id="taskCommentAddBtn" style="flex-shrink:0">Post</button>
       </div>
     </div>
   </div>
@@ -561,11 +592,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.224"></script>
-<script src="../shared/load-script.js?v=1.0.224"></script>
-<script src="../shared/firebase-config.js?v=1.0.224"></script>
-<script src="../shared/auth.js?v=1.0.224"></script>
-<script src="../shared/suite-nav.js?v=1.0.224"></script>
-<script src="budget.js?v=1.0.224"></script>
+<script src="../shared/version.js?v=1.0.225"></script>
+<script src="../shared/load-script.js?v=1.0.225"></script>
+<script src="../shared/firebase-config.js?v=1.0.225"></script>
+<script src="../shared/auth.js?v=1.0.225"></script>
+<script src="../shared/suite-nav.js?v=1.0.225"></script>
+<script src="budget.js?v=1.0.225"></script>
 </body>
 </html>
