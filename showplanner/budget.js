@@ -141,7 +141,8 @@ let currentShowTasks = [];  // [{id, ...data}] — showplanner_shows/{id}/tasks 
 let allTemplates = [];      // [{id, ...data}] — task-checklist templates (showplanner_templates)
 let currentTemplate = null; // working copy of the template doc currently open in its editor
 let currentTemplateId = null;
-let expandedTemplateTasks = new Set(); // local UI-only state — which task cards show full detail vs. just their name
+let expandedTemplateTasks = new Set(); // local UI-only state — which task cards have their own detail (via "…") open
+let collapsedTemplateChildren = new Set(); // local UI-only state — which tasks have their sub-task cards hidden
 let showEditorDirty = false; // any pending edit to the OPEN show not yet written by Save changes
 function markDirty() { showEditorDirty = true; }
 // Text/number/select edits inside the editor (or the two modals that feed it — Add income/spend
@@ -1347,6 +1348,7 @@ async function openTemplate(id) {
   currentTemplateId = id;
   currentTemplate = { roles: [], tasks: [], ...doc.data(), id: doc.id };
   expandedTemplateTasks = new Set();
+  collapsedTemplateChildren = new Set();
   renderTemplateEditor();
   switchTab('templateEditor');
 }
@@ -1445,21 +1447,29 @@ function renderTemplateTasksTable() {
         .map(pi => `<option value="${pi}"${parentIndex === pi ? ' selected' : ''}>${'— '.repeat(templateDepth(pi))}${escapeHtml(tasks[pi].title || `Task ${pi + 1}`)}</option>`).join('');
   };
 
-  // Collapsed (the default): just a toggle, the title, and delete — everything else lives behind
-  // "expand" so a long checklist reads as a plain list of names instead of a wall of fields.
-  // A freshly-added task (below) starts expanded, since its whole point is to be filled in right
-  // away; anything already saved defaults to collapsed.
+  // Collapsed (the default): a sub-task toggle (only if it has children — controls whether ITS
+  // sub-task cards are shown at all, nothing to do with this task's own fields), the title, and
+  // a "…" that opens this task's own detail — description, the fields grid, +Add sub-task and
+  // Delete all live there instead of cluttering the collapsed row. A freshly-added task starts
+  // with its detail already open, since the point of adding one is to fill it in right away;
+  // anything already saved defaults to collapsed. Sub-task visibility (collapsedTemplateChildren)
+  // defaults to visible/expanded, same as the real show's own task list.
   function cardHtml(i, depth) {
     const t = tasks[i];
-    const expanded = expandedTemplateTasks.has(i);
+    const detailOpen = expandedTemplateTasks.has(i);
+    const hasChildren = templateChildIndices(i).length > 0;
+    const childrenCollapsed = collapsedTemplateChildren.has(i);
+    const subToggle = hasChildren
+      ? `<button class="task-toggle-btn" data-task-toggle-children="${i}" title="${childrenCollapsed ? 'Show sub-tasks' : 'Hide sub-tasks'}">${childrenCollapsed ? '▸' : '▾'}</button>`
+      : '<span class="task-toggle-spacer"></span>';
     return `
     <div class="tpl-task-card${depth > 0 ? ' subtask' : ''}" style="${depth > 0 ? `--depth:${depth}` : ''}">
       <div class="tpl-task-card-top">
-        <button class="task-toggle-btn" data-task-toggle-detail="${i}" title="${expanded ? 'Collapse' : 'Expand'}">${expanded ? '▾' : '▸'}</button>
+        ${subToggle}
         <input type="text" class="form-control" style="flex:1;min-width:0" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${i}:title">
-        <button class="grid-del-btn" data-task-remove="${i}" title="Remove">×</button>
+        <button class="tpl-task-more-btn" data-task-open-detail="${i}" title="${detailOpen ? 'Close details' : 'Task details'}">${detailOpen ? '✕' : '…'}</button>
       </div>
-      ${expanded ? `
+      ${detailOpen ? `
       <div class="tpl-task-card-details">
         <input type="text" class="form-control" style="margin-bottom:8px" value="${escapeHtml(t.description || '')}" placeholder="Description (optional)" data-task-field="${i}:description">
         <div class="tpl-task-card-fields">
@@ -1476,28 +1486,26 @@ function renderTemplateTasksTable() {
             <select class="form-control" data-task-field="${i}:parentIndex">${parentOptions(i, t.parentIndex ?? null)}</select>
           </div>
         </div>
-        <button class="btn btn-secondary btn-sm" style="margin-top:10px" data-task-add-sub="${i}">+ Add sub-task</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+          <button class="btn btn-secondary btn-sm" data-task-add-sub="${i}">+ Add sub-task</button>
+          <button class="btn btn-danger btn-sm" data-task-remove="${i}">Delete task</button>
+        </div>
       </div>` : ''}
-    </div>`;
+    </div>${(hasChildren && !childrenCollapsed) ? templateChildIndices(i).map(ci => cardHtml(ci, depth + 1)).join('') : ''}`;
   }
 
   const rendered = new Set();
-  let html = '';
-  function walk(i, depth) {
-    html += cardHtml(i, depth);
-    rendered.add(i);
-    templateChildIndices(i).forEach(ci => walk(ci, depth + 1));
-  }
-  templateTopLevelIndices().forEach(i => walk(i, 0));
+  templateTopLevelIndices().forEach(i => { rendered.add(i); templateDescendantIndices(i).forEach(d => rendered.add(d)); });
   // Safety net: a task whose parentIndex points at a since-removed/invalid index still renders —
   // as its own top-level-styled subtree — rather than silently vanishing from the list.
-  tasks.forEach((t, i) => { if (!rendered.has(i)) walk(i, 0); });
+  let html = templateTopLevelIndices().map(i => cardHtml(i, 0)).join('');
+  tasks.forEach((t, i) => { if (!rendered.has(i)) html += cardHtml(i, 0); });
 
   el.innerHTML = html;
 }
 document.getElementById('addTemplateTaskBtn').addEventListener('click', () => {
   currentTemplate.tasks.push({ title: '', description: '', daysBeforeShow: 0, roleId: null, parentIndex: null });
-  expandedTemplateTasks.add(currentTemplate.tasks.length - 1); // start expanded — it's blank, the point is to fill it in
+  expandedTemplateTasks.add(currentTemplate.tasks.length - 1); // start with detail open — it's blank, the point is to fill it in
   renderTemplateTasksTable();
   document.querySelector(`[data-task-field="${currentTemplate.tasks.length - 1}:title"]`)?.focus();
 });
@@ -1523,10 +1531,26 @@ document.getElementById('templateTasksList').addEventListener('change', (e) => {
   else return;
   renderTemplateTasksTable();
 });
+// Re-indexes a Set of task indices the same way currentTemplate.tasks.splice(idx, 1) just did —
+// the deleted index drops out, everything after it shifts down by one. Used for both
+// expandedTemplateTasks and collapsedTemplateChildren, which are index-keyed the same way
+// parentIndex is.
+function reindexAfterRemoval(set, idx) {
+  const shifted = new Set();
+  set.forEach(ei => { if (ei < idx) shifted.add(ei); else if (ei > idx) shifted.add(ei - 1); });
+  return shifted;
+}
 document.getElementById('templateTasksList').addEventListener('click', (e) => {
-  const toggleIdx = e.target.getAttribute('data-task-toggle-detail');
-  if (toggleIdx !== null) {
-    const idx = Number(toggleIdx);
+  const toggleChildrenIdx = e.target.getAttribute('data-task-toggle-children');
+  if (toggleChildrenIdx !== null) {
+    const idx = Number(toggleChildrenIdx);
+    if (collapsedTemplateChildren.has(idx)) collapsedTemplateChildren.delete(idx); else collapsedTemplateChildren.add(idx);
+    renderTemplateTasksTable();
+    return;
+  }
+  const openDetailIdx = e.target.getAttribute('data-task-open-detail');
+  if (openDetailIdx !== null) {
+    const idx = Number(openDetailIdx);
     if (expandedTemplateTasks.has(idx)) expandedTemplateTasks.delete(idx); else expandedTemplateTasks.add(idx);
     renderTemplateTasksTable();
     return;
@@ -1539,10 +1563,8 @@ document.getElementById('templateTasksList').addEventListener('click', (e) => {
       if (t.parentIndex === idx) t.parentIndex = null;
       else if (t.parentIndex != null && t.parentIndex > idx) t.parentIndex -= 1;
     });
-    // expandedTemplateTasks holds indices too — shift them the same way parentIndex above just did.
-    const shifted = new Set();
-    expandedTemplateTasks.forEach(ei => { if (ei < idx) shifted.add(ei); else if (ei > idx) shifted.add(ei - 1); });
-    expandedTemplateTasks = shifted;
+    expandedTemplateTasks = reindexAfterRemoval(expandedTemplateTasks, idx);
+    collapsedTemplateChildren = reindexAfterRemoval(collapsedTemplateChildren, idx);
     renderTemplateTasksTable();
     return;
   }
@@ -1552,7 +1574,8 @@ document.getElementById('templateTasksList').addEventListener('click', (e) => {
     // reference) ever shifts — same reasoning as the top-level +Add task button.
     currentTemplate.tasks.push({ title: '', description: '', daysBeforeShow: 0, roleId: null, parentIndex: Number(addSubIdx) });
     const newRow = currentTemplate.tasks.length - 1;
-    expandedTemplateTasks.add(newRow); // start expanded — same reasoning as +Add task above
+    expandedTemplateTasks.add(newRow); // start with detail open — same reasoning as +Add task above
+    collapsedTemplateChildren.delete(Number(addSubIdx)); // the parent's sub-tasks must be visible, or the new one would be invisible right after creating it
     renderTemplateTasksTable();
     // Jump straight into naming the new sub-task — this button exists specifically so a whole
     // checklist under one task is click, type, click, type, not click-then-hunt-for-the-input.
