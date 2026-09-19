@@ -1490,6 +1490,13 @@ async function initTemplateSortables() {
       easing: 'cubic-bezier(0.2, 0, 0, 1)',
       fallbackOnBody: true,
       swapThreshold: 0.65,
+      // A touch on the handle needs a genuine press-and-hold before the drag activates, so a
+      // finger just tapping through or scrolling past the list doesn't accidentally grab a task
+      // — mouse users still get an instant drag on mousedown, since click-and-drag is already the
+      // natural desktop gesture and an artificial delay there would just feel laggy.
+      delay: 250,
+      delayOnTouchOnly: true,
+      touchStartThreshold: 6,
       ghostClass: 'tpl-drag-ghost',
       chosenClass: 'tpl-drag-chosen',
       dragClass: 'tpl-drag-active',
@@ -1534,13 +1541,14 @@ function renderTemplateTasksTable() {
 
   // Collapsed (the default): a drag handle, a sub-task toggle (only if it has children —
   // controls whether ITS sub-task cards are shown at all, nothing to do with this task's own
-  // fields), the title, and a "…" that opens this task's own detail — description, the fields
-  // grid, +Add sub-task and Delete all live there instead of cluttering the collapsed row. A
-  // freshly-added task starts with its detail already open, since the point of adding one is to
-  // fill it in right away; anything already saved defaults to collapsed. Children render inside
-  // an ACTUAL nested container (not a flat sibling with a visual indent) so Sortable's own
-  // nested-list dragging handles reparenting for free — the container always exists, even with
-  // no children yet, so a childless task is still a place you can drag a new sub-task onto.
+  // fields), a "+" that adds a sub-task directly (no need to open detail first), the title, and
+  // a "…" that opens this task's own detail — description, the fields grid and Delete live there
+  // instead of cluttering the collapsed row. Every task, freshly added or already saved, starts
+  // collapsed — its title is right there on the collapsed row to type into either way. Children
+  // render inside an ACTUAL nested container (not a flat sibling with a visual indent) so
+  // Sortable's own nested-list dragging handles reparenting for free — the container always
+  // exists, even with no children yet, so a childless task is still a place you can drag a new
+  // sub-task onto.
   function cardHtml(taskId) {
     const t = tasks.find(x => x.id === taskId);
     const detailOpen = expandedTemplateTasks.has(taskId);
@@ -1556,6 +1564,7 @@ function renderTemplateTasksTable() {
         <span class="tpl-drag-handle" title="Drag to move">⠿</span>
         ${subToggle}
         <input type="text" class="form-control" style="flex:1;min-width:0" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${taskId}:title">
+        <button class="tpl-task-add-sub-btn" data-task-add-sub="${taskId}" title="Add sub-task">+</button>
         <button class="tpl-task-more-btn" data-task-open-detail="${taskId}" title="${detailOpen ? 'Close details' : 'Task details'}">${detailOpen ? '✕' : '…'}</button>
       </div>
       ${detailOpen ? `
@@ -1575,8 +1584,7 @@ function renderTemplateTasksTable() {
             <select class="form-control" data-task-field="${taskId}:parentId">${parentOptions(taskId, t.parentId ?? null)}</select>
           </div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
-          <button class="btn btn-secondary btn-sm" data-task-add-sub="${taskId}">+ Add sub-task</button>
+        <div style="text-align:right;margin-top:10px">
           <button class="btn btn-danger btn-sm" data-task-remove="${taskId}">Delete task</button>
         </div>
       </div>` : ''}
@@ -1597,7 +1605,8 @@ function renderTemplateTasksTable() {
 document.getElementById('addTemplateTaskBtn').addEventListener('click', () => {
   const newTask = { id: uid(), title: '', description: '', daysBeforeShow: 0, roleId: null, parentId: null, order: templateTopLevelSorted().length };
   currentTemplate.tasks.push(newTask);
-  expandedTemplateTasks.add(newTask.id); // start with detail open — it's blank, the point is to fill it in
+  // Collapsed like every other task — the title's own input is right there on the collapsed row
+  // to type into; only the description/days-before/role/parent detail stays tucked away.
   renderTemplateTasksTable();
   document.querySelector(`[data-task-field="${newTask.id}:title"]`)?.focus();
 });
@@ -1653,7 +1662,6 @@ document.getElementById('templateTasksList').addEventListener('click', (e) => {
   if (addSubId !== null) {
     const newTask = { id: uid(), title: '', description: '', daysBeforeShow: 0, roleId: null, parentId: addSubId, order: templateChildrenSorted(addSubId).length };
     currentTemplate.tasks.push(newTask);
-    expandedTemplateTasks.add(newTask.id); // start with detail open — same reasoning as +Add task above
     collapsedTemplateChildren.delete(addSubId); // the parent's sub-tasks must be visible, or the new one would be invisible right after creating it
     renderTemplateTasksTable();
     // Jump straight into naming the new sub-task — this button exists specifically so a whole
