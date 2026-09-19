@@ -1541,14 +1541,15 @@ function renderTemplateTasksTable() {
 
   // Collapsed (the default): a drag handle, a sub-task toggle (only if it has children —
   // controls whether ITS sub-task cards are shown at all, nothing to do with this task's own
-  // fields), a "+" that adds a sub-task directly (no need to open detail first), the title, and
-  // a "…" that opens this task's own detail — description, the fields grid and Delete live there
-  // instead of cluttering the collapsed row. Every task, freshly added or already saved, starts
-  // collapsed — its title is right there on the collapsed row to type into either way. Children
-  // render inside an ACTUAL nested container (not a flat sibling with a visual indent) so
-  // Sortable's own nested-list dragging handles reparenting for free — the container always
-  // exists, even with no children yet, so a childless task is still a place you can drag a new
-  // sub-task onto.
+  // fields), the title, and a "…" — closed, it opens a small menu (Edit/Add sub-task/Delete);
+  // already open (showing "✕" instead), it just closes the detail directly, no menu needed. Edit
+  // reveals description/the fields grid; Add sub-task and Delete both live in the menu, not as
+  // their own icons, so the collapsed row never grows past drag handle + toggle + title + one
+  // button. Every task, freshly added or already saved, starts collapsed — its title is right
+  // there on the collapsed row to type into either way. Children render inside an ACTUAL nested
+  // container (not a flat sibling with a visual indent) so Sortable's own nested-list dragging
+  // handles reparenting for free — the container always exists, even with no children yet, so a
+  // childless task is still a place you can drag a new sub-task onto.
   function cardHtml(taskId) {
     const t = tasks.find(x => x.id === taskId);
     const detailOpen = expandedTemplateTasks.has(taskId);
@@ -1564,8 +1565,7 @@ function renderTemplateTasksTable() {
         <span class="tpl-drag-handle" title="Drag to move">⠿</span>
         ${subToggle}
         <input type="text" class="form-control" style="flex:1;min-width:0" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${taskId}:title">
-        <button class="tpl-task-add-sub-btn" data-task-add-sub="${taskId}" title="Add sub-task">+</button>
-        <button class="tpl-task-more-btn" data-task-open-detail="${taskId}" title="${detailOpen ? 'Close details' : 'Task details'}">${detailOpen ? '✕' : '…'}</button>
+        <button class="tpl-task-more-btn" data-task-open-detail="${taskId}" title="${detailOpen ? 'Close details' : 'Task menu'}">${detailOpen ? '✕' : '…'}</button>
       </div>
       ${detailOpen ? `
       <div class="tpl-task-card-details">
@@ -1583,9 +1583,6 @@ function renderTemplateTasksTable() {
             <label>Sub-task of</label>
             <select class="form-control" data-task-field="${taskId}:parentId">${parentOptions(taskId, t.parentId ?? null)}</select>
           </div>
-        </div>
-        <div style="text-align:right;margin-top:10px">
-          <button class="btn btn-danger btn-sm" data-task-remove="${taskId}">Delete task</button>
         </div>
       </div>` : ''}
       <div class="tpl-task-children" data-parent-id="${taskId}">${(!childrenCollapsed) ? children.map(c => cardHtml(c.id)).join('') : ''}</div>
@@ -1636,6 +1633,60 @@ document.getElementById('templateTasksList').addEventListener('change', (e) => {
   } else return;
   renderTemplateTasksTable();
 });
+// Add sub-task / Delete task are shared between the "…" menu below and (add-sub only) nowhere
+// else now — factored out so both call the exact same logic.
+function addTemplateSubTask(parentId) {
+  const newTask = { id: uid(), title: '', description: '', daysBeforeShow: 0, roleId: null, parentId, order: templateChildrenSorted(parentId).length };
+  currentTemplate.tasks.push(newTask);
+  collapsedTemplateChildren.delete(parentId); // the parent's sub-tasks must be visible, or the new one would be invisible right after creating it
+  renderTemplateTasksTable();
+  // Jump straight into naming the new sub-task — this exists specifically so a whole checklist
+  // under one task is click, type, click, type, not click-then-hunt-for-the-input.
+  document.querySelector(`[data-task-field="${newTask.id}:title"]`)?.focus();
+}
+function deleteTemplateTask(taskId) {
+  const descendants = templateDescendantIds(taskId);
+  if (descendants.size && !confirm(`Delete this task and its ${descendants.size} sub-task${descendants.size === 1 ? '' : 's'}? This cannot be undone.`)) return;
+  currentTemplate.tasks = currentTemplate.tasks.filter(t => t.id !== taskId && !descendants.has(t.id));
+  [taskId, ...descendants].forEach(id => { expandedTemplateTasks.delete(id); collapsedTemplateChildren.delete(id); });
+  renderTemplateTasksTable();
+}
+
+// One shared floating menu (#tplTaskMenu in index.html) repositioned to whichever card's "…" was
+// clicked, rather than one menu per card. tplTaskMenuTargetId tracks which task it's currently
+// open for.
+let tplTaskMenuTargetId = null;
+function openTplTaskMenu(anchorBtn, taskId) {
+  tplTaskMenuTargetId = taskId;
+  const menu = document.getElementById('tplTaskMenu');
+  const rect = anchorBtn.getBoundingClientRect();
+  menu.hidden = false;
+  const menuWidth = menu.offsetWidth;
+  menu.style.top = `${rect.bottom + 4}px`;
+  menu.style.left = `${Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8))}px`;
+}
+function closeTplTaskMenu() {
+  document.getElementById('tplTaskMenu').hidden = true;
+  tplTaskMenuTargetId = null;
+}
+document.getElementById('tplTaskMenu').addEventListener('click', (e) => {
+  const action = e.target.closest('[data-tpl-menu-action]')?.getAttribute('data-tpl-menu-action');
+  if (!action) return;
+  const taskId = tplTaskMenuTargetId;
+  closeTplTaskMenu();
+  if (!taskId) return;
+  if (action === 'edit') { expandedTemplateTasks.add(taskId); renderTemplateTasksTable(); }
+  else if (action === 'add-sub') addTemplateSubTask(taskId);
+  else if (action === 'delete') deleteTemplateTask(taskId);
+});
+// Click anywhere outside the menu (and not on the "…" button that opens it — that has its own
+// handler below) closes it.
+document.addEventListener('click', (e) => {
+  if (document.getElementById('tplTaskMenu').hidden) return;
+  if (e.target.closest('#tplTaskMenu') || e.target.closest('[data-task-open-detail]')) return;
+  closeTplTaskMenu();
+});
+
 document.getElementById('templateTasksList').addEventListener('click', (e) => {
   const toggleChildrenId = e.target.getAttribute('data-task-toggle-children');
   if (toggleChildrenId !== null) {
@@ -1643,30 +1694,17 @@ document.getElementById('templateTasksList').addEventListener('click', (e) => {
     renderTemplateTasksTable();
     return;
   }
-  const openDetailId = e.target.getAttribute('data-task-open-detail');
-  if (openDetailId !== null) {
-    if (expandedTemplateTasks.has(openDetailId)) expandedTemplateTasks.delete(openDetailId); else expandedTemplateTasks.add(openDetailId);
-    renderTemplateTasksTable();
-    return;
-  }
-  const removeId = e.target.getAttribute('data-task-remove');
-  if (removeId !== null) {
-    const descendants = templateDescendantIds(removeId);
-    if (descendants.size && !confirm(`Delete this task and its ${descendants.size} sub-task${descendants.size === 1 ? '' : 's'}? This cannot be undone.`)) return;
-    currentTemplate.tasks = currentTemplate.tasks.filter(t => t.id !== removeId && !descendants.has(t.id));
-    [removeId, ...descendants].forEach(id => { expandedTemplateTasks.delete(id); collapsedTemplateChildren.delete(id); });
-    renderTemplateTasksTable();
-    return;
-  }
-  const addSubId = e.target.getAttribute('data-task-add-sub');
-  if (addSubId !== null) {
-    const newTask = { id: uid(), title: '', description: '', daysBeforeShow: 0, roleId: null, parentId: addSubId, order: templateChildrenSorted(addSubId).length };
-    currentTemplate.tasks.push(newTask);
-    collapsedTemplateChildren.delete(addSubId); // the parent's sub-tasks must be visible, or the new one would be invisible right after creating it
-    renderTemplateTasksTable();
-    // Jump straight into naming the new sub-task — this button exists specifically so a whole
-    // checklist under one task is click, type, click, type, not click-then-hunt-for-the-input.
-    document.querySelector(`[data-task-field="${newTask.id}:title"]`)?.focus();
+  const openDetailBtn = e.target.closest('[data-task-open-detail]');
+  if (openDetailBtn) {
+    const openDetailId = openDetailBtn.getAttribute('data-task-open-detail');
+    if (expandedTemplateTasks.has(openDetailId)) {
+      // Already open — "✕" just closes it directly, no menu needed.
+      expandedTemplateTasks.delete(openDetailId);
+      renderTemplateTasksTable();
+    } else {
+      // Closed — "…" brings up the Edit/Add sub-task/Delete menu instead of opening directly.
+      openTplTaskMenu(openDetailBtn, openDetailId);
+    }
   }
 });
 

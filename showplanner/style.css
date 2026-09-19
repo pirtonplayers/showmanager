@@ -472,8 +472,15 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .tpl-task-card-fields label { display: block; font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 3px; }
 .tpl-task-more-btn { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; border: none; background: none; color: var(--text-muted); font-size: 18px; font-weight: 700; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
 .tpl-task-more-btn:hover { background: var(--surface); color: var(--text); }
-.tpl-task-add-sub-btn { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; border: none; background: none; color: var(--text-muted); font-size: 20px; font-weight: 700; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
-.tpl-task-add-sub-btn:hover { background: var(--primary-light); color: var(--primary-dark); }
+
+/* "…" menu — one shared floating panel (see #tplTaskMenu in index.html), positioned by JS next
+   to whichever card's button was clicked. Fixed positioning so it isn't clipped by any scrolling
+   ancestor, and a comfortable min tap-target height per item for touch. */
+.tpl-task-menu { position: fixed; z-index: 300; min-width: 170px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.tpl-task-menu button { display: block; width: 100%; text-align: left; padding: 10px 12px; border: none; background: none; border-radius: 6px; font-size: 14px; color: var(--text); cursor: pointer; }
+.tpl-task-menu button:hover { background: var(--bg); }
+.tpl-task-menu button.danger { color: var(--danger); }
+.tpl-task-menu button.danger:hover { background: var(--danger-light); }
 
 /* Nested sub-task container — always present (even empty) so a childless task is still a valid
    drop target; its own left padding + border is what visually communicates nesting, no per-card
