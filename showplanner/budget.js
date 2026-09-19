@@ -262,7 +262,8 @@ function withDefaults(show) {
 
 function openNewShowModal(preselectSourceId) {
   const sel = document.getElementById('newShowSource');
-  sel.innerHTML = allShows.map(s => `<option value="${s.id}">${escapeHtml(s.name)}${s.isTemplate ? ' (template)' : ''}</option>`).join('');
+  sel.innerHTML = '<option value="">— Start from scratch (blank) —</option>' +
+    allShows.map(s => `<option value="${s.id}">${escapeHtml(s.name)}${s.isTemplate ? ' (template)' : ''}</option>`).join('');
   if (preselectSourceId) sel.value = preselectSourceId;
   document.getElementById('newShowName').value = '';
   document.getElementById('newShowDirector').value = '';
@@ -283,17 +284,18 @@ document.getElementById('newShowCreateBtn').addEventListener('click', async () =
   const sourceId = document.getElementById('newShowSource').value;
   const errEl = document.getElementById('newShowError');
   if (!name) { errEl.textContent = 'Enter a show name.'; return; }
-  const source = allShows.find(s => s.id === sourceId);
-  if (!source) { errEl.textContent = 'Choose a show to start from.'; return; }
+  // Blank sourceId (the "Start from scratch" option) skips cloning entirely — an empty budget
+  // the producer builds up with +Add income/spend item, same as it would look after clearing
+  // every line out of a cloned one anyway.
+  const clone = sourceId ? withDefaults(allShows.find(s => s.id === sourceId) || {}) : withDefaults({});
 
-  const clone = withDefaults(source);
   const newDoc = {
     name,
     director, producer, showType,
     roles: [],
     planTemplateId: null,
     isTemplate: false,
-    copiedFrom: sourceId,
+    copiedFrom: sourceId || null,
     fixedParams: JSON.parse(JSON.stringify(clone.fixedParams)),
     income: JSON.parse(JSON.stringify(clone.income)),
     spend: JSON.parse(JSON.stringify(clone.spend)),
@@ -702,8 +704,13 @@ function computeTaskStatus(task) {
   if (childStatuses.some(s => s === 'in_progress' || s === 'completed')) return 'in_progress';
   return 'not_started';
 }
+// A task only counts as overdue if it has a real target — an explicit date, or a "days before
+// show" that was actually set (not left at the 0 default) — so a template-generated task nobody
+// has reviewed yet doesn't show as overdue the moment a plan's generated.
 function isTaskOverdue(task, status) {
   if (!task.dueDate || status === 'completed') return false;
+  const hasRealTarget = task.dueMode === 'date' || (task.daysBeforeShow ?? 0) !== 0;
+  if (!hasRealTarget) return false;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const [y, m, d] = task.dueDate.split('-').map(Number);
   return new Date(y, m - 1, d) < today;
