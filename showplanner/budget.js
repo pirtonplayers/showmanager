@@ -175,14 +175,11 @@ function renderShowsList() {
     return;
   }
   el.innerHTML = allShows.map(s => {
-    const subParts = [];
-    if (s.director) subParts.push(`Dir: ${escapeHtml(s.director)}`);
-    if (s.showType) subParts.push(escapeHtml(s.showType));
     return `
     <div class="item-row" data-open-show="${s.id}" style="cursor:pointer">
       <div class="item-name-col">
         <div class="item-name">${escapeHtml(s.name || '(untitled)')}${s.isTemplate ? ' <span class="badge badge-primary">Template</span>' : ''}</div>
-        ${s.isTemplate ? '<div class="item-sub">Used to start new shows</div>' : (subParts.length ? `<div class="item-sub">${subParts.join(' · ')}</div>` : '')}
+        ${s.isTemplate ? '<div class="item-sub">Used to start new shows</div>' : ''}
       </div>
       <div class="item-actions">
         <button class="icon-btn" data-open-show="${s.id}" title="Open" aria-label="Open">${ICON_EDIT}</button>
@@ -242,9 +239,6 @@ function cleanSpend(spend) {
 function withDefaults(show) {
   return {
     ...show,
-    director: show.director || '',
-    producer: show.producer || '',
-    showType: show.showType || '',
     roles: show.roles || [],
     roleAssignments: show.roleAssignments || {},
     planAccess: show.planAccess || {},
@@ -267,9 +261,6 @@ function openNewShowModal(preselectSourceId) {
     allShows.map(s => `<option value="${s.id}">${escapeHtml(s.name)}${s.isTemplate ? ' (template)' : ''}</option>`).join('');
   if (preselectSourceId) sel.value = preselectSourceId;
   document.getElementById('newShowName').value = '';
-  document.getElementById('newShowDirector').value = '';
-  document.getElementById('newShowProducer').value = '';
-  document.getElementById('newShowType').value = '';
   document.getElementById('newShowError').textContent = '';
   document.getElementById('newShowModal').style.display = 'flex';
 }
@@ -279,9 +270,6 @@ document.getElementById('newShowModal').addEventListener('click', (e) => { if (e
 
 document.getElementById('newShowCreateBtn').addEventListener('click', async () => {
   const name = document.getElementById('newShowName').value.trim();
-  const director = document.getElementById('newShowDirector').value.trim();
-  const producer = document.getElementById('newShowProducer').value.trim();
-  const showType = document.getElementById('newShowType').value.trim();
   const sourceId = document.getElementById('newShowSource').value;
   const errEl = document.getElementById('newShowError');
   if (!name) { errEl.textContent = 'Enter a show name.'; return; }
@@ -292,7 +280,6 @@ document.getElementById('newShowCreateBtn').addEventListener('click', async () =
 
   const newDoc = {
     name,
-    director, producer, showType,
     roles: [],
     planTemplateId: null,
     isTemplate: false,
@@ -372,13 +359,8 @@ function renderEditor() {
   document.getElementById('editorTitle').textContent = currentShow.name || 'Show budget';
   document.getElementById('headerTitle').textContent = 'Show Budget';
   document.getElementById('showNameInput').value = currentShow.name || '';
-  document.getElementById('showDirectorInput').value = currentShow.director || '';
-  document.getElementById('showProducerInput').value = currentShow.producer || '';
-  document.getElementById('showTypeInput').value = currentShow.showType || '';
   document.getElementById('printShowName').textContent = currentShow.name || '';
-  document.getElementById('printShowMeta').textContent = currentShow.isTemplate ? 'Template' :
-    [currentShow.showType, currentShow.director && `Director: ${currentShow.director}`, currentShow.producer && `Producer: ${currentShow.producer}`]
-      .filter(Boolean).join(' · ');
+  document.getElementById('printShowMeta').textContent = currentShow.isTemplate ? 'Template' : '';
 
   const fp = currentShow.fixedParams;
   document.getElementById('fpTicketPrice').value = fp.ticketPrice || 0;
@@ -400,9 +382,6 @@ function renderEditor() {
   applyPlanCardVisibility();
 }
 
-document.getElementById('showDirectorInput').addEventListener('input', (e) => { currentShow.director = e.target.value; });
-document.getElementById('showProducerInput').addEventListener('input', (e) => { currentShow.producer = e.target.value; });
-document.getElementById('showTypeInput').addEventListener('input', (e) => { currentShow.showType = e.target.value; });
 
 // ── Plan (task templates → real tasks) ──────────────────────────────────
 
@@ -1219,9 +1198,6 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
   try {
     await db.collection('showplanner_shows').doc(currentShowId).set({
       name: currentShow.name.trim(),
-      director: currentShow.director || '',
-      producer: currentShow.producer || '',
-      showType: currentShow.showType || '',
       roles: currentShow.roles || [],
       roleAssignments: currentShow.roleAssignments || {},
       planAccess: currentShow.planAccess || {},
@@ -1571,14 +1547,7 @@ function renderTemplateTasksTable() {
   el.innerHTML = html;
   initTemplateSortables();
 }
-document.getElementById('addTemplateTaskBtn').addEventListener('click', () => {
-  const newTask = { id: uid(), title: '', description: '', daysBeforeShow: 0, roleId: null, parentId: null, order: templateTopLevelSorted().length };
-  currentTemplate.tasks.push(newTask);
-  // Collapsed like every other task — the title's own input is right there on the collapsed row
-  // to type into; only the description/days-before/role/parent detail stays tucked away.
-  renderTemplateTasksTable();
-  document.querySelector(`[data-task-field="${newTask.id}:title"]`)?.focus();
-});
+document.getElementById('addTemplateTaskBtn').addEventListener('click', () => openTplTaskNewModal(null));
 // Text/number fields mutate in place with no re-render (typing would lose focus otherwise —
 // same pattern as handleLineAmountInput above); role/parent selects re-render afterwards since
 // that's safe on a 'change' and keeps the parent-task dropdown's title labels current.
@@ -1593,16 +1562,11 @@ document.getElementById('templateTasksList').addEventListener('input', (e) => {
   const t = currentTemplate.tasks.find(t => t.id === taskId);
   if (t) t.title = e.target.value;
 });
-// Add sub-task / Delete task are shared between the "…" menu below and (add-sub only) nowhere
-// else now — factored out so both call the exact same logic.
+// Delete task is shared between the "…" menu below and nowhere else now — factored out so both
+// call the exact same logic. Add sub-task just opens the new-task modal pre-set to this parent.
 function addTemplateSubTask(parentId) {
-  const newTask = { id: uid(), title: '', description: '', daysBeforeShow: 0, roleId: null, parentId, order: templateChildrenSorted(parentId).length };
-  currentTemplate.tasks.push(newTask);
-  collapsedTemplateChildren.delete(parentId); // the parent's sub-tasks must be visible, or the new one would be invisible right after creating it
-  renderTemplateTasksTable();
-  // Jump straight into naming the new sub-task — this exists specifically so a whole checklist
-  // under one task is click, type, click, type, not click-then-hunt-for-the-input.
-  document.querySelector(`[data-task-field="${newTask.id}:title"]`)?.focus();
+  collapsedTemplateChildren.delete(parentId); // the parent's sub-tasks must be visible, or a newly-confirmed one would be invisible right after creating it
+  openTplTaskNewModal(parentId);
 }
 function deleteTemplateTask(taskId) {
   const descendants = templateDescendantIds(taskId);
@@ -1665,45 +1629,84 @@ function templateRoleOptionsHtml(roleId) {
   return `<option value=""${!roleId ? ' selected' : ''}>—</option>` +
     currentTemplate.roles.map(r => `<option value="${r.id}"${r.id === roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
 }
-function templateParentOptionsHtml(taskId, parentId) {
-  const excluded = new Set([taskId, ...templateDescendantIds(taskId)]);
+function templateParentOptionsHtml(excludeTaskId, parentId) {
+  const excluded = excludeTaskId ? new Set([excludeTaskId, ...templateDescendantIds(excludeTaskId)]) : new Set();
   return `<option value=""${!parentId ? ' selected' : ''}>Top-level</option>` +
     currentTemplate.tasks.filter(t => !excluded.has(t.id))
       .map(t => `<option value="${t.id}"${parentId === t.id ? ' selected' : ''}>${'— '.repeat(templateDepth(t.id))}${escapeHtml(t.title || '(untitled)')}</option>`).join('');
 }
-let tplTaskEditTargetId = null;
-function openTplTaskEditModal(taskId) {
-  const t = currentTemplate.tasks.find(x => x.id === taskId);
-  if (!t) return;
-  tplTaskEditTargetId = taskId;
+let tplTaskEditTargetId = null; // set when editing a task already in currentTemplate.tasks
+let tplTaskEditDraft = null;    // set instead, while adding a brand new one not yet saved
+function tplTaskEditFocusTarget() {
+  return tplTaskEditDraft || currentTemplate.tasks.find(x => x.id === tplTaskEditTargetId);
+}
+function fillTplTaskEditFields(t, excludeTaskId) {
   document.getElementById('tplTaskEditTitle').value = t.title || '';
   document.getElementById('tplTaskEditDesc').value = t.description || '';
   document.getElementById('tplTaskEditDays').value = t.daysBeforeShow ?? 0;
   document.getElementById('tplTaskEditRole').innerHTML = templateRoleOptionsHtml(t.roleId);
-  document.getElementById('tplTaskEditParent').innerHTML = templateParentOptionsHtml(taskId, t.parentId ?? null);
-  document.getElementById('tplTaskEditModal').style.display = 'flex';
+  document.getElementById('tplTaskEditParent').innerHTML = templateParentOptionsHtml(excludeTaskId, t.parentId ?? null);
 }
-function closeTplTaskEditModal() {
+function openTplTaskEditModal(taskId) {
+  const t = currentTemplate.tasks.find(x => x.id === taskId);
+  if (!t) return;
+  tplTaskEditTargetId = taskId;
+  tplTaskEditDraft = null;
+  document.getElementById('tplTaskEditModalTitle').textContent = 'Edit task';
+  fillTplTaskEditFields(t, taskId);
+  document.getElementById('tplTaskEditModal').style.display = 'flex';
+  document.getElementById('tplTaskEditTitle').focus();
+}
+// Adding a task/sub-task opens this same modal but on a draft that isn't in
+// currentTemplate.tasks yet — see closeTplTaskEditModal() for what happens to it on close.
+function openTplTaskNewModal(parentId) {
+  tplTaskEditTargetId = null;
+  tplTaskEditDraft = { title: '', description: '', daysBeforeShow: 0, roleId: null, parentId };
+  document.getElementById('tplTaskEditModalTitle').textContent = parentId ? 'New sub-task' : 'New task';
+  fillTplTaskEditFields(tplTaskEditDraft, null);
+  document.getElementById('tplTaskEditModal').style.display = 'flex';
+  document.getElementById('tplTaskEditTitle').focus();
+}
+// × ("confirm this one"): a draft with a real title is saved, then immediately replaced with
+// a fresh blank draft for the next sibling — type, ×, type, × ... — until closing an empty one
+// ends the chain. A draft with no title is discarded, same as backdrop-click always is.
+document.getElementById('tplTaskEditCloseBtn').addEventListener('click', () => closeTplTaskEditModal({ confirm: true }));
+document.getElementById('tplTaskEditModal').addEventListener('click', (e) => { if (e.target.id === 'tplTaskEditModal') closeTplTaskEditModal({ confirm: false }); });
+function closeTplTaskEditModal({ confirm }) {
+  if (tplTaskEditDraft) {
+    const draft = tplTaskEditDraft;
+    tplTaskEditDraft = null;
+    const title = draft.title.trim();
+    if (confirm && title) {
+      const newTask = { id: uid(), title, description: draft.description || '', daysBeforeShow: draft.daysBeforeShow || 0, roleId: draft.roleId || null, parentId: draft.parentId || null, order: (draft.parentId ? templateChildrenSorted(draft.parentId) : templateTopLevelSorted()).length };
+      currentTemplate.tasks.push(newTask);
+      renderTemplateTasksTable();
+      openTplTaskNewModal(draft.parentId || null); // chain straight into the next one
+      return;
+    }
+    // No title (whichever way it closed), or closed via backdrop click — nothing to save.
+    document.getElementById('tplTaskEditModal').style.display = 'none';
+    return;
+  }
+  // Editing an existing task — already live-bound field by field, nothing to discard either way.
   document.getElementById('tplTaskEditModal').style.display = 'none';
   tplTaskEditTargetId = null;
   renderTemplateTasksTable();
 }
-document.getElementById('tplTaskEditCloseBtn').addEventListener('click', closeTplTaskEditModal);
-document.getElementById('tplTaskEditModal').addEventListener('click', (e) => { if (e.target.id === 'tplTaskEditModal') closeTplTaskEditModal(); });
 document.getElementById('tplTaskEditModal').addEventListener('input', (e) => {
-  const t = currentTemplate.tasks.find(x => x.id === tplTaskEditTargetId);
+  const t = tplTaskEditFocusTarget();
   if (!t) return;
   if (e.target.id === 'tplTaskEditTitle') t.title = e.target.value;
   else if (e.target.id === 'tplTaskEditDesc') t.description = e.target.value;
   else if (e.target.id === 'tplTaskEditDays') t.daysBeforeShow = Math.round(Number(e.target.value) || 0);
 });
 document.getElementById('tplTaskEditModal').addEventListener('change', (e) => {
-  const t = currentTemplate.tasks.find(x => x.id === tplTaskEditTargetId);
+  const t = tplTaskEditFocusTarget();
   if (!t) return;
   if (e.target.id === 'tplTaskEditRole') t.roleId = e.target.value || null;
   else if (e.target.id === 'tplTaskEditParent') {
     t.parentId = e.target.value || null;
-    t.order = (t.parentId ? templateChildrenSorted(t.parentId) : templateTopLevelSorted()).length;
+    if (!tplTaskEditDraft) t.order = (t.parentId ? templateChildrenSorted(t.parentId) : templateTopLevelSorted()).length;
   }
 });
 

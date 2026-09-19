@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.222"></script>
+  <script src="../shared/embed.js?v=1.0.224"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#6d28d9">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowPlanner</title>
-  <link rel="manifest" href="manifest.json?v=1.0.222">
-  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.222">
-  <link rel="stylesheet" href="style.css?v=1.0.222">
+  <link rel="manifest" href="manifest.json?v=1.0.224">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.224">
+  <link rel="stylesheet" href="style.css?v=1.0.224">
 </head>
 <body class="theme-showplanner">
 
@@ -214,29 +214,9 @@
         <div class="card show-name-card" style="margin-bottom:20px">
           <div class="card-header"><h2>Show details</h2></div>
           <div class="card-body">
-            <div class="form-group">
+            <div class="form-group" style="margin-bottom:0">
               <label for="showNameInput">Show name</label>
               <input type="text" id="showNameInput" class="form-control" placeholder="e.g. Summer Concert 2027">
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px">
-              <div class="form-group" style="margin-bottom:0">
-                <label for="showDirectorInput">Director</label>
-                <input type="text" id="showDirectorInput" class="form-control">
-              </div>
-              <div class="form-group" style="margin-bottom:0">
-                <label for="showProducerInput">Producer</label>
-                <input type="text" id="showProducerInput" class="form-control">
-              </div>
-              <div class="form-group" style="margin-bottom:0">
-                <label for="showTypeInput">Show type</label>
-                <input type="text" id="showTypeInput" class="form-control" list="showTypeOptions" placeholder="e.g. Straight play">
-                <datalist id="showTypeOptions">
-                  <option value="Straight play"></option>
-                  <option value="Musical"></option>
-                  <option value="Pantomime"></option>
-                  <option value="Revue"></option>
-                </datalist>
-              </div>
             </div>
           </div>
         </div>
@@ -408,20 +388,6 @@
         <label for="newShowName">Show name</label>
         <input type="text" id="newShowName" class="form-control" required>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-        <div class="form-group">
-          <label for="newShowDirector">Director</label>
-          <input type="text" id="newShowDirector" class="form-control">
-        </div>
-        <div class="form-group">
-          <label for="newShowProducer">Producer</label>
-          <input type="text" id="newShowProducer" class="form-control">
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="newShowType">Show type</label>
-        <input type="text" id="newShowType" class="form-control" list="showTypeOptions">
-      </div>
       <div class="form-group">
         <label for="newShowSource">Start budget from</label>
         <select id="newShowSource" class="form-control"></select>
@@ -550,11 +516,11 @@
   </div>
 </div>
 
-<!-- Task template task's Edit modal (reached via the "…" menu below) -->
+<!-- Task template task's Edit modal (reached via the "…" menu below, or via +Add task/sub-task) -->
 <div id="tplTaskEditModal" class="modal-backdrop" style="display:none">
   <div class="modal-card">
     <div class="modal-header">
-      <h3>Edit task</h3>
+      <h3 id="tplTaskEditModalTitle">Edit task</h3>
       <button class="modal-close-btn" id="tplTaskEditCloseBtn" aria-label="Close">×</button>
     </div>
     <div class="modal-body">
@@ -564,7 +530,7 @@
       </div>
       <div class="form-group">
         <label for="tplTaskEditDesc">Description</label>
-        <input type="text" id="tplTaskEditDesc" class="form-control" placeholder="Optional">
+        <textarea id="tplTaskEditDesc" class="form-control" rows="2" placeholder="Optional"></textarea>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div class="form-group">
@@ -595,11 +561,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.222"></script>
-<script src="../shared/load-script.js?v=1.0.222"></script>
-<script src="../shared/firebase-config.js?v=1.0.222"></script>
-<script src="../shared/auth.js?v=1.0.222"></script>
-<script src="../shared/suite-nav.js?v=1.0.222"></script>
-<script src="budget.js?v=1.0.222"></script>
+<script src="../shared/version.js?v=1.0.224"></script>
+<script src="../shared/load-script.js?v=1.0.224"></script>
+<script src="../shared/firebase-config.js?v=1.0.224"></script>
+<script src="../shared/auth.js?v=1.0.224"></script>
+<script src="../shared/suite-nav.js?v=1.0.224"></script>
+<script src="budget.js?v=1.0.224"></script>
 </body>
 </html>
