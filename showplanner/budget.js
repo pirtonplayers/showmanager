@@ -451,11 +451,14 @@ async function generatePlanFromTemplate(template, baseDate) {
 
   currentShowTasks.forEach(t => batch.delete(tasksCol.doc(t.id)));
 
-  const templateTasks = template.tasks || [];
-  const newIds = templateTasks.map(() => tasksCol.doc().id);
+  // normalizeTemplateTasks defensively handles a template that's never been opened in the editor
+  // since drag-and-drop landed (still in the old array-position/parentIndex shape) as well as one
+  // already in the current id/parentId shape.
+  const templateTasks = normalizeTemplateTasks(template.tasks || []);
+  const idMap = new Map(templateTasks.map(tt => [tt.id, tasksCol.doc().id]));
   templateTasks.forEach((tt, i) => {
-    const parentId = (tt.parentIndex ?? null) !== null ? newIds[tt.parentIndex] : null;
-    batch.set(tasksCol.doc(newIds[i]), {
+    const parentId = tt.parentId ? idMap.get(tt.parentId) : null;
+    batch.set(tasksCol.doc(idMap.get(tt.id)), {
       title: tt.title || '(untitled task)',
       description: tt.description || '',
       dueMode: 'daysBeforeShow',
@@ -465,7 +468,7 @@ async function generatePlanFromTemplate(template, baseDate) {
       assigneeIds: [],
       status: 'not_started',
       parentTaskId: parentId,
-      order: i,
+      order: tt.order ?? i,
       comments: [],
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1289,6 +1292,7 @@ function renderTemplatesList() {
       </div>
       <div class="item-actions">
         <button class="icon-btn" data-open-template="${t.id}" title="Open" aria-label="Open">${ICON_EDIT}</button>
+        <button class="icon-btn" data-copy-template="${t.id}" title="Copy" aria-label="Copy">${ICON_COPY}</button>
         <button class="icon-btn icon-btn-danger" data-delete-template="${t.id}" title="Delete" aria-label="Delete">${ICON_TRASH}</button>
       </div>
     </div>
@@ -1296,6 +1300,9 @@ function renderTemplatesList() {
 }
 
 document.getElementById('templatesList').addEventListener('click', async (e) => {
+  const copyBtn = e.target.closest('[data-copy-template]');
+  if (copyBtn) { openNewTemplateModal(copyBtn.getAttribute('data-copy-template')); return; }
+
   const deleteBtn = e.target.closest('[data-delete-template]');
   if (deleteBtn) {
     const id = deleteBtn.getAttribute('data-delete-template');
@@ -1315,20 +1322,27 @@ document.getElementById('templatesList').addEventListener('click', async (e) => 
   if (openTarget) openTemplate(openTarget.getAttribute('data-open-template'));
 });
 
-document.getElementById('newTemplateBtn').addEventListener('click', () => {
-  document.getElementById('newTemplateName').value = '';
+let copyTemplateSourceId = null; // set only when the modal was opened via the Copy button
+function openNewTemplateModal(copySourceId) {
+  copyTemplateSourceId = copySourceId || null;
+  const source = copySourceId ? allTemplates.find(t => t.id === copySourceId) : null;
+  document.getElementById('newTemplateName').value = source ? `${source.name} (copy)` : '';
   document.getElementById('newTemplateError').textContent = '';
   document.getElementById('newTemplateModal').style.display = 'flex';
-});
+}
+document.getElementById('newTemplateBtn').addEventListener('click', () => openNewTemplateModal());
 document.getElementById('newTemplateCloseBtn').addEventListener('click', () => { document.getElementById('newTemplateModal').style.display = 'none'; });
 document.getElementById('newTemplateModal').addEventListener('click', (e) => { if (e.target.id === 'newTemplateModal') e.target.style.display = 'none'; });
 document.getElementById('newTemplateCreateBtn').addEventListener('click', async () => {
   const name = document.getElementById('newTemplateName').value.trim();
   const errEl = document.getElementById('newTemplateError');
   if (!name) { errEl.textContent = 'Enter a template name.'; return; }
+  const source = copyTemplateSourceId ? allTemplates.find(t => t.id === copyTemplateSourceId) : null;
   try {
     const ref = await db.collection('showplanner_templates').add({
-      name, roles: [], tasks: [],
+      name,
+      roles: source ? JSON.parse(JSON.stringify(source.roles || [])) : [],
+      tasks: source ? JSON.parse(JSON.stringify(normalizeTemplateTasks(source.tasks || []))) : [],
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
@@ -1347,6 +1361,7 @@ async function openTemplate(id) {
   if (!doc.exists) { showToast('Template not found', 'error'); return; }
   currentTemplateId = id;
   currentTemplate = { roles: [], tasks: [], ...doc.data(), id: doc.id };
+  currentTemplate.tasks = normalizeTemplateTasks(currentTemplate.tasks);
   expandedTemplateTasks = new Set();
   collapsedTemplateChildren = new Set();
   renderTemplateEditor();
@@ -1407,107 +1422,177 @@ document.getElementById('templateRolesTableBody').addEventListener('click', (e) 
 // render top-level-then-its-descendants (not raw array order) so a task's sub-tasks visually sit
 // under it, but data-task-field="{i}:..." always uses the task's real position in
 // currentTemplate.tasks — visual grouping never touches the underlying array or its indices.
-function templateTopLevelIndices() {
-  return currentTemplate.tasks.map((t, i) => i).filter(i => currentTemplate.tasks[i].parentIndex == null);
-}
-function templateChildIndices(parentIdx) {
-  return currentTemplate.tasks.map((t, i) => i).filter(i => currentTemplate.tasks[i].parentIndex === parentIdx);
-}
-// Every index reachable by following parentIndex down from this one — any depth. Excluded from
-// its own "Sub-task of" choices, same reasoning as the real show's descendantTaskIds(): picking
-// one of these as a parent would create a cycle.
-function templateDescendantIndices(idx) {
+// Sub-tasks nest any number of levels deep — a sub-task can itself have sub-tasks. Every task
+// carries a stable id and a parentId (not an array index) specifically so drag-and-drop
+// reorder/reparent (below) is a simple "update parentId + sibling order" instead of an
+// array-index renumbering exercise. A template loaded from Firestore before this existed (plain
+// array position + parentIndex) is migrated to this shape on open — normalizeTemplateTasks().
+const templateTaskSortFn = (a, b) => (a.order ?? 0) - (b.order ?? 0);
+function templateTopLevelSorted() { return currentTemplate.tasks.filter(t => !t.parentId).sort(templateTaskSortFn); }
+function templateChildrenSorted(parentId) { return currentTemplate.tasks.filter(t => t.parentId === parentId).sort(templateTaskSortFn); }
+// Every id reachable by following parentId down from this one — any depth. Excluded from its own
+// "Sub-task of" choices and as a valid drag target, same reasoning as the real show's
+// descendantTaskIds(): picking/dropping onto one of these would create a cycle.
+function templateDescendantIds(taskId) {
   const out = new Set();
-  (function walk(i) { templateChildIndices(i).forEach(ci => { out.add(ci); walk(ci); }); })(idx);
+  (function walk(id) { templateChildrenSorted(id).forEach(c => { out.add(c.id); walk(c.id); }); })(taskId);
   return out;
 }
 // Parent hops up to a top-level task — indents a candidate's label in the flat "Sub-task of"
 // <option> list so its place in the tree is legible there too. seen guards against looping
 // forever if any already-saved data has a cycle in it.
-function templateDepth(idx) {
-  let depth = 0, cur = idx, seen = new Set();
-  while (currentTemplate.tasks[cur]?.parentIndex != null && !seen.has(cur)) {
-    seen.add(cur);
-    cur = currentTemplate.tasks[cur].parentIndex;
-    depth++;
-  }
+function templateDepth(taskId) {
+  let depth = 0, cur = currentTemplate.tasks.find(t => t.id === taskId), seen = new Set();
+  while (cur?.parentId && !seen.has(cur.id)) { seen.add(cur.id); cur = currentTemplate.tasks.find(t => t.id === cur.parentId); depth++; }
   return depth;
+}
+// Migrates an old-shape (array-position identity + parentIndex) task list to the current one
+// (stable id + parentId) — a template saved before drag-and-drop existed has no ids at all yet.
+// Idempotent: a template already in the new shape passes through unchanged.
+function normalizeTemplateTasks(tasks) {
+  if (!tasks?.length) return [];
+  if (tasks.every(t => t.id)) return tasks.map(t => ({ ...t, parentId: t.parentId ?? null }));
+  const ids = tasks.map(() => uid());
+  return tasks.map((t, i) => {
+    const { parentIndex, ...rest } = t;
+    return { ...rest, id: ids[i], parentId: (parentIndex ?? null) !== null ? ids[parentIndex] : null, order: t.order ?? i };
+  });
+}
+
+let templateSortables = [];
+function destroyTemplateSortables() { templateSortables.forEach(s => s.destroy()); templateSortables = []; }
+const SORTABLE_LIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js';
+// One Sortable instance per drop zone — the top-level list itself, plus every task's own
+// .tpl-task-children container (rendered for every task, empty or not, so a childless task is
+// still a valid place to drag a new first sub-task onto) — all sharing one group so dragging
+// between any of them is exactly "reparent", and dragging within one is exactly "reorder".
+async function initTemplateSortables() {
+  try {
+    await loadScript(SORTABLE_LIB_URL, 'Sortable');
+  } catch (err) {
+    console.warn('Sortable failed to load — drag reordering unavailable this session', err);
+    return;
+  }
+  destroyTemplateSortables();
+  const containers = [document.getElementById('templateTasksList'), ...document.querySelectorAll('.tpl-task-children')];
+  containers.forEach(container => {
+    templateSortables.push(Sortable.create(container, {
+      group: 'template-tasks',
+      handle: '.tpl-drag-handle',
+      animation: 150,
+      easing: 'cubic-bezier(0.2, 0, 0, 1)',
+      fallbackOnBody: true,
+      swapThreshold: 0.65,
+      ghostClass: 'tpl-drag-ghost',
+      chosenClass: 'tpl-drag-chosen',
+      dragClass: 'tpl-drag-active',
+      onMove: (evt) => {
+        const draggedId = evt.dragged.dataset.taskId;
+        const targetParentId = evt.to.id === 'templateTasksList' ? null : evt.to.dataset.parentId;
+        if (!draggedId || !targetParentId) return true; // dropping to top-level is always fine
+        if (targetParentId === draggedId || templateDescendantIds(draggedId).has(targetParentId)) return false;
+        return true;
+      },
+      onEnd: handleTemplateSortEnd,
+    }));
+  });
+}
+function handleTemplateSortEnd(evt) {
+  const task = currentTemplate.tasks.find(t => t.id === evt.item.dataset.taskId);
+  if (!task) return;
+  task.parentId = evt.to.id === 'templateTasksList' ? null : (evt.to.dataset.parentId || null);
+  const reindex = (container) => {
+    Array.from(container.children).forEach((el, idx) => {
+      const t = currentTemplate.tasks.find(t => t.id === el.dataset.taskId);
+      if (t) t.order = idx;
+    });
+  };
+  reindex(evt.to);
+  if (evt.from !== evt.to) reindex(evt.from);
+  renderTemplateTasksTable();
 }
 function renderTemplateTasksTable() {
   const el = document.getElementById('templateTasksList');
   const tasks = currentTemplate.tasks;
-  if (!tasks.length) { el.innerHTML = '<p class="empty-state">No tasks yet.</p>'; return; }
+  if (!tasks.length) { el.innerHTML = '<p class="empty-state">No tasks yet.</p>'; destroyTemplateSortables(); return; }
 
   const roleOptions = (roleId) => `<option value=""${!roleId ? ' selected' : ''}>—</option>` +
     currentTemplate.roles.map(r => `<option value="${r.id}"${r.id === roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
-  const parentOptions = (i, parentIndex) => {
-    const excluded = new Set([i, ...templateDescendantIndices(i)]);
-    return `<option value=""${parentIndex === null || parentIndex === undefined ? ' selected' : ''}>Top-level</option>` +
-      tasks.map((t, pi) => pi).filter(pi => !excluded.has(pi))
-        .map(pi => `<option value="${pi}"${parentIndex === pi ? ' selected' : ''}>${'— '.repeat(templateDepth(pi))}${escapeHtml(tasks[pi].title || `Task ${pi + 1}`)}</option>`).join('');
+  const parentOptions = (taskId, parentId) => {
+    const excluded = new Set([taskId, ...templateDescendantIds(taskId)]);
+    return `<option value=""${!parentId ? ' selected' : ''}>Top-level</option>` +
+      tasks.filter(t => !excluded.has(t.id))
+        .map(t => `<option value="${t.id}"${parentId === t.id ? ' selected' : ''}>${'— '.repeat(templateDepth(t.id))}${escapeHtml(t.title || '(untitled)')}</option>`).join('');
   };
 
-  // Collapsed (the default): a sub-task toggle (only if it has children — controls whether ITS
-  // sub-task cards are shown at all, nothing to do with this task's own fields), the title, and
-  // a "…" that opens this task's own detail — description, the fields grid, +Add sub-task and
-  // Delete all live there instead of cluttering the collapsed row. A freshly-added task starts
-  // with its detail already open, since the point of adding one is to fill it in right away;
-  // anything already saved defaults to collapsed. Sub-task visibility (collapsedTemplateChildren)
-  // defaults to visible/expanded, same as the real show's own task list.
-  function cardHtml(i, depth) {
-    const t = tasks[i];
-    const detailOpen = expandedTemplateTasks.has(i);
-    const hasChildren = templateChildIndices(i).length > 0;
-    const childrenCollapsed = collapsedTemplateChildren.has(i);
+  // Collapsed (the default): a drag handle, a sub-task toggle (only if it has children —
+  // controls whether ITS sub-task cards are shown at all, nothing to do with this task's own
+  // fields), the title, and a "…" that opens this task's own detail — description, the fields
+  // grid, +Add sub-task and Delete all live there instead of cluttering the collapsed row. A
+  // freshly-added task starts with its detail already open, since the point of adding one is to
+  // fill it in right away; anything already saved defaults to collapsed. Children render inside
+  // an ACTUAL nested container (not a flat sibling with a visual indent) so Sortable's own
+  // nested-list dragging handles reparenting for free — the container always exists, even with
+  // no children yet, so a childless task is still a place you can drag a new sub-task onto.
+  function cardHtml(taskId) {
+    const t = tasks.find(x => x.id === taskId);
+    const detailOpen = expandedTemplateTasks.has(taskId);
+    const children = templateChildrenSorted(taskId);
+    const hasChildren = children.length > 0;
+    const childrenCollapsed = collapsedTemplateChildren.has(taskId);
     const subToggle = hasChildren
-      ? `<button class="task-toggle-btn" data-task-toggle-children="${i}" title="${childrenCollapsed ? 'Show sub-tasks' : 'Hide sub-tasks'}">${childrenCollapsed ? '▸' : '▾'}</button>`
+      ? `<button class="task-toggle-btn" data-task-toggle-children="${taskId}" title="${childrenCollapsed ? 'Show sub-tasks' : 'Hide sub-tasks'}">${childrenCollapsed ? '▸' : '▾'}</button>`
       : '<span class="task-toggle-spacer"></span>';
     return `
-    <div class="tpl-task-card${depth > 0 ? ' subtask' : ''}" style="${depth > 0 ? `--depth:${depth}` : ''}">
+    <div class="tpl-task-card" data-task-id="${taskId}">
       <div class="tpl-task-card-top">
+        <span class="tpl-drag-handle" title="Drag to move">⠿</span>
         ${subToggle}
-        <input type="text" class="form-control" style="flex:1;min-width:0" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${i}:title">
-        <button class="tpl-task-more-btn" data-task-open-detail="${i}" title="${detailOpen ? 'Close details' : 'Task details'}">${detailOpen ? '✕' : '…'}</button>
+        <input type="text" class="form-control" style="flex:1;min-width:0" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${taskId}:title">
+        <button class="tpl-task-more-btn" data-task-open-detail="${taskId}" title="${detailOpen ? 'Close details' : 'Task details'}">${detailOpen ? '✕' : '…'}</button>
       </div>
       ${detailOpen ? `
       <div class="tpl-task-card-details">
-        <input type="text" class="form-control" style="margin-bottom:8px" value="${escapeHtml(t.description || '')}" placeholder="Description (optional)" data-task-field="${i}:description">
+        <input type="text" class="form-control" style="margin-bottom:8px" value="${escapeHtml(t.description || '')}" placeholder="Description (optional)" data-task-field="${taskId}:description">
         <div class="tpl-task-card-fields">
           <div class="form-group">
             <label>Days before show</label>
-            <input type="number" class="form-control num-input" value="${t.daysBeforeShow ?? 0}" data-task-field="${i}:daysBeforeShow">
+            <input type="number" class="form-control num-input" value="${t.daysBeforeShow ?? 0}" data-task-field="${taskId}:daysBeforeShow">
           </div>
           <div class="form-group">
             <label>Role</label>
-            <select class="form-control" data-task-field="${i}:roleId">${roleOptions(t.roleId)}</select>
+            <select class="form-control" data-task-field="${taskId}:roleId">${roleOptions(t.roleId)}</select>
           </div>
           <div class="form-group">
             <label>Sub-task of</label>
-            <select class="form-control" data-task-field="${i}:parentIndex">${parentOptions(i, t.parentIndex ?? null)}</select>
+            <select class="form-control" data-task-field="${taskId}:parentId">${parentOptions(taskId, t.parentId ?? null)}</select>
           </div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
-          <button class="btn btn-secondary btn-sm" data-task-add-sub="${i}">+ Add sub-task</button>
-          <button class="btn btn-danger btn-sm" data-task-remove="${i}">Delete task</button>
+          <button class="btn btn-secondary btn-sm" data-task-add-sub="${taskId}">+ Add sub-task</button>
+          <button class="btn btn-danger btn-sm" data-task-remove="${taskId}">Delete task</button>
         </div>
       </div>` : ''}
-    </div>${(hasChildren && !childrenCollapsed) ? templateChildIndices(i).map(ci => cardHtml(ci, depth + 1)).join('') : ''}`;
+      <div class="tpl-task-children" data-parent-id="${taskId}">${(!childrenCollapsed) ? children.map(c => cardHtml(c.id)).join('') : ''}</div>
+    </div>`;
   }
 
-  const rendered = new Set();
-  templateTopLevelIndices().forEach(i => { rendered.add(i); templateDescendantIndices(i).forEach(d => rendered.add(d)); });
-  // Safety net: a task whose parentIndex points at a since-removed/invalid index still renders —
-  // as its own top-level-styled subtree — rather than silently vanishing from the list.
-  let html = templateTopLevelIndices().map(i => cardHtml(i, 0)).join('');
-  tasks.forEach((t, i) => { if (!rendered.has(i)) html += cardHtml(i, 0); });
+  const reachable = new Set();
+  templateTopLevelSorted().forEach(t => { reachable.add(t.id); templateDescendantIds(t.id).forEach(d => reachable.add(d)); });
+  // Safety net: a task whose parentId points at a since-removed/invalid id still renders — as its
+  // own top-level-styled subtree — rather than silently vanishing from the list.
+  let html = templateTopLevelSorted().map(t => cardHtml(t.id)).join('');
+  tasks.forEach(t => { if (!reachable.has(t.id)) html += cardHtml(t.id); });
 
   el.innerHTML = html;
+  initTemplateSortables();
 }
 document.getElementById('addTemplateTaskBtn').addEventListener('click', () => {
-  currentTemplate.tasks.push({ title: '', description: '', daysBeforeShow: 0, roleId: null, parentIndex: null });
-  expandedTemplateTasks.add(currentTemplate.tasks.length - 1); // start with detail open — it's blank, the point is to fill it in
+  const newTask = { id: uid(), title: '', description: '', daysBeforeShow: 0, roleId: null, parentId: null, order: templateTopLevelSorted().length };
+  currentTemplate.tasks.push(newTask);
+  expandedTemplateTasks.add(newTask.id); // start with detail open — it's blank, the point is to fill it in
   renderTemplateTasksTable();
-  document.querySelector(`[data-task-field="${currentTemplate.tasks.length - 1}:title"]`)?.focus();
+  document.querySelector(`[data-task-field="${newTask.id}:title"]`)?.focus();
 });
 // Text/number fields mutate in place with no re-render (typing would lose focus otherwise —
 // same pattern as handleLineAmountInput above); role/parent selects re-render afterwards since
@@ -1515,8 +1600,9 @@ document.getElementById('addTemplateTaskBtn').addEventListener('click', () => {
 document.getElementById('templateTasksList').addEventListener('input', (e) => {
   const key = e.target.getAttribute('data-task-field');
   if (!key) return;
-  const [idx, field] = key.split(':');
-  const t = currentTemplate.tasks[Number(idx)];
+  const [taskId, field] = key.split(':');
+  const t = currentTemplate.tasks.find(t => t.id === taskId);
+  if (!t) return;
   if (field === 'daysBeforeShow') t.daysBeforeShow = Math.round(Number(e.target.value) || 0);
   else if (field === 'title') t.title = e.target.value;
   else if (field === 'description') t.description = e.target.value;
@@ -1524,62 +1610,48 @@ document.getElementById('templateTasksList').addEventListener('input', (e) => {
 document.getElementById('templateTasksList').addEventListener('change', (e) => {
   const key = e.target.getAttribute('data-task-field');
   if (!key) return;
-  const [idx, field] = key.split(':');
-  const t = currentTemplate.tasks[Number(idx)];
+  const [taskId, field] = key.split(':');
+  const t = currentTemplate.tasks.find(t => t.id === taskId);
+  if (!t) return;
   if (field === 'roleId') t.roleId = e.target.value || null;
-  else if (field === 'parentIndex') t.parentIndex = e.target.value === '' ? null : Number(e.target.value);
-  else return;
+  else if (field === 'parentId') {
+    t.parentId = e.target.value || null;
+    t.order = (t.parentId ? templateChildrenSorted(t.parentId) : templateTopLevelSorted()).length; // append at the end of its new siblings, same as a drag to the bottom would
+  } else return;
   renderTemplateTasksTable();
 });
-// Re-indexes a Set of task indices the same way currentTemplate.tasks.splice(idx, 1) just did —
-// the deleted index drops out, everything after it shifts down by one. Used for both
-// expandedTemplateTasks and collapsedTemplateChildren, which are index-keyed the same way
-// parentIndex is.
-function reindexAfterRemoval(set, idx) {
-  const shifted = new Set();
-  set.forEach(ei => { if (ei < idx) shifted.add(ei); else if (ei > idx) shifted.add(ei - 1); });
-  return shifted;
-}
 document.getElementById('templateTasksList').addEventListener('click', (e) => {
-  const toggleChildrenIdx = e.target.getAttribute('data-task-toggle-children');
-  if (toggleChildrenIdx !== null) {
-    const idx = Number(toggleChildrenIdx);
-    if (collapsedTemplateChildren.has(idx)) collapsedTemplateChildren.delete(idx); else collapsedTemplateChildren.add(idx);
+  const toggleChildrenId = e.target.getAttribute('data-task-toggle-children');
+  if (toggleChildrenId !== null) {
+    if (collapsedTemplateChildren.has(toggleChildrenId)) collapsedTemplateChildren.delete(toggleChildrenId); else collapsedTemplateChildren.add(toggleChildrenId);
     renderTemplateTasksTable();
     return;
   }
-  const openDetailIdx = e.target.getAttribute('data-task-open-detail');
-  if (openDetailIdx !== null) {
-    const idx = Number(openDetailIdx);
-    if (expandedTemplateTasks.has(idx)) expandedTemplateTasks.delete(idx); else expandedTemplateTasks.add(idx);
+  const openDetailId = e.target.getAttribute('data-task-open-detail');
+  if (openDetailId !== null) {
+    if (expandedTemplateTasks.has(openDetailId)) expandedTemplateTasks.delete(openDetailId); else expandedTemplateTasks.add(openDetailId);
     renderTemplateTasksTable();
     return;
   }
-  const removeIdx = e.target.getAttribute('data-task-remove');
-  if (removeIdx !== null) {
-    const idx = Number(removeIdx);
-    currentTemplate.tasks.splice(idx, 1);
-    currentTemplate.tasks.forEach(t => {
-      if (t.parentIndex === idx) t.parentIndex = null;
-      else if (t.parentIndex != null && t.parentIndex > idx) t.parentIndex -= 1;
-    });
-    expandedTemplateTasks = reindexAfterRemoval(expandedTemplateTasks, idx);
-    collapsedTemplateChildren = reindexAfterRemoval(collapsedTemplateChildren, idx);
+  const removeId = e.target.getAttribute('data-task-remove');
+  if (removeId !== null) {
+    const descendants = templateDescendantIds(removeId);
+    if (descendants.size && !confirm(`Delete this task and its ${descendants.size} sub-task${descendants.size === 1 ? '' : 's'}? This cannot be undone.`)) return;
+    currentTemplate.tasks = currentTemplate.tasks.filter(t => t.id !== removeId && !descendants.has(t.id));
+    [removeId, ...descendants].forEach(id => { expandedTemplateTasks.delete(id); collapsedTemplateChildren.delete(id); });
     renderTemplateTasksTable();
     return;
   }
-  const addSubIdx = e.target.getAttribute('data-task-add-sub');
-  if (addSubIdx !== null) {
-    // Always appended at the end, so no existing task's index (and so no other parentIndex
-    // reference) ever shifts — same reasoning as the top-level +Add task button.
-    currentTemplate.tasks.push({ title: '', description: '', daysBeforeShow: 0, roleId: null, parentIndex: Number(addSubIdx) });
-    const newRow = currentTemplate.tasks.length - 1;
-    expandedTemplateTasks.add(newRow); // start with detail open — same reasoning as +Add task above
-    collapsedTemplateChildren.delete(Number(addSubIdx)); // the parent's sub-tasks must be visible, or the new one would be invisible right after creating it
+  const addSubId = e.target.getAttribute('data-task-add-sub');
+  if (addSubId !== null) {
+    const newTask = { id: uid(), title: '', description: '', daysBeforeShow: 0, roleId: null, parentId: addSubId, order: templateChildrenSorted(addSubId).length };
+    currentTemplate.tasks.push(newTask);
+    expandedTemplateTasks.add(newTask.id); // start with detail open — same reasoning as +Add task above
+    collapsedTemplateChildren.delete(addSubId); // the parent's sub-tasks must be visible, or the new one would be invisible right after creating it
     renderTemplateTasksTable();
     // Jump straight into naming the new sub-task — this button exists specifically so a whole
     // checklist under one task is click, type, click, type, not click-then-hunt-for-the-input.
-    document.querySelector(`[data-task-field="${newRow}:title"]`)?.focus();
+    document.querySelector(`[data-task-field="${newTask.id}:title"]`)?.focus();
   }
 });
 

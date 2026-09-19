@@ -244,10 +244,11 @@ input[type="file"].form-control { padding: 7px 10px; }
 .task-row .task-meta { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
 .task-row .badge { font-size: 10px; padding: 2px 7px; }
 /* A bigger tap target than the arrow glyph itself needs — this is the one control that shows or
-   hides a whole subtree, so it's worth making it hard to miss/mis-tap, especially on a phone. */
-.task-toggle-btn { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px; background: none; color: var(--text-muted); font-size: 17px; cursor: pointer; transition: all .15s; }
+   hides a whole subtree, so it's worth making it hard to miss/mis-tap, especially on a phone.
+   3x the original 16px/10px. */
+.task-toggle-btn { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 48px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: var(--text-muted); font-size: 30px; cursor: pointer; transition: all .15s; }
 .task-toggle-btn:hover { background: var(--bg); color: var(--text); }
-.task-toggle-spacer { flex-shrink: 0; width: 28px; }
+.task-toggle-spacer { flex-shrink: 0; width: 48px; }
 .role-assignees { font-size: 12px; color: var(--text-muted); }
 
 @media (max-width: 560px) {
@@ -449,30 +450,49 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .pct-sign { font-size: 13px; font-weight: 400; color: var(--text-muted); }
 
 /* ── Task template's task list — cards, not a table ──
-   Collapsed (the default) is just a sub-task toggle (only present if this task has any — hides
-   or shows ITS children, nothing about its own fields) + the title + a "…" that opens this task's
-   own detail. Description, the days-before/role/parent field grid, +Add sub-task and Delete only
-   render at all once that detail is open, so a long checklist reads as a plain list of names
-   instead of a wall of fields. Sub-tasks can nest any number of levels deep (a sub-task can
-   itself have sub-tasks) — each card's own --depth custom property (set inline, only below the
-   top level) drives the indent, capped with min() so a deep tree doesn't run out of room on a
-   phone; per-level indent shrinks again under the mobile breakpoint for the same reason.
-   Non-input text (labels, the add-sub/delete buttons) is kept small — the title/description
-   *inputs* stay at the platform's required 16px (see .form-control's own comment: smaller
-   triggers an iOS/Android zoom-on-focus that the viewport meta can't suppress). */
+   Collapsed (the default) is just a drag handle, a sub-task toggle (only present if this task
+   has any — hides or shows ITS children, nothing about its own fields) + the title + a "…" that
+   opens this task's own detail. Description, the days-before/role/parent field grid, +Add
+   sub-task and Delete only render at all once that detail is open, so a long checklist reads as
+   a plain list of names instead of a wall of fields. Sub-tasks can nest any number of levels deep
+   (a sub-task can itself have sub-tasks) and render inside an ACTUAL nested .tpl-task-children
+   container (not a flat sibling with a computed indent) — this is what lets SortableJS treat
+   "drag within one container" as reorder and "drag into a different one" as reparent for free,
+   and it means the indent is just the container's own padding-left, compounding naturally through
+   real nesting instead of a tracked depth number. Non-input text (labels, the add-sub/delete
+   buttons) is kept small — the title/description *inputs* stay at the platform's required 16px
+   (see .form-control's own comment: smaller triggers an iOS/Android zoom-on-focus the viewport
+   meta can't suppress). */
 .tpl-task-list { display: flex; flex-direction: column; gap: 6px; }
 .tpl-task-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; background: var(--bg); font-size: 13px; }
-.tpl-task-card.subtask { margin-left: min(calc(var(--depth, 1) * 20px), 80px); background: var(--surface); }
-.tpl-task-card-top { display: flex; gap: 8px; align-items: center; }
+.tpl-task-card-top { display: flex; gap: 6px; align-items: center; }
 .tpl-task-card-details { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 .tpl-task-card-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 8px; }
-.tpl-task-more-btn { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; border: none; background: none; color: var(--text-muted); font-size: 18px; font-weight: 700; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
-.tpl-task-more-btn:hover { background: var(--surface); color: var(--text); }
 .tpl-task-card-fields .form-group { margin-bottom: 0; }
 .tpl-task-card-fields label { display: block; font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 3px; }
+.tpl-task-more-btn { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; border: none; background: none; color: var(--text-muted); font-size: 18px; font-weight: 700; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.tpl-task-more-btn:hover { background: var(--surface); color: var(--text); }
+
+/* Nested sub-task container — always present (even empty) so a childless task is still a valid
+   drop target; its own left padding + border is what visually communicates nesting, no per-card
+   depth tracking needed. A little top margin only once it actually holds cards, so an empty one
+   collapses to zero height rather than leaving a visible gap under every leaf task. */
+.tpl-task-children { padding-left: 18px; border-left: 2px solid var(--border); }
+.tpl-task-children:not(:empty) { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
 @media (max-width: 560px) {
-  .tpl-task-card.subtask { margin-left: min(calc(var(--depth, 1) * 10px), 50px); }
+  .tpl-task-children { padding-left: 10px; }
 }
+
+/* Drag handle — a large, obvious grip separate from every other control on the row, so a touch
+   press-and-hold naturally lands on it rather than the title input or the sub-task toggle right
+   next to it. touch-action:none stops the browser's own scroll/zoom gesture from competing with
+   the drag once a touch starts on the handle specifically. */
+.tpl-drag-handle { flex-shrink: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 20px; cursor: grab; touch-action: none; border-radius: 8px; user-select: none; }
+.tpl-drag-handle:hover { background: var(--surface); color: var(--text); }
+.tpl-drag-handle:active { cursor: grabbing; }
+.tpl-drag-ghost { opacity: .35; }
+.tpl-drag-chosen .tpl-task-card-top { background: var(--primary-light); border-radius: var(--radius); }
+.tpl-drag-active { box-shadow: var(--shadow-md); }
 
 /* ════════════════════════ PWA (index.html) ════════════════════════ */
 .pwa-body { min-height: 100vh; background: var(--primary); display: flex; flex-direction: column; }
