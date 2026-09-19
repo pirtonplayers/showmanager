@@ -447,19 +447,20 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .pct-sign { font-size: 13px; font-weight: 400; color: var(--text-muted); }
 
 /* ── Task template's task list — cards, not a table ──
-   Five columns' worth of fields (title, description, days-before, role, parent) has no decent
-   table layout at phone width; a card per task with the field grid below wrapping onto as many
-   rows as the screen needs (auto-fit/minmax) does. Sub-tasks can nest any number of levels deep
-   (a sub-task can itself have sub-tasks) — each card's own --depth custom property (set inline,
-   only below the top level) drives the indent, capped with min() so a deep tree doesn't run out
-   of room on a phone; per-level indent shrinks again under the mobile breakpoint for the same
-   reason. Non-input text (labels, the add-sub button) is kept small for a denser list — the
+   Collapsed (the default) is just a toggle + the title + delete, one line — description, the
+   days-before/role/parent field grid and +Add sub-task only render at all once expanded, so a
+   long checklist reads as a plain list of names instead of a wall of fields. Sub-tasks can nest
+   any number of levels deep (a sub-task can itself have sub-tasks) — each card's own --depth
+   custom property (set inline, only below the top level) drives the indent, capped with min() so
+   a deep tree doesn't run out of room on a phone; per-level indent shrinks again under the mobile
+   breakpoint for the same reason. Non-input text (labels, the add-sub button) is kept small — the
    title/description *inputs* stay at the platform's required 16px (see .form-control's own
    comment: smaller triggers an iOS/Android zoom-on-focus that the viewport meta can't suppress). */
-.tpl-task-list { display: flex; flex-direction: column; gap: 8px; }
-.tpl-task-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; background: var(--bg); font-size: 13px; }
+.tpl-task-list { display: flex; flex-direction: column; gap: 6px; }
+.tpl-task-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; background: var(--bg); font-size: 13px; }
 .tpl-task-card.subtask { margin-left: min(calc(var(--depth, 1) * 20px), 80px); background: var(--surface); }
-.tpl-task-card-top { display: flex; gap: 8px; align-items: flex-start; }
+.tpl-task-card-top { display: flex; gap: 8px; align-items: center; }
+.tpl-task-card-details { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 .tpl-task-card-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 8px; }
 .tpl-task-card-fields .form-group { margin-bottom: 0; }
 .tpl-task-card-fields label { display: block; font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 3px; }

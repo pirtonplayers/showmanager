@@ -141,6 +141,7 @@ let currentShowTasks = [];  // [{id, ...data}] — showplanner_shows/{id}/tasks 
 let allTemplates = [];      // [{id, ...data}] — task-checklist templates (showplanner_templates)
 let currentTemplate = null; // working copy of the template doc currently open in its editor
 let currentTemplateId = null;
+let expandedTemplateTasks = new Set(); // local UI-only state — which task cards show full detail vs. just their name
 let showEditorDirty = false; // any pending edit to the OPEN show not yet written by Save changes
 function markDirty() { showEditorDirty = true; }
 // Text/number/select edits inside the editor (or the two modals that feed it — Add income/spend
@@ -1345,6 +1346,7 @@ async function openTemplate(id) {
   if (!doc.exists) { showToast('Template not found', 'error'); return; }
   currentTemplateId = id;
   currentTemplate = { roles: [], tasks: [], ...doc.data(), id: doc.id };
+  expandedTemplateTasks = new Set();
   renderTemplateEditor();
   switchTab('templateEditor');
 }
@@ -1443,32 +1445,39 @@ function renderTemplateTasksTable() {
         .map(pi => `<option value="${pi}"${parentIndex === pi ? ' selected' : ''}>${'— '.repeat(templateDepth(pi))}${escapeHtml(tasks[pi].title || `Task ${pi + 1}`)}</option>`).join('');
   };
 
+  // Collapsed (the default): just a toggle, the title, and delete — everything else lives behind
+  // "expand" so a long checklist reads as a plain list of names instead of a wall of fields.
+  // A freshly-added task (below) starts expanded, since its whole point is to be filled in right
+  // away; anything already saved defaults to collapsed.
   function cardHtml(i, depth) {
     const t = tasks[i];
+    const expanded = expandedTemplateTasks.has(i);
     return `
     <div class="tpl-task-card${depth > 0 ? ' subtask' : ''}" style="${depth > 0 ? `--depth:${depth}` : ''}">
       <div class="tpl-task-card-top">
-        <div style="flex:1;min-width:0">
-          <input type="text" class="form-control" style="margin-bottom:6px" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${i}:title">
-          <input type="text" class="form-control" value="${escapeHtml(t.description || '')}" placeholder="Description (optional)" data-task-field="${i}:description">
-        </div>
+        <button class="task-toggle-btn" data-task-toggle-detail="${i}" title="${expanded ? 'Collapse' : 'Expand'}">${expanded ? '▾' : '▸'}</button>
+        <input type="text" class="form-control" style="flex:1;min-width:0" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${i}:title">
         <button class="grid-del-btn" data-task-remove="${i}" title="Remove">×</button>
       </div>
-      <div class="tpl-task-card-fields">
-        <div class="form-group">
-          <label>Days before show</label>
-          <input type="number" class="form-control num-input" value="${t.daysBeforeShow ?? 0}" data-task-field="${i}:daysBeforeShow">
+      ${expanded ? `
+      <div class="tpl-task-card-details">
+        <input type="text" class="form-control" style="margin-bottom:8px" value="${escapeHtml(t.description || '')}" placeholder="Description (optional)" data-task-field="${i}:description">
+        <div class="tpl-task-card-fields">
+          <div class="form-group">
+            <label>Days before show</label>
+            <input type="number" class="form-control num-input" value="${t.daysBeforeShow ?? 0}" data-task-field="${i}:daysBeforeShow">
+          </div>
+          <div class="form-group">
+            <label>Role</label>
+            <select class="form-control" data-task-field="${i}:roleId">${roleOptions(t.roleId)}</select>
+          </div>
+          <div class="form-group">
+            <label>Sub-task of</label>
+            <select class="form-control" data-task-field="${i}:parentIndex">${parentOptions(i, t.parentIndex ?? null)}</select>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Role</label>
-          <select class="form-control" data-task-field="${i}:roleId">${roleOptions(t.roleId)}</select>
-        </div>
-        <div class="form-group">
-          <label>Sub-task of</label>
-          <select class="form-control" data-task-field="${i}:parentIndex">${parentOptions(i, t.parentIndex ?? null)}</select>
-        </div>
-      </div>
-      <button class="btn btn-secondary btn-sm" style="margin-top:10px" data-task-add-sub="${i}">+ Add sub-task</button>
+        <button class="btn btn-secondary btn-sm" style="margin-top:10px" data-task-add-sub="${i}">+ Add sub-task</button>
+      </div>` : ''}
     </div>`;
   }
 
@@ -1488,7 +1497,9 @@ function renderTemplateTasksTable() {
 }
 document.getElementById('addTemplateTaskBtn').addEventListener('click', () => {
   currentTemplate.tasks.push({ title: '', description: '', daysBeforeShow: 0, roleId: null, parentIndex: null });
+  expandedTemplateTasks.add(currentTemplate.tasks.length - 1); // start expanded — it's blank, the point is to fill it in
   renderTemplateTasksTable();
+  document.querySelector(`[data-task-field="${currentTemplate.tasks.length - 1}:title"]`)?.focus();
 });
 // Text/number fields mutate in place with no re-render (typing would lose focus otherwise —
 // same pattern as handleLineAmountInput above); role/parent selects re-render afterwards since
@@ -1513,6 +1524,13 @@ document.getElementById('templateTasksList').addEventListener('change', (e) => {
   renderTemplateTasksTable();
 });
 document.getElementById('templateTasksList').addEventListener('click', (e) => {
+  const toggleIdx = e.target.getAttribute('data-task-toggle-detail');
+  if (toggleIdx !== null) {
+    const idx = Number(toggleIdx);
+    if (expandedTemplateTasks.has(idx)) expandedTemplateTasks.delete(idx); else expandedTemplateTasks.add(idx);
+    renderTemplateTasksTable();
+    return;
+  }
   const removeIdx = e.target.getAttribute('data-task-remove');
   if (removeIdx !== null) {
     const idx = Number(removeIdx);
@@ -1521,6 +1539,10 @@ document.getElementById('templateTasksList').addEventListener('click', (e) => {
       if (t.parentIndex === idx) t.parentIndex = null;
       else if (t.parentIndex != null && t.parentIndex > idx) t.parentIndex -= 1;
     });
+    // expandedTemplateTasks holds indices too — shift them the same way parentIndex above just did.
+    const shifted = new Set();
+    expandedTemplateTasks.forEach(ei => { if (ei < idx) shifted.add(ei); else if (ei > idx) shifted.add(ei - 1); });
+    expandedTemplateTasks = shifted;
     renderTemplateTasksTable();
     return;
   }
@@ -1529,10 +1551,11 @@ document.getElementById('templateTasksList').addEventListener('click', (e) => {
     // Always appended at the end, so no existing task's index (and so no other parentIndex
     // reference) ever shifts — same reasoning as the top-level +Add task button.
     currentTemplate.tasks.push({ title: '', description: '', daysBeforeShow: 0, roleId: null, parentIndex: Number(addSubIdx) });
+    const newRow = currentTemplate.tasks.length - 1;
+    expandedTemplateTasks.add(newRow); // start expanded — same reasoning as +Add task above
     renderTemplateTasksTable();
     // Jump straight into naming the new sub-task — this button exists specifically so a whole
     // checklist under one task is click, type, click, type, not click-then-hunt-for-the-input.
-    const newRow = currentTemplate.tasks.length - 1;
     document.querySelector(`[data-task-field="${newRow}:title"]`)?.focus();
   }
 });
