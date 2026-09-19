@@ -353,7 +353,12 @@ async function openShow(id) {
 }
 
 async function loadCurrentShowTasks() {
-  const snap = await db.collection('showplanner_shows').doc(currentShowId).collection('tasks').orderBy('order').get();
+  // No orderBy() here deliberately — Firestore silently EXCLUDES any document that doesn't have
+  // the sorted-on field set, so a task saved before 'order' existed (or by any path that ever
+  // omitted it) would vanish from every load. Fetch everything, sort client-side via taskSortFn
+  // instead — same approach the task template editor already uses for its own (embedded-array,
+  // not queried) tasks, and it treats a missing order as 0 rather than dropping the task.
+  const snap = await db.collection('showplanner_shows').doc(currentShowId).collection('tasks').get();
   currentShowTasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
