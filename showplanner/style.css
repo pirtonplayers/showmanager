@@ -262,6 +262,13 @@ input[type="file"].form-control { padding: 7px 10px; }
 .task-toggle-btn:hover { background: var(--bg); color: var(--text); }
 .task-toggle-spacer { flex-shrink: 0; width: 48px; }
 .role-assignees { font-size: 12px; color: var(--text-muted); }
+.task-add-sub-btn { flex-shrink: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; padding: 0; border: none; border-radius: 8px; background: none; color: var(--text-muted); cursor: pointer; transition: all .15s; }
+.task-add-sub-btn svg { width: 16px; height: 16px; }
+.task-add-sub-btn:hover { background: var(--bg); color: var(--primary); }
+
+/* Quick-add — name only, no modal (see openQuickAddTask) */
+.task-quick-add { display: flex; }
+.task-quick-add input { font-size: 13px; padding: 8px 12px; }
 
 /* Nested containers (mirrors .tpl-task-card/.tpl-task-children) so each level's indent compounds
    naturally and Sortable's own nested-list dragging handles reparenting for free — see the task

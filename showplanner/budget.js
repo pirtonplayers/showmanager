@@ -838,6 +838,7 @@ function taskRowHtml(t, depth, canEdit) {
   const subcount = hasChildren
     ? `<span class="task-subcount"> (${children.filter(c => computeTaskStatus(c) === 'completed').length}/${children.length} sub-tasks)</span>` : '';
   const handleHtml = canEdit ? '<span class="task-drag-handle" title="Drag to move">⠿</span>' : '';
+  const addSubHtml = canEdit ? `<button class="task-add-sub-btn" data-add-sub-task="${t.id}" title="Add sub-task">${ICON_PLUS}</button>` : '';
   return `
     <div class="task-row${depth > 0 ? ' subtask' : ''}${overdue ? ' overdue' : ''}" data-open-task="${t.id}">
       ${handleHtml}
@@ -848,6 +849,7 @@ function taskRowHtml(t, depth, canEdit) {
         ${metaParts.length ? `<span class="task-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
         <span class="task-due">${t.dueDate ? fmtPerfDate({ date: t.dueDate }) : 'No due date'}${overdue ? ' · Overdue' : ''}</span>
       </span>
+      ${addSubHtml}
     </div>`;
 }
 // A task card: its own row, plus an ACTUAL nested .task-children container for its descendants
@@ -887,10 +889,78 @@ document.getElementById('tasksList').addEventListener('click', (e) => {
     renderTasksCard();
     return;
   }
+  const addSubBtn = e.target.closest('[data-add-sub-task]');
+  if (addSubBtn) { openQuickAddTask(addSubBtn.getAttribute('data-add-sub-task')); return; }
   const target = e.target.closest('[data-open-task]');
   if (target) openTaskModal(target.getAttribute('data-open-task'));
 });
-document.getElementById('addTaskBtn').addEventListener('click', () => openTaskModal(null));
+document.getElementById('addTaskBtn').addEventListener('click', () => openQuickAddTask(null));
+
+// ── Quick-add (name only) ── adding a task or sub-task asks for just its title — the full detail
+// modal only opens afterwards, by tapping the task once it exists. Confirming with Enter creates
+// it and immediately opens a fresh blank quick-add in the same spot so several can be typed in a
+// row; clicking away always discards whatever's typed, same "explicit confirm only" rule as the
+// task template editor's own draft flow.
+let quickAddParentId = undefined; // undefined = no quick-add open; null = open at top level
+function quickAddContainer(parentId) {
+  return parentId ? document.querySelector(`.task-children[data-parent-id="${parentId}"]`) : document.getElementById('tasksList');
+}
+function openQuickAddTask(parentId) {
+  closeQuickAddTask();
+  quickAddParentId = parentId;
+  if (parentId) collapsedTaskIds.delete(parentId); // reveal the container the input is about to land in
+  const container = quickAddContainer(parentId);
+  if (!container) { quickAddParentId = undefined; return; }
+  const row = document.createElement('div');
+  row.className = 'task-quick-add';
+  row.innerHTML = '<input type="text" class="form-control" id="taskQuickAddInput" placeholder="Task name…">';
+  container.appendChild(row);
+  const input = row.querySelector('input');
+  input.focus();
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); confirmQuickAddTask(); }
+    else if (e.key === 'Escape') { closeQuickAddTask(); }
+  });
+  input.addEventListener('blur', () => closeQuickAddTask());
+}
+// Removing the focused input fires 'blur' on it SYNCHRONOUSLY, mid-removal — so a plain
+// close-on-blur handler re-enters this function while the browser is still unwinding its own
+// removeChild call, which throws ("node no longer a child... moved in a blur handler?"). The
+// guard makes the reentrant call a no-op instead.
+let quickAddClosing = false;
+function closeQuickAddTask() {
+  if (quickAddClosing) return;
+  quickAddClosing = true;
+  try {
+    document.querySelector('.task-quick-add')?.remove();
+  } finally {
+    quickAddClosing = false;
+  }
+  quickAddParentId = undefined;
+}
+async function confirmQuickAddTask() {
+  const input = document.getElementById('taskQuickAddInput');
+  const title = input?.value.trim();
+  const parentId = quickAddParentId;
+  if (!title) { closeQuickAddTask(); return; }
+  quickAddParentId = undefined; // the blur this triggers must not also close the row we're about to replace
+  const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
+  try {
+    await tasksCol.add({
+      title, description: '', dueDate: '', dueMode: 'date', daysBeforeShow: null,
+      roleId: null, assigneeIds: [], status: 'not_started', parentTaskId: parentId || null,
+      comments: [], order: currentShowTasks.filter(t => (t.parentTaskId || null) === (parentId || null)).length,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    await loadCurrentShowTasks();
+    renderTasksCard();
+    renderPlanCard();
+    openQuickAddTask(parentId);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
 
 // ── Hide-completed filter — purely a display toggle (hides/shows whole .task-card elements after
 // render) — never touches currentShowTasks or the Sortable DOM structure/order, so dragging still
@@ -932,6 +1002,12 @@ async function initTaskSortables() {
     realTaskSortables.push(Sortable.create(container, {
       group: 'real-tasks',
       handle: '.task-drag-handle',
+      // The quick-add "name only" input row sits in these same containers while it's open — it
+      // has no drag handle so it was never draggable itself, but without excluding it here
+      // Sortable still treats it as a reorderable slot and can shuffle it around mid-drag of
+      // something else.
+      filter: '.task-quick-add',
+      preventOnFilter: false,
       animation: 150,
       easing: 'cubic-bezier(0.2, 0, 0, 1)',
       fallbackOnBody: true,
