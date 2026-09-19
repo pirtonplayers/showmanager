@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.220"></script>
+  <script src="../shared/embed.js?v=1.0.222"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#6d28d9">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowPlanner</title>
-  <link rel="manifest" href="manifest.json?v=1.0.220">
-  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.220">
-  <link rel="stylesheet" href="style.css?v=1.0.220">
+  <link rel="manifest" href="manifest.json?v=1.0.222">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.222">
+  <link rel="stylesheet" href="style.css?v=1.0.222">
 </head>
 <body class="theme-showplanner">
 
@@ -550,13 +550,44 @@
   </div>
 </div>
 
-<!-- Task template card's "…" menu — one shared floating menu, repositioned/retargeted to whichever
-     card's button was clicked, rather than one per card. -->
-<div id="tplTaskMenu" class="tpl-task-menu" hidden>
-  <button type="button" data-tpl-menu-action="edit">Edit</button>
-  <button type="button" data-tpl-menu-action="add-sub">Add sub-task</button>
-  <button type="button" class="danger" data-tpl-menu-action="delete">Delete task</button>
+<!-- Task template task's Edit modal (reached via the "…" menu below) -->
+<div id="tplTaskEditModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Edit task</h3>
+      <button class="modal-close-btn" id="tplTaskEditCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="tplTaskEditTitle">Title</label>
+        <input type="text" id="tplTaskEditTitle" class="form-control" placeholder="Task title">
+      </div>
+      <div class="form-group">
+        <label for="tplTaskEditDesc">Description</label>
+        <input type="text" id="tplTaskEditDesc" class="form-control" placeholder="Optional">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label for="tplTaskEditDays">Days before show</label>
+          <input type="number" id="tplTaskEditDays" class="form-control num-input" min="0" step="1">
+        </div>
+        <div class="form-group">
+          <label for="tplTaskEditRole">Role</label>
+          <select id="tplTaskEditRole" class="form-control"></select>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label for="tplTaskEditParent">Sub-task of</label>
+        <select id="tplTaskEditParent" class="form-control"></select>
+      </div>
+    </div>
+  </div>
 </div>
+
+<!-- Task template card's "…" menu — one shared floating menu, repositioned/retargeted to whichever
+     card's button was clicked, rather than one per card. Content is filled in by budget.js (needs
+     the shared ICON_* constants), not written out here. -->
+<div id="tplTaskMenu" class="tpl-task-menu" hidden></div>
 
 <div id="toast"></div>
 
@@ -564,11 +595,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.220"></script>
-<script src="../shared/load-script.js?v=1.0.220"></script>
-<script src="../shared/firebase-config.js?v=1.0.220"></script>
-<script src="../shared/auth.js?v=1.0.220"></script>
-<script src="../shared/suite-nav.js?v=1.0.220"></script>
-<script src="budget.js?v=1.0.220"></script>
+<script src="../shared/version.js?v=1.0.222"></script>
+<script src="../shared/load-script.js?v=1.0.222"></script>
+<script src="../shared/firebase-config.js?v=1.0.222"></script>
+<script src="../shared/auth.js?v=1.0.222"></script>
+<script src="../shared/suite-nav.js?v=1.0.222"></script>
+<script src="budget.js?v=1.0.222"></script>
 </body>
 </html>

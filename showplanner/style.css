@@ -450,36 +450,46 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .pct-sign { font-size: 13px; font-weight: 400; color: var(--text-muted); }
 
 /* ── Task template's task list — cards, not a table ──
-   Collapsed (the default) is just a drag handle, a sub-task toggle (only present if this task
-   has any — hides or shows ITS children, nothing about its own fields) + the title + a "…" that
-   opens this task's own detail. Description, the days-before/role/parent field grid, +Add
-   sub-task and Delete only render at all once that detail is open, so a long checklist reads as
-   a plain list of names instead of a wall of fields. Sub-tasks can nest any number of levels deep
+   Every card is just a drag handle, a sub-task toggle (only present if this task has any — hides
+   or shows ITS children, nothing about its own fields), the title, and a "…" that opens a small
+   menu (#tplTaskMenu) — Edit opens the task in #tplTaskEditModal (description/days-before/role/
+   parent), Add sub-task and Delete live in the same menu. Nothing expands inline, so a long
+   checklist always reads as a plain list of names. Sub-tasks can nest any number of levels deep
    (a sub-task can itself have sub-tasks) and render inside an ACTUAL nested .tpl-task-children
    container (not a flat sibling with a computed indent) — this is what lets SortableJS treat
    "drag within one container" as reorder and "drag into a different one" as reparent for free,
    and it means the indent is just the container's own padding-left, compounding naturally through
-   real nesting instead of a tracked depth number. Non-input text (labels, the add-sub/delete
-   buttons) is kept small — the title/description *inputs* stay at the platform's required 16px
-   (see .form-control's own comment: smaller triggers an iOS/Android zoom-on-focus the viewport
-   meta can't suppress). */
+   real nesting instead of a tracked depth number. */
 .tpl-task-list { display: flex; flex-direction: column; gap: 6px; }
 .tpl-task-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; background: var(--bg); font-size: 13px; }
-.tpl-task-card-top { display: flex; gap: 6px; align-items: center; }
-.tpl-task-card-details { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
-.tpl-task-card-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 8px; }
-.tpl-task-card-fields .form-group { margin-bottom: 0; }
-.tpl-task-card-fields label { display: block; font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 3px; }
+.tpl-task-card-top { display: flex; gap: 2px; align-items: center; }
+/* .task-toggle-btn/.task-toggle-spacer are shared with the real show's own Plan tab task list,
+   which wanted a much bigger (48px) tap target — that's too wide here, where it sits right next
+   to the drag handle and made the gap before the title look huge on every leaf task (most of
+   them, since only a task with sub-tasks gets the real button instead of the blank spacer). */
+.tpl-task-card-top .task-toggle-btn, .tpl-task-card-top .task-toggle-spacer { width: 26px; height: 26px; }
+.tpl-task-card-top .task-toggle-btn { font-size: 15px; }
 .tpl-task-more-btn { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; border: none; background: none; color: var(--text-muted); font-size: 18px; font-weight: 700; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
 .tpl-task-more-btn:hover { background: var(--surface); color: var(--text); }
 
 /* "…" menu — one shared floating panel (see #tplTaskMenu in index.html), positioned by JS next
    to whichever card's button was clicked. Fixed positioning so it isn't clipped by any scrolling
    ancestor, and a comfortable min tap-target height per item for touch. */
-.tpl-task-menu { position: fixed; z-index: 300; min-width: 170px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
-.tpl-task-menu button { display: block; width: 100%; text-align: left; padding: 10px 12px; border: none; background: none; border-radius: 6px; font-size: 14px; color: var(--text); cursor: pointer; }
-.tpl-task-menu button:hover { background: var(--bg); }
+/* [hidden] on its own loses to any author rule that sets display on the same element with equal
+   specificity (the browser's own [hidden]{display:none} is a user-agent rule, which the cascade
+   always ranks below author CSS) — .tpl-task-menu below sets display:flex unconditionally, so
+   without this the menu would render at page load instead of staying hidden until opened. */
+.tpl-task-menu[hidden] { display: none; }
+.tpl-task-menu { position: fixed; z-index: 300; min-width: 180px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 6px; display: flex; flex-direction: column; gap: 0; overflow: hidden; }
+.tpl-task-menu-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 8px; margin-bottom: 4px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+.tpl-task-menu-close { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: none; background: none; color: var(--text-muted); cursor: pointer; border-radius: 6px; padding: 0; }
+.tpl-task-menu-close:hover { background: var(--bg); color: var(--text); }
+.tpl-task-menu-close svg { width: 13px; height: 13px; }
+.tpl-task-menu button[data-tpl-menu-action] { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 8px; border: none; background: none; border-radius: 6px; font-size: 14px; color: var(--text); cursor: pointer; }
+.tpl-task-menu button[data-tpl-menu-action] svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-muted); }
+.tpl-task-menu button[data-tpl-menu-action]:hover { background: var(--bg); }
 .tpl-task-menu button.danger { color: var(--danger); }
+.tpl-task-menu button.danger svg { color: var(--danger); }
 .tpl-task-menu button.danger:hover { background: var(--danger-light); }
 
 /* Nested sub-task container — always present (even empty) so a childless task is still a valid

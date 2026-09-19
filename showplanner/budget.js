@@ -15,6 +15,8 @@ function uid() { return crypto.randomUUID(); }
 const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>';
 const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
 const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+const ICON_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+const ICON_CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 
 function showToast(message, type = 'info') {
   const toast = document.getElementById('toast');
@@ -141,7 +143,6 @@ let currentShowTasks = [];  // [{id, ...data}] — showplanner_shows/{id}/tasks 
 let allTemplates = [];      // [{id, ...data}] — task-checklist templates (showplanner_templates)
 let currentTemplate = null; // working copy of the template doc currently open in its editor
 let currentTemplateId = null;
-let expandedTemplateTasks = new Set(); // local UI-only state — which task cards have their own detail (via "…") open
 let collapsedTemplateChildren = new Set(); // local UI-only state — which tasks have their sub-task cards hidden
 let showEditorDirty = false; // any pending edit to the OPEN show not yet written by Save changes
 function markDirty() { showEditorDirty = true; }
@@ -1369,7 +1370,6 @@ async function openTemplate(id) {
   currentTemplateId = id;
   currentTemplate = { roles: [], tasks: [], ...doc.data(), id: doc.id };
   currentTemplate.tasks = normalizeTemplateTasks(currentTemplate.tasks);
-  expandedTemplateTasks = new Set();
   collapsedTemplateChildren = new Set();
   renderTemplateEditor();
   switchTab('templateEditor');
@@ -1530,29 +1530,19 @@ function renderTemplateTasksTable() {
   const tasks = currentTemplate.tasks;
   if (!tasks.length) { el.innerHTML = '<p class="empty-state">No tasks yet.</p>'; destroyTemplateSortables(); return; }
 
-  const roleOptions = (roleId) => `<option value=""${!roleId ? ' selected' : ''}>—</option>` +
-    currentTemplate.roles.map(r => `<option value="${r.id}"${r.id === roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
-  const parentOptions = (taskId, parentId) => {
-    const excluded = new Set([taskId, ...templateDescendantIds(taskId)]);
-    return `<option value=""${!parentId ? ' selected' : ''}>Top-level</option>` +
-      tasks.filter(t => !excluded.has(t.id))
-        .map(t => `<option value="${t.id}"${parentId === t.id ? ' selected' : ''}>${'— '.repeat(templateDepth(t.id))}${escapeHtml(t.title || '(untitled)')}</option>`).join('');
-  };
-
-  // Collapsed (the default): a drag handle, a sub-task toggle (only if it has children —
-  // controls whether ITS sub-task cards are shown at all, nothing to do with this task's own
-  // fields), the title, and a "…" — closed, it opens a small menu (Edit/Add sub-task/Delete);
-  // already open (showing "✕" instead), it just closes the detail directly, no menu needed. Edit
-  // reveals description/the fields grid; Add sub-task and Delete both live in the menu, not as
-  // their own icons, so the collapsed row never grows past drag handle + toggle + title + one
-  // button. Every task, freshly added or already saved, starts collapsed — its title is right
-  // there on the collapsed row to type into either way. Children render inside an ACTUAL nested
-  // container (not a flat sibling with a visual indent) so Sortable's own nested-list dragging
-  // handles reparenting for free — the container always exists, even with no children yet, so a
-  // childless task is still a place you can drag a new sub-task onto.
+  // Collapsed (the only state now — editing opens a modal instead of expanding inline): a drag
+  // handle, a sub-task toggle (only if it has children — controls whether ITS sub-task cards are
+  // shown at all, nothing to do with this task's own fields), the title, and a "…" that opens a
+  // small menu (Edit/Add sub-task/Delete). Edit opens tplTaskEditModal with the description/
+  // days-before/role/parent fields; Add sub-task and Delete live in the same menu, not their own
+  // icons, so the row never grows past drag handle + toggle + title + one button. Every task,
+  // freshly added or already saved, looks the same — its title is right there to type into
+  // either way. Children render inside an ACTUAL nested container (not a flat sibling with a
+  // visual indent) so Sortable's own nested-list dragging handles reparenting for free — the
+  // container always exists, even with no children yet, so a childless task is still a place you
+  // can drag a new sub-task onto.
   function cardHtml(taskId) {
     const t = tasks.find(x => x.id === taskId);
-    const detailOpen = expandedTemplateTasks.has(taskId);
     const children = templateChildrenSorted(taskId);
     const hasChildren = children.length > 0;
     const childrenCollapsed = collapsedTemplateChildren.has(taskId);
@@ -1565,26 +1555,8 @@ function renderTemplateTasksTable() {
         <span class="tpl-drag-handle" title="Drag to move">⠿</span>
         ${subToggle}
         <input type="text" class="form-control" style="flex:1;min-width:0" value="${escapeHtml(t.title || '')}" placeholder="Task title" data-task-field="${taskId}:title">
-        <button class="tpl-task-more-btn" data-task-open-detail="${taskId}" title="${detailOpen ? 'Close details' : 'Task menu'}">${detailOpen ? '✕' : '…'}</button>
+        <button class="tpl-task-more-btn" data-task-open-detail="${taskId}" title="Task menu">…</button>
       </div>
-      ${detailOpen ? `
-      <div class="tpl-task-card-details">
-        <input type="text" class="form-control" style="margin-bottom:8px" value="${escapeHtml(t.description || '')}" placeholder="Description (optional)" data-task-field="${taskId}:description">
-        <div class="tpl-task-card-fields">
-          <div class="form-group">
-            <label>Days before show</label>
-            <input type="number" class="form-control num-input" value="${t.daysBeforeShow ?? 0}" data-task-field="${taskId}:daysBeforeShow">
-          </div>
-          <div class="form-group">
-            <label>Role</label>
-            <select class="form-control" data-task-field="${taskId}:roleId">${roleOptions(t.roleId)}</select>
-          </div>
-          <div class="form-group">
-            <label>Sub-task of</label>
-            <select class="form-control" data-task-field="${taskId}:parentId">${parentOptions(taskId, t.parentId ?? null)}</select>
-          </div>
-        </div>
-      </div>` : ''}
       <div class="tpl-task-children" data-parent-id="${taskId}">${(!childrenCollapsed) ? children.map(c => cardHtml(c.id)).join('') : ''}</div>
     </div>`;
   }
@@ -1610,28 +1582,16 @@ document.getElementById('addTemplateTaskBtn').addEventListener('click', () => {
 // Text/number fields mutate in place with no re-render (typing would lose focus otherwise —
 // same pattern as handleLineAmountInput above); role/parent selects re-render afterwards since
 // that's safe on a 'change' and keeps the parent-task dropdown's title labels current.
+// Title is the only field left on the collapsed row itself (everything else moved into the Edit
+// modal) — mutates in place with no re-render, same reasoning as every other live-bound field in
+// this editor: re-rendering the input currently being typed into would drop focus mid-keystroke.
 document.getElementById('templateTasksList').addEventListener('input', (e) => {
   const key = e.target.getAttribute('data-task-field');
   if (!key) return;
   const [taskId, field] = key.split(':');
+  if (field !== 'title') return;
   const t = currentTemplate.tasks.find(t => t.id === taskId);
-  if (!t) return;
-  if (field === 'daysBeforeShow') t.daysBeforeShow = Math.round(Number(e.target.value) || 0);
-  else if (field === 'title') t.title = e.target.value;
-  else if (field === 'description') t.description = e.target.value;
-});
-document.getElementById('templateTasksList').addEventListener('change', (e) => {
-  const key = e.target.getAttribute('data-task-field');
-  if (!key) return;
-  const [taskId, field] = key.split(':');
-  const t = currentTemplate.tasks.find(t => t.id === taskId);
-  if (!t) return;
-  if (field === 'roleId') t.roleId = e.target.value || null;
-  else if (field === 'parentId') {
-    t.parentId = e.target.value || null;
-    t.order = (t.parentId ? templateChildrenSorted(t.parentId) : templateTopLevelSorted()).length; // append at the end of its new siblings, same as a drag to the bottom would
-  } else return;
-  renderTemplateTasksTable();
+  if (t) t.title = e.target.value;
 });
 // Add sub-task / Delete task are shared between the "…" menu below and (add-sub only) nowhere
 // else now — factored out so both call the exact same logic.
@@ -1648,13 +1608,22 @@ function deleteTemplateTask(taskId) {
   const descendants = templateDescendantIds(taskId);
   if (descendants.size && !confirm(`Delete this task and its ${descendants.size} sub-task${descendants.size === 1 ? '' : 's'}? This cannot be undone.`)) return;
   currentTemplate.tasks = currentTemplate.tasks.filter(t => t.id !== taskId && !descendants.has(t.id));
-  [taskId, ...descendants].forEach(id => { expandedTemplateTasks.delete(id); collapsedTemplateChildren.delete(id); });
+  [taskId, ...descendants].forEach(id => collapsedTemplateChildren.delete(id));
   renderTemplateTasksTable();
 }
 
 // One shared floating menu (#tplTaskMenu in index.html) repositioned to whichever card's "…" was
 // clicked, rather than one menu per card. tplTaskMenuTargetId tracks which task it's currently
-// open for.
+// open for. Built here (not as static HTML) since it needs the shared ICON_* constants.
+document.getElementById('tplTaskMenu').innerHTML = `
+  <div class="tpl-task-menu-header">
+    <span>Task</span>
+    <button type="button" class="tpl-task-menu-close" data-tpl-menu-close aria-label="Close menu">${ICON_CLOSE}</button>
+  </div>
+  <button type="button" data-tpl-menu-action="edit">${ICON_EDIT}<span>Edit</span></button>
+  <button type="button" data-tpl-menu-action="add-sub">${ICON_PLUS}<span>Add sub-task</span></button>
+  <button type="button" class="danger" data-tpl-menu-action="delete">${ICON_TRASH}<span>Delete task</span></button>
+`;
 let tplTaskMenuTargetId = null;
 function openTplTaskMenu(anchorBtn, taskId) {
   tplTaskMenuTargetId = taskId;
@@ -1670,12 +1639,13 @@ function closeTplTaskMenu() {
   tplTaskMenuTargetId = null;
 }
 document.getElementById('tplTaskMenu').addEventListener('click', (e) => {
+  if (e.target.closest('[data-tpl-menu-close]')) { closeTplTaskMenu(); return; }
   const action = e.target.closest('[data-tpl-menu-action]')?.getAttribute('data-tpl-menu-action');
   if (!action) return;
   const taskId = tplTaskMenuTargetId;
   closeTplTaskMenu();
   if (!taskId) return;
-  if (action === 'edit') { expandedTemplateTasks.add(taskId); renderTemplateTasksTable(); }
+  if (action === 'edit') openTplTaskEditModal(taskId);
   else if (action === 'add-sub') addTemplateSubTask(taskId);
   else if (action === 'delete') deleteTemplateTask(taskId);
 });
@@ -1687,6 +1657,56 @@ document.addEventListener('click', (e) => {
   closeTplTaskMenu();
 });
 
+// ── Edit task modal (reached via the "…" menu) ──────────────────────────────────────────────
+// Fields live-bind straight into currentTemplate.tasks on input/change, same as every other
+// field in this editor — there's no separate Save, just Close. The task list re-renders once,
+// on close, so a title/role/parent change is reflected there without fighting focus mid-type.
+function templateRoleOptionsHtml(roleId) {
+  return `<option value=""${!roleId ? ' selected' : ''}>—</option>` +
+    currentTemplate.roles.map(r => `<option value="${r.id}"${r.id === roleId ? ' selected' : ''}>${escapeHtml(r.name || '(unnamed role)')}</option>`).join('');
+}
+function templateParentOptionsHtml(taskId, parentId) {
+  const excluded = new Set([taskId, ...templateDescendantIds(taskId)]);
+  return `<option value=""${!parentId ? ' selected' : ''}>Top-level</option>` +
+    currentTemplate.tasks.filter(t => !excluded.has(t.id))
+      .map(t => `<option value="${t.id}"${parentId === t.id ? ' selected' : ''}>${'— '.repeat(templateDepth(t.id))}${escapeHtml(t.title || '(untitled)')}</option>`).join('');
+}
+let tplTaskEditTargetId = null;
+function openTplTaskEditModal(taskId) {
+  const t = currentTemplate.tasks.find(x => x.id === taskId);
+  if (!t) return;
+  tplTaskEditTargetId = taskId;
+  document.getElementById('tplTaskEditTitle').value = t.title || '';
+  document.getElementById('tplTaskEditDesc').value = t.description || '';
+  document.getElementById('tplTaskEditDays').value = t.daysBeforeShow ?? 0;
+  document.getElementById('tplTaskEditRole').innerHTML = templateRoleOptionsHtml(t.roleId);
+  document.getElementById('tplTaskEditParent').innerHTML = templateParentOptionsHtml(taskId, t.parentId ?? null);
+  document.getElementById('tplTaskEditModal').style.display = 'flex';
+}
+function closeTplTaskEditModal() {
+  document.getElementById('tplTaskEditModal').style.display = 'none';
+  tplTaskEditTargetId = null;
+  renderTemplateTasksTable();
+}
+document.getElementById('tplTaskEditCloseBtn').addEventListener('click', closeTplTaskEditModal);
+document.getElementById('tplTaskEditModal').addEventListener('click', (e) => { if (e.target.id === 'tplTaskEditModal') closeTplTaskEditModal(); });
+document.getElementById('tplTaskEditModal').addEventListener('input', (e) => {
+  const t = currentTemplate.tasks.find(x => x.id === tplTaskEditTargetId);
+  if (!t) return;
+  if (e.target.id === 'tplTaskEditTitle') t.title = e.target.value;
+  else if (e.target.id === 'tplTaskEditDesc') t.description = e.target.value;
+  else if (e.target.id === 'tplTaskEditDays') t.daysBeforeShow = Math.round(Number(e.target.value) || 0);
+});
+document.getElementById('tplTaskEditModal').addEventListener('change', (e) => {
+  const t = currentTemplate.tasks.find(x => x.id === tplTaskEditTargetId);
+  if (!t) return;
+  if (e.target.id === 'tplTaskEditRole') t.roleId = e.target.value || null;
+  else if (e.target.id === 'tplTaskEditParent') {
+    t.parentId = e.target.value || null;
+    t.order = (t.parentId ? templateChildrenSorted(t.parentId) : templateTopLevelSorted()).length;
+  }
+});
+
 document.getElementById('templateTasksList').addEventListener('click', (e) => {
   const toggleChildrenId = e.target.getAttribute('data-task-toggle-children');
   if (toggleChildrenId !== null) {
@@ -1695,17 +1715,7 @@ document.getElementById('templateTasksList').addEventListener('click', (e) => {
     return;
   }
   const openDetailBtn = e.target.closest('[data-task-open-detail]');
-  if (openDetailBtn) {
-    const openDetailId = openDetailBtn.getAttribute('data-task-open-detail');
-    if (expandedTemplateTasks.has(openDetailId)) {
-      // Already open — "✕" just closes it directly, no menu needed.
-      expandedTemplateTasks.delete(openDetailId);
-      renderTemplateTasksTable();
-    } else {
-      // Closed — "…" brings up the Edit/Add sub-task/Delete menu instead of opening directly.
-      openTplTaskMenu(openDetailBtn, openDetailId);
-    }
-  }
+  if (openDetailBtn) openTplTaskMenu(openDetailBtn, openDetailBtn.getAttribute('data-task-open-detail'));
 });
 
 document.getElementById('saveTemplateBtn').addEventListener('click', async () => {
