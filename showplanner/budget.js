@@ -1026,10 +1026,10 @@ function openRealTaskMenu(anchorBtn, taskId) {
   const hasChildren = currentShowTasks.some(c => c.parentTaskId === taskId);
   const effectiveStatus = hasChildren ? computeTaskStatus(t) : (t.status || 'not_started');
   document.querySelectorAll('#realTaskMenuPills .status-pill').forEach(btn => {
-    btn.hidden = btn.getAttribute('data-realtask-status') === effectiveStatus; // only offer the statuses it isn't
-    // A task with sub-tasks shows its derived status (see computeTaskStatus()); picking a pill
-    // here sets that status on every sub-task beneath it.
+    btn.hidden = hasChildren || btn.getAttribute('data-realtask-status') === effectiveStatus; // only offer the statuses it isn't
   });
+  // A task with sub-tasks has a derived status (see computeTaskStatus()), so it can't be set here.
+  document.getElementById('realTaskMenuPills').hidden = hasChildren;
   const menu = document.getElementById('realTaskMenu');
   const rect = anchorBtn.getBoundingClientRect();
   menu.hidden = false;
