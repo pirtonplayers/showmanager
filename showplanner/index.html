@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.0.227"></script>
+  <script src="../shared/embed.js?v=1.0.228"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#6d28d9">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowPlanner</title>
-  <link rel="manifest" href="manifest.json?v=1.0.227">
-  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.227">
-  <link rel="stylesheet" href="style.css?v=1.0.227">
+  <link rel="manifest" href="manifest.json?v=1.0.228">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.0.228">
+  <link rel="stylesheet" href="style.css?v=1.0.228">
 </head>
 <body class="theme-showplanner">
 
@@ -159,7 +159,7 @@
         <div class="card-body" style="padding:0">
           <div class="expense-table-wrap">
             <table class="expense-table" id="templateRolesTable">
-              <thead><tr><th>Role name</th><th style="width:36px"></th></tr></thead>
+              <thead><tr><th style="width:36px"></th><th>Role name</th><th style="width:36px"></th></tr></thead>
               <tbody id="templateRolesTableBody"></tbody>
             </table>
           </div>
@@ -174,8 +174,9 @@
         <div class="card-body">
           <div class="tpl-task-list" id="templateTasksList"></div>
         </div>
-        <div class="card-body" style="padding-top:0">
+        <div class="card-body" style="padding-top:0;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-secondary btn-sm" id="addTemplateTaskBtn">+ Add task</button>
+          <button class="btn btn-secondary btn-sm" id="pasteTemplateTasksBtn">Paste tasks…</button>
         </div>
       </div>
 
@@ -206,7 +207,8 @@
       <div class="show-subtabs no-print">
         <button class="show-subtab-btn active" data-subtab="details">Details</button>
         <button class="show-subtab-btn" data-subtab="plan">Plan</button>
-        <button class="show-subtab-btn" data-subtab="roles">Crew &amp; Cast</button>
+        <button class="show-subtab-btn" data-subtab="roles">Crew</button>
+        <button class="show-subtab-btn" data-subtab="cast">Cast</button>
         <button class="show-subtab-btn" data-subtab="budget">Budget</button>
       </div>
 
@@ -259,6 +261,13 @@
             </div>
             <button class="btn btn-primary btn-sm" id="generatePlanBtn" style="height:38px">Generate plan</button>
           </div>
+          <div id="planAddRow" class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+            <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px">
+              <label for="planAddTemplateSelect">Pull in tasks from another template</label>
+              <select id="planAddTemplateSelect" class="form-control"></select>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="planAddTasksBtn" style="height:38px">+ Add tasks</button>
+          </div>
           <div id="planSummary"></div>
         </div>
       </div>
@@ -269,16 +278,6 @@
           <button class="btn btn-primary btn-sm no-print" id="addTaskBtn">+ Add task</button>
         </div>
         <div class="card-body">
-          <div class="no-print" id="taskFilterBar" style="display:none;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-              <input type="checkbox" id="taskHideCompletedToggle">
-              Hide completed
-            </label>
-            <select id="taskHideCompletedScope" class="form-control" style="width:auto;font-size:13px;padding:4px 8px" disabled>
-              <option value="all">All tasks</option>
-              <option value="parent">Parent tasks only</option>
-            </select>
-          </div>
           <div class="item-list" id="tasksList"></div>
         </div>
       </div>
@@ -290,27 +289,13 @@
         <div class="card-body" style="padding:0">
           <div class="expense-table-wrap">
             <table class="expense-table" id="rolesTable">
-              <thead><tr><th>Role</th><th>Assigned</th><th class="no-print" style="width:80px"></th><th class="no-print" style="width:36px"></th></tr></thead>
+              <thead><tr><th class="no-print" style="width:36px"></th><th>Role</th><th>Assigned</th><th class="no-print" style="width:80px"></th><th class="no-print" style="width:36px"></th></tr></thead>
               <tbody id="rolesTableBody"></tbody>
             </table>
           </div>
         </div>
         <div class="card-body no-print" style="padding-top:0">
           <button class="btn btn-secondary btn-sm" id="addRoleBtn">+ Add crew role</button>
-        </div>
-      </div>
-      <div class="card" style="margin-bottom:20px" id="castCard">
-        <div class="card-header"><h2>Cast</h2></div>
-        <div class="card-body" style="padding:0">
-          <div class="expense-table-wrap">
-            <table class="expense-table" id="castTable">
-              <thead><tr><th>Part</th><th>Assigned</th><th class="no-print" style="width:80px"></th><th class="no-print" style="width:36px"></th></tr></thead>
-              <tbody id="castTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="card-body no-print" style="padding-top:0">
-          <button class="btn btn-secondary btn-sm" id="addCastBtn">+ Add cast part</button>
         </div>
       </div>
       <div class="card no-print" style="margin-bottom:20px" id="planAccessCard">
@@ -323,6 +308,23 @@
             the plan open to all.
           </p>
           <div id="planAccessList" class="checklist"></div>
+        </div>
+      </div>
+      </div>
+
+      <div id="showsubtab-cast" class="show-subtab-panel">
+      <div class="card" style="margin-bottom:20px" id="castCard">
+        <div class="card-header"><h2>Cast</h2></div>
+        <div class="card-body" style="padding:0">
+          <div class="expense-table-wrap">
+            <table class="expense-table" id="castTable">
+              <thead><tr><th class="no-print" style="width:36px"></th><th>Part</th><th>Assigned</th><th class="no-print" style="width:80px"></th><th class="no-print" style="width:36px"></th></tr></thead>
+              <tbody id="castTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-body no-print" style="padding-top:0">
+          <button class="btn btn-secondary btn-sm" id="addCastBtn">+ Add cast part</button>
         </div>
       </div>
       </div>
@@ -581,10 +583,32 @@
   </div>
 </div>
 
+<!-- Paste tasks into a template — one task title per line -->
+<div id="pasteTasksModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Paste tasks</h3>
+      <button class="modal-close-btn" id="pasteTasksCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="muted" style="margin-bottom:10px;font-size:13px">
+        One task per line. Each becomes a new top-level task, added after any existing ones.
+      </p>
+      <textarea id="pasteTasksTextarea" class="form-control" rows="10" placeholder="Book venue&#10;Design programme&#10;Open ticket sales"></textarea>
+      <button class="btn btn-primary btn-full" id="pasteTasksConfirmBtn" style="margin-top:14px">Add tasks</button>
+    </div>
+  </div>
+</div>
+
 <!-- Task template card's "…" menu — one shared floating menu, repositioned/retargeted to whichever
      card's button was clicked, rather than one per card. Content is filled in by budget.js (needs
      the shared ICON_* constants), not written out here. -->
 <div id="tplTaskMenu" class="tpl-task-menu" hidden></div>
+
+<!-- Same floating menu, same .tpl-task-menu styling, for a real show's own Plan tab tasks — see
+     the task template editor's own comment above for why this is one shared element per context
+     rather than one per row. -->
+<div id="realTaskMenu" class="tpl-task-menu" hidden></div>
 
 <div id="toast"></div>
 
@@ -592,11 +616,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.0.227"></script>
-<script src="../shared/load-script.js?v=1.0.227"></script>
-<script src="../shared/firebase-config.js?v=1.0.227"></script>
-<script src="../shared/auth.js?v=1.0.227"></script>
-<script src="../shared/suite-nav.js?v=1.0.227"></script>
-<script src="budget.js?v=1.0.227"></script>
+<script src="../shared/version.js?v=1.0.228"></script>
+<script src="../shared/load-script.js?v=1.0.228"></script>
+<script src="../shared/firebase-config.js?v=1.0.228"></script>
+<script src="../shared/auth.js?v=1.0.228"></script>
+<script src="../shared/suite-nav.js?v=1.0.228"></script>
+<script src="budget.js?v=1.0.228"></script>
 </body>
 </html>

@@ -344,9 +344,9 @@ async function openShow(id) {
   if (!doc.exists) { showToast('Show not found', 'error'); return; }
   currentShowId = id;
   currentShow = withDefaults({ id: doc.id, ...doc.data() });
-  collapsedTaskIds = new Set();
   showEditorDirty = false;
   await loadCurrentShowTasks();
+  collapseAllTasks();
   renderEditor();
   switchTab('editor');
   switchShowSubtab('details');
@@ -402,8 +402,17 @@ function renderPlanCard() {
   document.getElementById('generatePlanBtn').disabled = !allTemplates.length || !canEdit;
   // Once a plan exists (any tasks at all — generated or hand-added), the "start from a template"
   // control has nothing left to do — Generate always means "replace everything", which isn't
-  // what this row is for once there's already a real plan in progress.
+  // what this row is for once there's already a real plan in progress. Pulling in MORE tasks from
+  // a (possibly different) template is the "planAddRow" below instead, which stays available
+  // regardless — additive, never destructive, so there's no reason to hide it once a plan exists.
   document.getElementById('planGenerateRow').style.display = (currentShowTasks.length || !canEdit) ? 'none' : '';
+  const addSel = document.getElementById('planAddTemplateSelect');
+  addSel.innerHTML = allTemplates.length
+    ? allTemplates.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')
+    : '<option value="">No task templates yet</option>';
+  addSel.disabled = !canEdit;
+  document.getElementById('planAddTasksBtn').disabled = !allTemplates.length || !canEdit;
+  document.getElementById('planAddRow').style.display = canEdit ? '' : 'none';
 
   const summaryEl = document.getElementById('planSummary');
   if (currentShow.isTemplate) {
@@ -411,7 +420,7 @@ function renderPlanCard() {
     return;
   }
   if (!currentShowTasks.length) {
-    summaryEl.innerHTML = '<p class="muted">No plan generated yet — pick a task template above and click Generate plan.</p>';
+    summaryEl.innerHTML = '<p class="muted">No plan yet — generate one from a task template above, pull in tasks from one or more templates, or add tasks manually below.</p>';
     return;
   }
   const done = currentShowTasks.filter(t => t.status === 'completed').length;
@@ -475,8 +484,8 @@ async function generatePlanFromTemplate(template, baseDate) {
   currentShow.roles = JSON.parse(JSON.stringify(template.roles || []));
   currentShow.roleAssignments = {};
   currentShow.planTemplateId = template.id;
-  collapsedTaskIds = new Set(); // every task just got a fresh id — nothing left for old ids to refer to
   await loadCurrentShowTasks();
+  collapseAllTasks(); // every task just got a fresh id — nothing left for old collapse state to refer to
   renderPlanCard();
   renderRolesCard();
   renderTasksCard();
@@ -496,6 +505,72 @@ document.getElementById('generatePlanBtn').addEventListener('click', async () =>
   try {
     await generatePlanFromTemplate(template, baseDate);
     showToast('Plan generated', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// Additive counterpart to generatePlanFromTemplate() above: appends a template's tasks as new
+// top-level trees (fresh ids, so pulling the same template in twice just adds a second copy —
+// deliberately no de-duplication, since re-running a template on purpose, e.g. one per act, is a
+// legitimate use) rather than replacing the plan, and merges in any of its roles not already
+// present by name rather than wiping currentShow.roles. Never touches planTemplateId — that stays
+// whatever a full Generate last set (or null), since a plan built from several pulled-in
+// templates doesn't have one single "source" template any more.
+async function addTasksFromTemplate(template, baseDate) {
+  const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
+  const batch = db.batch();
+
+  const templateTasks = normalizeTemplateTasks(template.tasks || []);
+  const idMap = new Map(templateTasks.map(tt => [tt.id, tasksCol.doc().id]));
+  const topLevelStart = topLevelTasksSorted().length;
+  templateTasks.forEach((tt, i) => {
+    const parentId = tt.parentId ? idMap.get(tt.parentId) : null;
+    batch.set(tasksCol.doc(idMap.get(tt.id)), {
+      title: tt.title || '(untitled task)',
+      description: tt.description || '',
+      dueMode: 'daysBeforeShow',
+      daysBeforeShow: Number(tt.daysBeforeShow) || 0,
+      dueDate: addDaysToIso(baseDate, Number(tt.daysBeforeShow) || 0),
+      roleId: null, // this show's roles are a different set of ids than the pulled-in template's — see role-name merge below
+      assigneeIds: [],
+      status: 'not_started',
+      parentTaskId: parentId,
+      order: parentId ? (tt.order ?? i) : topLevelStart + (tt.order ?? i),
+      comments: [],
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  const existingNames = new Set(currentShow.roles.map(r => (r.name || '').trim().toLowerCase()));
+  const newRoles = (template.roles || []).filter(r => (r.name || '').trim() && !existingNames.has(r.name.trim().toLowerCase()))
+    .map(r => ({ id: uid(), name: r.name.trim() }));
+  const mergedRoles = [...currentShow.roles, ...newRoles];
+  batch.set(db.collection('showplanner_shows').doc(currentShowId), {
+    roles: mergedRoles,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  await batch.commit();
+  currentShow.roles = mergedRoles;
+  await loadCurrentShowTasks();
+  collapseAllTasks();
+  renderPlanCard();
+  renderRolesCard();
+  renderTasksCard();
+}
+document.getElementById('planAddTasksBtn').addEventListener('click', async () => {
+  const templateId = document.getElementById('planAddTemplateSelect').value;
+  const template = allTemplates.find(t => t.id === templateId);
+  if (!template) { showToast('Choose a task template', 'error'); return; }
+
+  const perfDates = (currentShow.fixedParams.performances || []).map(p => p.date).filter(Boolean).sort();
+  if (!perfDates.length) { showToast('Add at least one performance date first', 'error'); return; }
+
+  try {
+    await addTasksFromTemplate(template, perfDates[0]);
+    showToast(`Tasks added from "${template.name}"`, 'success');
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -583,6 +658,7 @@ function renderGroupCard(kind) {
   const assignAttr = isCast ? 'data-assign-cast' : 'data-assign-role';
   const deleteAttr = isCast ? 'data-cast-delete' : 'data-role-delete';
   const noun = isCast ? 'part' : 'role';
+  const handleCell = canEdit ? '<td><span class="task-drag-handle group-drag-handle" title="Drag to move">⠿</span></td>' : '<td></td>';
   tbody.innerHTML = items.length ? items.map((r, i) => {
     const assignedIds = assignments[r.id] || [];
     const assignedNames = assignedIds.length ? assignedIds.map(userName).join(', ') : '—';
@@ -590,16 +666,59 @@ function renderGroupCard(kind) {
       ? '<input type="text" class="form-control" placeholder="' + (isCast ? 'Part' : 'Role') + ' name" value="' + escapeHtml(r.name || '') + '" ' + nameAttr + '="' + i + '">'
       : escapeHtml(r.name || ('(unnamed ' + noun + ')'));
     return `
-      <tr>
+      <tr data-item-id="${r.id}">
+        ${handleCell}
         <td>${nameCell}</td>
         <td class="role-assignees">${escapeHtml(assignedNames)}</td>
         <td>${canEdit ? ('<button class="btn btn-secondary btn-sm" ' + assignAttr + '="' + r.id + '">Assign</button>') : ''}</td>
         <td>${canEdit ? ('<button class="grid-del-btn" ' + deleteAttr + '="' + i + '" title="Remove">×</button>') : ''}</td>
       </tr>`;
-  }).join('') : `<tr><td colspan="4" class="empty-state">No ${noun}s yet${canEdit ? (` — add one${isCast ? '' : ', or generate a plan from a task template above'}.`) : '.'}</td></tr>`;
+  }).join('') : `<tr><td colspan="5" class="empty-state">No ${noun}s yet${canEdit ? (` — add one${isCast ? '' : ', or generate a plan from a task template above'}.`) : '.'}</td></tr>`;
+  if (canEdit) initGroupSortable(kind); else destroyGroupSortable(kind);
 }
 function renderRolesCard() { renderGroupCard('crew'); }
 function renderCastCard() { renderGroupCard('cast'); }
+
+// ── Drag-and-drop ordering for flat lists (Crew/Cast on a show, Roles in a template editor) —
+// same Sortable.js pattern as the task lists above (handle-only drag, reindex the underlying
+// array from final DOM order on drop, re-render), just without any nesting/reparenting. One
+// registry keyed by an arbitrary string id (not tied to 'crew'/'cast') so the template roles list
+// can share the exact same mechanism as the show-level ones.
+const GROUP_SORTABLE_CONFIG = {
+  crew: { tbodyId: 'rolesTableBody', getItems: () => currentShow.roles, onReorder: () => { markDirty(); renderRolesCard(); } },
+  cast: { tbodyId: 'castTableBody', getItems: () => currentShow.cast, onReorder: () => { markDirty(); renderCastCard(); } },
+  'template-roles': { tbodyId: 'templateRolesTableBody', getItems: () => currentTemplate.roles, onReorder: () => renderTemplateRolesTable() },
+};
+const groupSortables = {};
+function destroyGroupSortable(kind) { groupSortables[kind]?.destroy(); groupSortables[kind] = null; }
+async function initGroupSortable(kind) {
+  const cfg = GROUP_SORTABLE_CONFIG[kind];
+  try {
+    await loadScript(SORTABLE_LIB_URL, 'Sortable');
+  } catch (err) {
+    console.warn('Sortable failed to load — drag reordering unavailable this session', err);
+    return;
+  }
+  destroyGroupSortable(kind);
+  const tbody = document.getElementById(cfg.tbodyId);
+  groupSortables[kind] = Sortable.create(tbody, {
+    handle: '.group-drag-handle',
+    animation: 150,
+    easing: 'cubic-bezier(0.2, 0, 0, 1)',
+    fallbackOnBody: true,
+    delay: 250,
+    delayOnTouchOnly: true,
+    touchStartThreshold: 6,
+    ghostClass: 'task-drag-ghost',
+    chosenClass: 'task-drag-chosen',
+    dragClass: 'task-drag-active',
+    onEnd: () => {
+      const ids = Array.from(tbody.querySelectorAll('tr[data-item-id]')).map(tr => tr.dataset.itemId);
+      cfg.getItems().sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+      cfg.onReorder();
+    },
+  });
+}
 
 document.getElementById('addRoleBtn').addEventListener('click', () => {
   currentShow.roles.push({ id: uid(), name: '' });
@@ -745,18 +864,19 @@ function applyPlanCardVisibility() {
   const canEdit = currentUserCanEditPlan();
   document.getElementById('planCard').style.display = isTemplateShow ? 'none' : '';
   document.getElementById('rolesCard').style.display = isTemplateShow ? 'none' : '';
+  document.getElementById('castCard').style.display = isTemplateShow ? 'none' : '';
   document.getElementById('tasksCard').style.display = isTemplateShow ? 'none' : '';
   document.getElementById('planAccessCard').style.display = (isTemplateShow || !canEdit) ? 'none' : '';
 
-  // The budget template has nothing to show on the Plan/Roles sub-tabs (see above) — hide those
-  // tab buttons outright rather than leave a click landing on an empty panel, and bounce off them
-  // if that's somehow the panel showing already (e.g. this show WAS a regular show a moment ago).
-  ['plan', 'roles'].forEach(id => {
+  // The budget template has nothing to show on the Plan/Crew/Cast sub-tabs (see above) — hide
+  // those tab buttons outright rather than leave a click landing on an empty panel, and bounce off
+  // them if that's somehow the panel showing already (e.g. this show WAS a regular show a moment
+  // ago).
+  ['plan', 'roles', 'cast'].forEach(id => {
     const btn = document.querySelector(`.show-subtab-btn[data-subtab="${id}"]`);
     btn.style.display = isTemplateShow ? 'none' : '';
+    if (isTemplateShow && document.getElementById('showsubtab-' + id).classList.contains('active')) switchShowSubtab('details');
   });
-  if (isTemplateShow && document.getElementById('showsubtab-plan').classList.contains('active')) switchShowSubtab('details');
-  if (isTemplateShow && document.getElementById('showsubtab-roles').classList.contains('active')) switchShowSubtab('details');
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────
@@ -827,40 +947,33 @@ function orderedTaskList() {
   return out;
 }
 
+// Depth-based coloring: every top-level task shares one color, every direct child of a top-level
+// task shares the next, their own children the next again, cycling after that — a purely visual
+// aid for telling which level you're looking at, independent of status (status now lives only in
+// the "…" menu's pills, not on the row).
+const TASK_DEPTH_COLOR_COUNT = 5;
+function taskDepthClass(depth) { return 'task-depth-' + (depth % TASK_DEPTH_COLOR_COUNT); }
+
 function taskRowHtml(t, depth, canEdit) {
   const children = childTasksSorted(t.id);
   const hasChildren = children.length > 0;
-  const status = computeTaskStatus(t);
-  const overdue = isTaskOverdue(t, status);
-  const assigneeNames = (t.assigneeIds || []).map(userName);
-  const rName = roleName(t.roleId);
-  const metaParts = [];
-  if (rName) metaParts.push(rName);
-  if (assigneeNames.length) metaParts.push(assigneeNames.join(', '));
   const toggleHtml = hasChildren
     ? `<button class="task-toggle-btn" data-toggle-task="${t.id}" title="${collapsedTaskIds.has(t.id) ? 'Expand sub-tasks' : 'Collapse sub-tasks'}">${collapsedTaskIds.has(t.id) ? '▸' : '▾'}</button>`
     : '<span class="task-toggle-spacer"></span>';
-  const subcount = hasChildren
-    ? `<span class="task-subcount"> (${children.filter(c => computeTaskStatus(c) === 'completed').length}/${children.length} sub-tasks)</span>` : '';
   const handleHtml = canEdit ? '<span class="task-drag-handle" title="Drag to move">⠿</span>' : '';
-  const addSubHtml = canEdit ? `<button class="task-add-sub-btn" data-add-sub-task="${t.id}" title="Add sub-task">${ICON_PLUS}</button>` : '';
+  const menuHtml = canEdit ? `<button class="tpl-task-more-btn" data-task-open-menu="${t.id}" title="Task menu">…</button>` : '';
   return `
-    <div class="task-row${depth > 0 ? ' subtask' : ''}${overdue ? ' overdue' : ''}" data-open-task="${t.id}">
+    <div class="task-row ${taskDepthClass(depth)}" data-open-task="${t.id}">
       ${handleHtml}
       ${toggleHtml}
-      <span class="badge ${STATUS_BADGE[status] || 'badge-danger'}">${STATUS_LABEL[status] || 'Not started'}</span>
-      <span class="task-title">${escapeHtml(t.title || '(untitled)')}${t.description ? `<span class="task-desc">${escapeHtml(t.description)}</span>` : ''}${subcount}</span>
-      <span class="task-secondary">
-        ${metaParts.length ? `<span class="task-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
-        <span class="task-due">${t.dueDate ? fmtPerfDate({ date: t.dueDate }) : 'No due date'}${overdue ? ' · Overdue' : ''}</span>
-      </span>
-      ${addSubHtml}
+      <span class="task-title">${escapeHtml(t.title || '(untitled)')}</span>
+      ${menuHtml}
     </div>`;
 }
 // A task card: its own row, plus an ACTUAL nested .task-children container for its descendants
 // (not a flat sibling with a visual indent) — always rendered, even empty, so Sortable's own
 // nested-list dragging can drop a task onto a currently-childless one, and so the collapse toggle
-// and the "hide completed" filter can each just show/hide one container element.
+// can just show/hide one container element.
 function taskCardHtml(t, depth, canEdit) {
   const collapsed = collapsedTaskIds.has(t.id);
   const children = childTasksSorted(t.id);
@@ -871,18 +984,24 @@ function taskCardHtml(t, depth, canEdit) {
     </div>`;
 }
 
+// Every task with at least one sub-task starts collapsed — called once when a show's plan is
+// first opened (and again after anything that reshapes the whole tree: generating or pulling in
+// more tasks from a template), not on every render, so manually expanding a branch to work in it
+// survives normal re-renders (status changes, drag-and-drop, quick-add, etc).
+function collapseAllTasks() {
+  collapsedTaskIds = new Set(currentShowTasks.filter(t => currentShowTasks.some(c => c.parentTaskId === t.id)).map(t => t.id));
+}
+
 function renderTasksCard() {
   const canEdit = currentUserCanEditPlan();
   document.getElementById('addTaskBtn').style.display = canEdit ? '' : 'none';
   const el = document.getElementById('tasksList');
-  document.getElementById('taskFilterBar').style.display = currentShowTasks.length ? '' : 'none';
   if (!currentShowTasks.length) {
-    el.innerHTML = `<p class="empty-state">No tasks yet${canEdit ? ' — generate a plan from a task template above, or add one manually.' : '.'}</p>`;
+    el.innerHTML = `<p class="empty-state">No tasks yet${canEdit ? ' — pull in a task template above, or add one manually.' : '.'}</p>`;
     destroyTaskSortables();
     return;
   }
   el.innerHTML = topLevelTasksSorted().map(t => taskCardHtml(t, 0, canEdit)).join('');
-  applyTaskCompletionFilter();
   if (canEdit) initTaskSortables(); else destroyTaskSortables();
 }
 document.getElementById('tasksList').addEventListener('click', (e) => {
@@ -894,8 +1013,8 @@ document.getElementById('tasksList').addEventListener('click', (e) => {
     renderTasksCard();
     return;
   }
-  const addSubBtn = e.target.closest('[data-add-sub-task]');
-  if (addSubBtn) { openQuickAddTask(addSubBtn.getAttribute('data-add-sub-task')); return; }
+  const menuBtn = e.target.closest('[data-task-open-menu]');
+  if (menuBtn) { openRealTaskMenu(menuBtn, menuBtn.getAttribute('data-task-open-menu')); return; }
   const target = e.target.closest('[data-open-task]');
   if (target) openTaskModal(target.getAttribute('data-open-task'));
 });
@@ -967,25 +1086,103 @@ async function confirmQuickAddTask() {
   }
 }
 
-// ── Hide-completed filter — purely a display toggle (hides/shows whole .task-card elements after
-// render) — never touches currentShowTasks or the Sortable DOM structure/order, so dragging still
-// works exactly the same whether or not the filter is active. "All tasks" hides any completed
-// task, top-level or sub-task; "Parent tasks only" hides a completed task only when it's itself
-// top-level (a completed sub-task inside a still-open parent stays visible either way).
-function applyTaskCompletionFilter() {
-  const hideCompleted = document.getElementById('taskHideCompletedToggle').checked;
-  const scope = document.getElementById('taskHideCompletedScope').value;
-  document.getElementById('taskHideCompletedScope').disabled = !hideCompleted;
-  document.querySelectorAll('#tasksList .task-card').forEach(card => {
-    const t = currentShowTasks.find(x => x.id === card.dataset.taskId);
-    if (!t) return;
-    const completed = computeTaskStatus(t) === 'completed';
-    const isTopLevel = !t.parentTaskId;
-    card.hidden = hideCompleted && completed && (scope === 'all' || isTopLevel);
+// ── "…" task menu — one shared floating panel (#realTaskMenu in index.html, same .tpl-task-menu
+// styling/positioning as the task template editor's own menu), built here since it needs the
+// shared ICON_* constants and STATUS_LABEL. Adds a row of status pills above the usual Edit/Add
+// sub-task/Delete actions so the everyday case (mark something in progress/done) never needs the
+// full detail modal at all.
+document.getElementById('realTaskMenu').innerHTML = `
+  <div class="tpl-task-menu-header">
+    <span>Task</span>
+    <button type="button" class="tpl-task-menu-close" data-realtask-menu-close aria-label="Close menu">${ICON_CLOSE}</button>
+  </div>
+  <div class="status-pill-row" id="realTaskMenuPills" style="padding:4px 8px 10px">
+    <button type="button" class="status-pill" data-realtask-status="not_started">Not started</button>
+    <button type="button" class="status-pill" data-realtask-status="in_progress">In progress</button>
+    <button type="button" class="status-pill" data-realtask-status="completed">Completed</button>
+  </div>
+  <button type="button" data-realtask-menu-action="add-sub">${ICON_PLUS}<span>Add sub-task</span></button>
+  <button type="button" data-realtask-menu-action="edit">${ICON_EDIT}<span>Edit</span></button>
+  <button type="button" class="danger" data-realtask-menu-action="delete">${ICON_TRASH}<span>Delete task</span></button>
+`;
+let realTaskMenuTargetId = null;
+function openRealTaskMenu(anchorBtn, taskId) {
+  realTaskMenuTargetId = taskId;
+  const t = currentShowTasks.find(x => x.id === taskId);
+  if (!t) return;
+  const hasChildren = currentShowTasks.some(c => c.parentTaskId === taskId);
+  const effectiveStatus = hasChildren ? computeTaskStatus(t) : (t.status || 'not_started');
+  document.querySelectorAll('#realTaskMenuPills .status-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-realtask-status') === effectiveStatus);
+    // A task with sub-tasks doesn't carry its own status — see computeTaskStatus() — so its pills
+    // just mirror the derived value here and can't be clicked, same rule as the full detail modal.
+    btn.disabled = hasChildren;
   });
+  const menu = document.getElementById('realTaskMenu');
+  const rect = anchorBtn.getBoundingClientRect();
+  menu.hidden = false;
+  const menuWidth = menu.offsetWidth;
+  menu.style.top = `${rect.bottom + 4}px`;
+  menu.style.left = `${Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8))}px`;
 }
-document.getElementById('taskHideCompletedToggle').addEventListener('change', applyTaskCompletionFilter);
-document.getElementById('taskHideCompletedScope').addEventListener('change', applyTaskCompletionFilter);
+function closeRealTaskMenu() {
+  document.getElementById('realTaskMenu').hidden = true;
+  realTaskMenuTargetId = null;
+}
+document.getElementById('realTaskMenu').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-realtask-menu-close]')) { closeRealTaskMenu(); return; }
+  const taskId = realTaskMenuTargetId;
+  if (!taskId) return;
+  const pillBtn = e.target.closest('[data-realtask-status]');
+  if (pillBtn) {
+    if (pillBtn.disabled) return;
+    closeRealTaskMenu();
+    await setRealTaskStatus(taskId, pillBtn.getAttribute('data-realtask-status'));
+    return;
+  }
+  const action = e.target.closest('[data-realtask-menu-action]')?.getAttribute('data-realtask-menu-action');
+  if (!action) return;
+  closeRealTaskMenu();
+  if (action === 'add-sub') openQuickAddTask(taskId);
+  else if (action === 'edit') openTaskModal(taskId);
+  else if (action === 'delete') deleteRealTask(taskId);
+});
+// Click anywhere outside the menu (and not on a "…" button that opens it — that has its own
+// handler above) closes it.
+document.addEventListener('click', (e) => {
+  if (document.getElementById('realTaskMenu').hidden) return;
+  if (e.target.closest('#realTaskMenu') || e.target.closest('[data-task-open-menu]')) return;
+  closeRealTaskMenu();
+});
+async function setRealTaskStatus(taskId, status) {
+  const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
+  try {
+    await tasksCol.doc(taskId).set({ status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    await loadCurrentShowTasks();
+    renderTasksCard();
+    renderPlanCard();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+async function deleteRealTask(taskId) {
+  const descendants = descendantTaskIds(taskId);
+  if (!confirm(`Delete this task${descendants.size ? ` and its ${descendants.size} sub-task${descendants.size === 1 ? '' : 's'}` : ''}? This cannot be undone.`)) return;
+  try {
+    const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
+    const batch = db.batch();
+    batch.delete(tasksCol.doc(taskId));
+    descendants.forEach(id => batch.delete(tasksCol.doc(id)));
+    await batch.commit();
+    document.getElementById('taskModal').style.display = 'none';
+    showToast('Task deleted', 'success');
+    await loadCurrentShowTasks();
+    renderTasksCard();
+    renderPlanCard();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
 
 // ── Drag-and-drop ordering — same Sortable.js pattern as the task template editor: one instance
 // per drop zone (the top-level list, plus every task's own .task-children container), all sharing
@@ -1267,23 +1464,9 @@ async function performTaskAutoSave() {
   }
 }
 
-document.getElementById('taskDeleteBtn').addEventListener('click', async () => {
+document.getElementById('taskDeleteBtn').addEventListener('click', () => {
   if (!editingTaskId) return;
-  if (!confirm('Delete this task? Any sub-tasks under it are also removed. This cannot be undone.')) return;
-  try {
-    const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
-    const batch = db.batch();
-    batch.delete(tasksCol.doc(editingTaskId));
-    currentShowTasks.filter(t => t.parentTaskId === editingTaskId).forEach(t => batch.delete(tasksCol.doc(t.id)));
-    await batch.commit();
-    document.getElementById('taskModal').style.display = 'none';
-    showToast('Task deleted', 'success');
-    await loadCurrentShowTasks();
-    renderTasksCard();
-    renderPlanCard();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
+  deleteRealTask(editingTaskId);
 });
 
 // ── Performances ─────────────────────────────────────────────────────────
@@ -1690,11 +1873,13 @@ function renderTemplateRolesTable() {
   const tbody = document.getElementById('templateRolesTableBody');
   const roles = currentTemplate.roles;
   tbody.innerHTML = roles.length ? roles.map((r, i) => `
-    <tr>
+    <tr data-item-id="${r.id}">
+      <td><span class="task-drag-handle group-drag-handle" title="Drag to move">⠿</span></td>
       <td><input type="text" class="form-control" value="${escapeHtml(r.name || '')}" placeholder="Role name" data-role-field="${i}"></td>
       <td><button class="grid-del-btn" data-role-remove="${i}" title="Remove">×</button></td>
     </tr>
-  `).join('') : '<tr><td colspan="2" class="empty-state">No roles yet.</td></tr>';
+  `).join('') : '<tr><td colspan="3" class="empty-state">No roles yet.</td></tr>';
+  initGroupSortable('template-roles');
 }
 document.getElementById('addTemplateRoleBtn').addEventListener('click', () => {
   currentTemplate.roles.push({ id: uid(), name: '' });
@@ -1875,6 +2060,29 @@ function renderTemplateTasksTable() {
   initTemplateSortables();
 }
 document.getElementById('addTemplateTaskBtn').addEventListener('click', () => openTplTaskNewModal(null));
+
+// ── Paste tasks — one line of pasted/typed text per task, all added as new top-level tasks after
+// whatever's already in the template (never touches existing tasks, never guesses at sub-tasks —
+// a plain flat batch-add, same as typing each one into "+ Add task" in a row but without the
+// per-task modal round-trip).
+document.getElementById('pasteTemplateTasksBtn').addEventListener('click', () => {
+  document.getElementById('pasteTasksTextarea').value = '';
+  document.getElementById('pasteTasksModal').style.display = 'flex';
+  document.getElementById('pasteTasksTextarea').focus();
+});
+document.getElementById('pasteTasksCloseBtn').addEventListener('click', () => { document.getElementById('pasteTasksModal').style.display = 'none'; });
+document.getElementById('pasteTasksModal').addEventListener('click', (e) => { if (e.target.id === 'pasteTasksModal') e.target.style.display = 'none'; });
+document.getElementById('pasteTasksConfirmBtn').addEventListener('click', () => {
+  const lines = document.getElementById('pasteTasksTextarea').value.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) { document.getElementById('pasteTasksModal').style.display = 'none'; return; }
+  const start = templateTopLevelSorted().length;
+  lines.forEach((title, i) => {
+    currentTemplate.tasks.push({ id: uid(), title, description: '', daysBeforeShow: 0, roleId: null, parentId: null, order: start + i });
+  });
+  document.getElementById('pasteTasksModal').style.display = 'none';
+  renderTemplateTasksTable();
+  showToast(`${lines.length} task${lines.length === 1 ? '' : 's'} added`, 'success');
+});
 // Text/number fields mutate in place with no re-render (typing would lose focus otherwise —
 // same pattern as handleLineAmountInput above); role/parent selects re-render afterwards since
 // that's safe on a 'change' and keeps the parent-task dropdown's title labels current.

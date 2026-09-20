@@ -25,6 +25,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   --border: #e2e8f0;
   --text: #0f172a;
   --text-muted: #64748b;
+  /* Task tree depth (Plan tab) — one flat tint per level, cycling after 5; distinct from every
+     status/semantic color above so depth and status never read as the same signal. */
+  --task-depth-0: #ffffff;
+  --task-depth-1: #eef2ff;
+  --task-depth-2: #ecfeff;
+  --task-depth-3: #fdf4ff;
+  --task-depth-4: #fffbeb;
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
   --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
@@ -127,9 +134,7 @@ body.theme-showplanner {
   /* Badge backgrounds are otherwise stripped by the browser's own print defaults — without this
      every status badge below prints as plain, indistinguishable text. */
   .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 9px; padding: 2px 7px; }
-  .task-row { break-inside: avoid; border: 1px solid #ccc; padding: 4px 8px; gap: 8px; font-size: 10px; }
-  .task-row.subtask { margin-left: 16px; }
-  .task-row .task-desc { font-size: 9px; }
+  .task-row { break-inside: avoid; border: 1px solid #ccc; padding: 4px 8px; gap: 8px; font-size: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .role-assignees { font-size: 10px; }
 
   input.form-control, textarea.form-control, select.form-control {
@@ -236,35 +241,26 @@ input[type="file"].form-control { padding: 7px 10px; }
 .show-subtab-panel.active { display: block; }
 
 /* ── Task list (Plan) ──
-   .task-secondary bundles the role/assignee meta and the due date into one flex item (instead of
-   two separate ones) purely so the mobile breakpoint below can push BOTH onto their own line
-   together with a single flex-basis:100%, rather than each wrapping onto its own separate line.
-   Sub-tasks can nest any number of levels deep (a sub-task can itself have sub-tasks) — each
-   row's own --depth custom property (set inline, only on rows below the top level) drives the
-   indent, capped with min() so a deep tree doesn't run out of room on a phone; per-level indent
-   is smaller again under the mobile breakpoint for the same reason. */
-.task-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; font-size: 13px; }
-.task-row.subtask { background: var(--bg); }
-.task-row.overdue { border-left: 3px solid var(--danger); }
+   Deliberately minimal per row now — grab handle, expand/collapse toggle, title, "…" menu — every
+   other field (status, description, due date, role, assignees, comments) lives in the "…" menu's
+   pills or the full edit modal, not on the row itself. Depth is shown by background color instead
+   of indentation text: .task-depth-N cycles through TASK_DEPTH_COLOR_COUNT colors (see budget.js
+   taskDepthClass()) so every level reads as visually distinct at a glance, however deep it nests. */
+.task-row { display: flex; align-items: center; gap: 4px 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; font-size: 13px; }
 .task-row .task-drag-handle { margin-right: -4px; }
-.task-row .task-title { flex: 1 1 140px; min-width: 0; font-weight: 500; }
-.task-row .task-title .task-desc { display: block; font-weight: 400; font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.task-row .task-title .task-subcount { font-weight: 400; font-size: 11px; color: var(--text-muted); }
-.task-row .task-secondary { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
-.task-row .task-due { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
-.task-row.overdue .task-due { color: var(--danger); font-weight: 600; }
-.task-row .task-meta { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
-.task-row .badge { font-size: 10px; padding: 2px 7px; }
+.task-row .task-title { flex: 1 1 auto; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-depth-0 { background: var(--task-depth-0); }
+.task-depth-1 { background: var(--task-depth-1); }
+.task-depth-2 { background: var(--task-depth-2); }
+.task-depth-3 { background: var(--task-depth-3); }
+.task-depth-4 { background: var(--task-depth-4); }
 /* A bigger tap target than the arrow glyph itself needs — this is the one control that shows or
    hides a whole subtree, so it's worth making it hard to miss/mis-tap, especially on a phone.
    3x the original 16px/10px. */
 .task-toggle-btn { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 48px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: var(--text-muted); font-size: 30px; cursor: pointer; transition: all .15s; }
-.task-toggle-btn:hover { background: var(--bg); color: var(--text); }
+.task-toggle-btn:hover { background: rgba(0,0,0,.06); color: var(--text); }
 .task-toggle-spacer { flex-shrink: 0; width: 48px; }
 .role-assignees { font-size: 12px; color: var(--text-muted); }
-.task-add-sub-btn { flex-shrink: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; padding: 0; border: none; border-radius: 8px; background: none; color: var(--text-muted); cursor: pointer; transition: all .15s; }
-.task-add-sub-btn svg { width: 16px; height: 16px; }
-.task-add-sub-btn:hover { background: var(--bg); color: var(--primary); }
 
 /* Quick-add — name only, no modal (see openQuickAddTask) */
 .task-quick-add { display: flex; }
@@ -274,19 +270,17 @@ input[type="file"].form-control { padding: 7px 10px; }
    naturally and Sortable's own nested-list dragging handles reparenting for free — see the task
    template editor's own comment for the full reasoning, reused verbatim here. */
 .task-card[hidden] { display: none; }
-.task-children { padding-left: 18px; border-left: 2px solid var(--border); }
+.task-children { padding-left: 18px; }
 .task-children:not(:empty) { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
 .task-drag-handle { flex-shrink: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 20px; cursor: grab; touch-action: none; border-radius: 8px; user-select: none; }
-.task-drag-handle:hover { background: var(--surface); color: var(--text); }
+.task-drag-handle:hover { background: rgba(0,0,0,.08); color: var(--text); }
 .task-drag-handle:active { cursor: grabbing; }
 .task-drag-ghost { opacity: .35; }
-.task-drag-chosen .task-row { background: var(--primary-light); }
+.task-drag-chosen .task-row { outline: 2px solid var(--primary); }
 .task-drag-active { box-shadow: var(--shadow-md); }
 
 @media (max-width: 560px) {
   .task-children { padding-left: 10px; }
-  .task-row .task-secondary { flex-basis: 100%; margin-left: 24px; justify-content: flex-start; }
-  .task-row .task-meta { max-width: none; }
 }
 
 /* ── Badges ── */
