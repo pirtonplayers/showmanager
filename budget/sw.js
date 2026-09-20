@@ -1,17 +1,17 @@
-const CACHE = 'budget-1.0.241';
+const CACHE = 'budget-1.0.242';
 const STATIC = [
   './',
   './index.html',
-  './style.css?v=1.0.241',
-  './budget.js?v=1.0.241',
-  '../shared/firebase-config.js?v=1.0.241',
-  '../shared/auth.js?v=1.0.241',
-  '../shared/suite-nav.js?v=1.0.241',
-  '../shared/embed.js?v=1.0.241',
-  '../shared/version.js?v=1.0.241',
-  './manifest.json?v=1.0.241',
-  './icons/icon-192.png?v=1.0.241',
-  './icons/icon-512.png?v=1.0.241',
+  './style.css?v=1.0.242',
+  './budget.js?v=1.0.242',
+  '../shared/firebase-config.js?v=1.0.242',
+  '../shared/auth.js?v=1.0.242',
+  '../shared/suite-nav.js?v=1.0.242',
+  '../shared/embed.js?v=1.0.242',
+  '../shared/version.js?v=1.0.242',
+  './manifest.json?v=1.0.242',
+  './icons/icon-192.png?v=1.0.242',
+  './icons/icon-512.png?v=1.0.242',
 ];
 
 self.addEventListener('install', e => {
