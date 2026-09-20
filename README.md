@@ -64,6 +64,18 @@ back there instead of managing users itself.
    `icon-192.png`/`icon-512.png` (any SVG-to-PNG tool) — expenses already ships its full PNG set;
    showdrinks and budget currently ship the SVG source only.
 
+## Backup / restore
+
+Portal → Users (Managers only):
+
+- **Back up / Restore data (JSON)** — every app's Firestore collections (not `users`, which are
+  tied to Firebase Auth accounts). Restore overwrites matching docs, never deletes.
+- **Back up receipt images (ZIP)** — downloads every expenses receipt in Storage to one ZIP
+  (save-only, no restore). One-time setup so the browser can fetch them:
+  ```
+  gsutil cors set cors.json gs://pirton-players-showmanager.firebasestorage.app
+  ```
+
 ## Migrating the existing expenses/showdrinks projects' data
 
 See `migration/MIGRATION.md` — deliberately a separate, manually-run step, not something done as

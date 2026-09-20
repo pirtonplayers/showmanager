@@ -2072,10 +2072,34 @@ function renderTemplateTasksTable() {
 }
 document.getElementById('addTemplateTaskBtn').addEventListener('click', () => openTplTaskNewModal(null));
 
-// ── Paste tasks — one line of pasted/typed text per task, all added as new top-level tasks after
-// whatever's already in the template (never touches existing tasks, never guesses at sub-tasks —
-// a plain flat batch-add, same as typing each one into "+ Add task" in a row but without the
-// per-task modal round-trip).
+// ── Paste tasks — one line of pasted/typed text per task, added after whatever's already in the
+// template (never touches existing tasks). Leading dots set the level: none = top-level, "." =
+// sub-task of the nearest task above with one fewer dot, ".." = sub-task of that, and so on. A
+// jump of more than one level (a "..." straight under a top-level task) is treated as just one
+// level deeper rather than an error.
+function parsePastedTasks(text, existingTopLevelCount) {
+  const out = [];
+  const lastIdAtDepth = [];
+  const childCount = new Map(); // parent id (or '' for top-level) -> next order
+  let prevDepth = -1;
+  for (const raw of text.split(/\r?\n/)) {
+    const m = raw.trim().match(/^(\.*)\s*(.*)$/);
+    const title = m[2].trim();
+    if (!title) continue;
+    const depth = Math.min(m[1].length, prevDepth + 1);
+    const parentId = depth ? lastIdAtDepth[depth - 1] : null;
+    const key = parentId || '';
+    const order = childCount.get(key) ?? (parentId ? 0 : existingTopLevelCount);
+    childCount.set(key, order + 1);
+    const id = uid();
+    lastIdAtDepth[depth] = id;
+    lastIdAtDepth.length = depth + 1;
+    out.push({ id, title, parentId, order });
+    prevDepth = depth;
+  }
+  return out;
+}
+
 document.getElementById('pasteTemplateTasksBtn').addEventListener('click', () => {
   document.getElementById('pasteTasksTextarea').value = '';
   document.getElementById('pasteTasksModal').style.display = 'flex';
@@ -2084,15 +2108,12 @@ document.getElementById('pasteTemplateTasksBtn').addEventListener('click', () =>
 document.getElementById('pasteTasksCloseBtn').addEventListener('click', () => { document.getElementById('pasteTasksModal').style.display = 'none'; });
 document.getElementById('pasteTasksModal').addEventListener('click', (e) => { if (e.target.id === 'pasteTasksModal') e.target.style.display = 'none'; });
 document.getElementById('pasteTasksConfirmBtn').addEventListener('click', () => {
-  const lines = document.getElementById('pasteTasksTextarea').value.split('\n').map(l => l.trim()).filter(Boolean);
-  if (!lines.length) { document.getElementById('pasteTasksModal').style.display = 'none'; return; }
-  const start = templateTopLevelSorted().length;
-  lines.forEach((title, i) => {
-    currentTemplate.tasks.push({ id: uid(), title, description: '', daysBeforeShow: 0, roleId: null, parentId: null, order: start + i });
-  });
+  const items = parsePastedTasks(document.getElementById('pasteTasksTextarea').value, templateTopLevelSorted().length);
   document.getElementById('pasteTasksModal').style.display = 'none';
+  if (!items.length) return;
+  items.forEach(t => currentTemplate.tasks.push({ id: t.id, title: t.title, description: '', daysBeforeShow: 0, roleId: null, parentId: t.parentId, order: t.order }));
   renderTemplateTasksTable();
-  showToast(`${lines.length} task${lines.length === 1 ? '' : 's'} added`, 'success');
+  showToast(`${items.length} task${items.length === 1 ? '' : 's'} added`, 'success');
 });
 // Text/number fields mutate in place with no re-render (typing would lose focus otherwise —
 // same pattern as handleLineAmountInput above); role/parent selects re-render afterwards since

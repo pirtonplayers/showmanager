@@ -8,9 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Pirton Players</title>
-  <link rel="manifest" href="manifest.json?v=1.0.248">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1.0.248">
-  <link rel="stylesheet" href="style.css?v=1.0.248">
+  <link rel="manifest" href="manifest.json?v=1.0.253">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1.0.253">
+  <link rel="stylesheet" href="style.css?v=1.0.253">
 </head>
 <body class="theme-portal">
 
@@ -225,6 +225,10 @@
         <button class="btn btn-secondary btn-sm" id="resyncClaimsBtn">Sync permissions</button>
         <button class="btn btn-secondary btn-sm" id="importMembersBtn">⬆ Import Members (CSV)</button>
         <input type="file" id="importMembersFile" accept=".csv,text/csv" style="display:none">
+        <button class="btn btn-secondary btn-sm" id="backupBtn">⬇ Back up data (JSON)</button>
+        <button class="btn btn-secondary btn-sm" id="restoreBtn">⬆ Restore data (JSON)</button>
+        <input type="file" id="restoreFile" accept=".json,application/json" style="display:none">
+        <button class="btn btn-secondary btn-sm" id="backupReceiptsBtn">⬇ Back up receipt images (ZIP)</button>
       </div>
     </div>
 
@@ -291,11 +295,13 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="shared/version.js?v=1.0.248"></script>
-<script src="shared/firebase-config.js?v=1.0.248"></script>
-<script src="shared/auth.js?v=1.0.248"></script>
-<script src="shared/suite-nav.js?v=1.0.248"></script>
-<script src="shared/a2hs.js?v=1.0.248"></script>
-<script src="portal.js?v=1.0.248"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<script src="shared/version.js?v=1.0.253"></script>
+<script src="shared/firebase-config.js?v=1.0.253"></script>
+<script src="shared/auth.js?v=1.0.253"></script>
+<script src="shared/suite-nav.js?v=1.0.253"></script>
+<script src="shared/load-script.js?v=1.0.253"></script>
+<script src="shared/a2hs.js?v=1.0.253"></script>
+<script src="portal.js?v=1.0.253"></script>
 </body>
 </html>

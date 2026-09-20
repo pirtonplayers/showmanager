@@ -62,7 +62,7 @@ function bumpApp({ dir, assets = [], html = [], swCache }) {
 bumpApp({
   dir: '', swCache: 'portal',
   assets: [
-    'style.css', 'portal.js', 'shared/version.js', 'shared/firebase-config.js', 'shared/auth.js', 'shared/suite-nav.js', 'shared/a2hs.js',
+    'style.css', 'portal.js', 'shared/version.js', 'shared/firebase-config.js', 'shared/auth.js', 'shared/suite-nav.js', 'shared/load-script.js', 'shared/a2hs.js',
     'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   ],
   html: ['index.html', 'manifest.json'],

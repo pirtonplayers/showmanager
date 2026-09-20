@@ -602,6 +602,197 @@ document.getElementById('resyncClaimsBtn').addEventListener('click', async () =>
   }
 });
 
+// ── Back up / Restore — the whole suite's Firestore data as one JSON file (Manager-only, like
+// the rest of this screen). Covers every app's collections below plus showplanner's tasks
+// subcollection. `users` is deliberately left out: those docs are keyed to Firebase Auth
+// accounts, which a JSON file can't recreate — restoring a users doc for a deleted account would
+// just leave an orphan. Receipt photos in Storage aren't included either (only their paths, in
+// the expenses docs). Restore writes every doc in the file over its live counterpart (set, so a
+// doc's fields become exactly what the backup had) but never deletes anything that's in the
+// database and not in the file.
+const BACKUP_COLLECTIONS = [
+  'expenses', 'expenses_shows', 'expenses_config',
+  'showdrinks_shows', 'showdrinks_config', 'showdrinks_menuItems', 'showdrinks_locations',
+  'showdrinks_posGrids', 'showdrinks_counters', 'showdrinks_orders', 'showdrinks_tabMembers',
+  'showdrinks_tabOrders',
+  'budget_shows',
+  'showplanner_shows', 'showplanner_templates',
+  'portal_config',
+];
+const BACKUP_SUBCOLLECTIONS = { showplanner_shows: ['tasks'] };
+const BACKUP_FORMAT = 'showmanager-backup';
+
+// Firestore-only value types have no JSON form, so they're tagged objects on the way out and
+// rebuilt on the way back in.
+function encodeBackupValue(v) {
+  if (v === null || typeof v !== 'object') return v;
+  if (v instanceof firebase.firestore.Timestamp) return { __type: 'timestamp', seconds: v.seconds, nanoseconds: v.nanoseconds };
+  if (v instanceof firebase.firestore.GeoPoint) return { __type: 'geopoint', latitude: v.latitude, longitude: v.longitude };
+  if (v instanceof firebase.firestore.DocumentReference) return { __type: 'reference', path: v.path };
+  if (Array.isArray(v)) return v.map(encodeBackupValue);
+  const out = {};
+  for (const [k, x] of Object.entries(v)) out[k] = encodeBackupValue(x);
+  return out;
+}
+function decodeBackupValue(v) {
+  if (v === null || typeof v !== 'object') return v;
+  if (Array.isArray(v)) return v.map(decodeBackupValue);
+  if (v.__type === 'timestamp') return new firebase.firestore.Timestamp(v.seconds, v.nanoseconds);
+  if (v.__type === 'geopoint') return new firebase.firestore.GeoPoint(v.latitude, v.longitude);
+  if (v.__type === 'reference') return db.doc(v.path);
+  const out = {};
+  for (const [k, x] of Object.entries(v)) out[k] = decodeBackupValue(x);
+  return out;
+}
+
+// Flat list of { path, data } — a subcollection doc's path is its full path, so restore needs
+// no knowledge of the nesting.
+async function collectBackupDocs(collectionPath, subcollections) {
+  const docs = [];
+  const snap = await db.collection(collectionPath).get();
+  for (const d of snap.docs) {
+    docs.push({ path: d.ref.path, data: encodeBackupValue(d.data()) });
+    for (const sub of subcollections) docs.push(...await collectBackupDocs(`${d.ref.path}/${sub}`, []));
+  }
+  return docs;
+}
+
+document.getElementById('backupBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('backupBtn');
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Backing up…';
+  try {
+    const docs = [];
+    for (const col of BACKUP_COLLECTIONS) docs.push(...await collectBackupDocs(col, BACKUP_SUBCOLLECTIONS[col] || []));
+    const backup = { format: BACKUP_FORMAT, version: 1, appVersion: APP_VERSION, createdAt: new Date().toISOString(), docs };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `showmanager-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showToast(`Backed up ${docs.length} document${docs.length === 1 ? '' : 's'}`, 'success');
+  } catch (err) {
+    showToast('Backup failed: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+});
+
+document.getElementById('restoreBtn').addEventListener('click', () => {
+  document.getElementById('restoreFile').click();
+});
+
+document.getElementById('restoreFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = ''; // so choosing the same file again still fires 'change'
+  if (!file) return;
+  const btn = document.getElementById('restoreBtn');
+  const label = btn.textContent;
+  try {
+    let backup;
+    try { backup = JSON.parse(await file.text()); } catch { throw new Error("That file isn't valid JSON."); }
+    const allowed = new Set(BACKUP_COLLECTIONS);
+    if (backup?.format !== BACKUP_FORMAT || !Array.isArray(backup.docs)) throw new Error("That file isn't a showmanager backup.");
+    // Every path must sit under a collection this feature backs up — a hand-edited file can't
+    // reach users/ or anything else.
+    const bad = backup.docs.find(d => typeof d?.path !== 'string' || !allowed.has(d.path.split('/')[0]) || d.path.split('/').length % 2 !== 0);
+    if (bad) throw new Error('Backup contains an unexpected document path: ' + bad.path);
+    const when = backup.createdAt ? new Date(backup.createdAt).toLocaleString() : 'unknown date';
+    if (!confirm(`Restore ${backup.docs.length} documents from the backup made ${when}?\n\nThis overwrites any current data with the same ID. Nothing is deleted, but changes made since the backup to those documents will be lost.`)) return;
+
+    btn.disabled = true;
+    for (let i = 0; i < backup.docs.length; i += 400) { // Firestore batches cap at 500 writes
+      btn.textContent = `Restoring ${Math.min(i + 400, backup.docs.length)}/${backup.docs.length}…`;
+      const batch = db.batch();
+      backup.docs.slice(i, i + 400).forEach(d => batch.set(db.doc(d.path), decodeBackupValue(d.data)));
+      await batch.commit();
+    }
+    _memberDirectory = null; // members may have changed — force a fresh fetch
+    showToast(`Restored ${backup.docs.length} document${backup.docs.length === 1 ? '' : 's'} — reload any open app to see them.`, 'success');
+  } catch (err) {
+    showToast('Restore failed: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+});
+
+// ── Back up receipt images — the expenses receipts in Storage (receipts/{uid}/{file}),
+// which the JSON backup above only references by path. One ZIP with the files at their original
+// paths plus a manifest.json (their content types). Needs the bucket's CORS config (cors.json,
+// see README) since the files are fetched from the browser. Save-only — there's no restore.
+const storage = firebase.storage();
+const JSZIP_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+const RECEIPTS_BACKUP_FORMAT = 'showmanager-receipts-backup';
+
+async function listAllReceiptPaths() {
+  const paths = [];
+  const top = await storage.ref('receipts').listAll();
+  for (const folder of top.prefixes) {
+    let page = await folder.list({ maxResults: 1000 });
+    for (;;) {
+      paths.push(...page.items.map(i => i.fullPath));
+      if (!page.nextPageToken) break;
+      page = await folder.list({ maxResults: 1000, pageToken: page.nextPageToken });
+    }
+  }
+  return paths;
+}
+
+function downloadBlob(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+document.getElementById('backupReceiptsBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('backupReceiptsBtn');
+  const label = btn.textContent;
+  btn.disabled = true;
+  try {
+    btn.textContent = 'Listing…';
+    await loadScript(JSZIP_URL, 'JSZip');
+    const paths = await listAllReceiptPaths();
+    if (!paths.length) { showToast('No receipt images to back up', 'info'); return; }
+    const zip = new JSZip();
+    const files = {};
+    let failed = 0;
+    for (let i = 0; i < paths.length; i++) {
+      btn.textContent = `Backing up ${i + 1}/${paths.length}…`;
+      try {
+        const res = await fetch(await storage.ref(paths[i]).getDownloadURL());
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const blob = await res.blob();
+        zip.file(paths[i], blob);
+        files[paths[i]] = { contentType: blob.type || 'image/jpeg' };
+      } catch (err) {
+        failed++;
+        console.warn('Receipt backup skipped', paths[i], err);
+      }
+    }
+    const n = Object.keys(files).length;
+    if (!n) throw new Error("couldn't download any images (is the bucket's CORS config set? see README)");
+    zip.file('manifest.json', JSON.stringify({ format: RECEIPTS_BACKUP_FORMAT, version: 1, appVersion: APP_VERSION, createdAt: new Date().toISOString(), files }, null, 2));
+    btn.textContent = 'Zipping…';
+    downloadBlob(await zip.generateAsync({ type: 'blob' }), `showmanager-receipts-${new Date().toISOString().slice(0, 10)}.zip`);
+    showToast(`Backed up ${n} receipt image${n === 1 ? '' : 's'}` + (failed ? ` — ${failed} could not be downloaded` : ''), failed ? 'error' : 'success');
+  } catch (err) {
+    showToast('Receipt backup failed: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+});
+
 // ── Import Members (CSV) — writes to showdrinks_tabMembers, the one shared members list also
 // used by Bar Tabs POS and the Add user modal's Member picker above. Moved here from Bar
 // Manager's own Bar Tabs page since importing members is a whole-suite user-management action,
