@@ -30,7 +30,7 @@ function showToast(message, type = 'info') {
   closeBtn.addEventListener('click', () => el.remove());
   el.append(text, closeBtn);
   toast.appendChild(el);
-  if (type !== 'error') setTimeout(() => el.remove(), 3500);
+  setTimeout(() => el.remove(), 5000);
 }
 
 // ── Formula engine ───────────────────────────────────────────────────────
