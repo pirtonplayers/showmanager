@@ -163,10 +163,15 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 async function loadShows() {
-  const snap = await db.collection('showplanner_shows').get();
-  allShows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (b.isTemplate ? 1 : 0) - (a.isTemplate ? 1 : 0) || (a.name || '').localeCompare(b.name || ''));
-  renderShowsList();
+  try {
+    const snap = await db.collection('showplanner_shows').get();
+    allShows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.isTemplate ? 1 : 0) - (a.isTemplate ? 1 : 0) || (a.name || '').localeCompare(b.name || ''));
+    renderShowsList();
+  } catch (err) {
+    console.error('loadShows failed', err);
+    document.getElementById('showsList').innerHTML = `<p class="empty-state">Couldn't load shows: ${escapeHtml(err.message || String(err))}</p>`;
+  }
 }
 
 function renderShowsList() {
@@ -2484,10 +2489,13 @@ firebase.auth().onAuthStateChanged(async user => {
       if (!dashboardInitialized) {
         dashboardInitialized = true;
         document.getElementById('headerVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';
-        await ensureTemplateExists();
+        // Shows load first and independently — a failure setting up the template or loading
+        // templates/people must never leave the Shows list blank.
+        await loadShows();
+        try { await ensureTemplateExists(); } catch (err) { console.error('ensureTemplateExists failed', err); }
         await loadShowplannerUsers();
         await loadShowplannerMembers();
-        await loadTemplates();
+        try { await loadTemplates(); } catch (err) { console.error('loadTemplates failed', err); }
         await loadShows();
       }
     }
