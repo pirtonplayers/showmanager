@@ -222,6 +222,7 @@ input[type="file"].form-control { padding: 7px 10px; }
 .status-pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .status-pill { padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; transition: all .15s; }
 .status-pill:hover:not(:disabled) { border-color: var(--primary); color: var(--text); }
+.status-pill[hidden] { display: none; }
 .status-pill:disabled { cursor: not-allowed; opacity: .6; }
 .status-pill.active[data-status-pill="not_started"], .status-pill.active[data-realtask-status="not_started"] { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
 .status-pill.active[data-status-pill="in_progress"], .status-pill.active[data-realtask-status="in_progress"] { background: var(--warning-light); color: var(--warning); border-color: var(--warning); }
