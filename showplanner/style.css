@@ -712,3 +712,6 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
      here) — narrower on a phone so the Item column keeps enough room for a name to actually read. */
   .budget-columns .expense-table th:nth-child(2), .budget-columns .expense-table td:nth-child(2) { width: 90px !important; }
 }
+
+.assignee-remove { border: none; background: none; padding: 0 2px; color: var(--text-muted); font-size: 13px; line-height: 1; cursor: pointer; }
+.assignee-remove:hover { color: var(--danger); }

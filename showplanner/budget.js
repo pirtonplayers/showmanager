@@ -593,14 +593,17 @@ function renderGroupCard(kind) {
   const handleCell = canEdit ? '<td><span class="task-drag-handle group-drag-handle" title="Drag to move">⠿</span></td>' : '<td></td>';
   tbody.innerHTML = items.length ? items.map((r, i) => {
     const assignedIds = assignments[r.id] || [];
-    const assignedNames = assignedIds.length ? assignedIds.map(userName).join(', ') : '—';
+    const removeAttr = isCast ? 'data-unassign-cast' : 'data-unassign-role';
+    const assignedNames = assignedIds.length
+      ? assignedIds.map(id => escapeHtml(userName(id)) + (canEdit ? ' <button type="button" class="assignee-remove" ' + removeAttr + '="' + r.id + '" data-person="' + escapeHtml(id) + '" title="Remove" aria-label="Remove ' + escapeHtml(userName(id)) + '">×</button>' : '')).join(', ')
+      : '—';
     const nameCell = canEdit
       ? '<input type="text" class="form-control" placeholder="' + (isCast ? 'Part' : 'Role') + ' name" value="' + escapeHtml(r.name || '') + '" ' + nameAttr + '="' + i + '">'
       : escapeHtml(r.name || ('(unnamed ' + noun + ')'));
     return `
       <tr data-item-id="${r.id}">
         ${handleCell}
-        <td>${nameCell}<div class="role-assignees" style="margin-top:3px">${escapeHtml(assignedNames)}</div></td>
+        <td>${nameCell}<div class="role-assignees" style="margin-top:3px">${assignedNames}</div></td>
         <td>${canEdit ? ('<button class="icon-btn" ' + assignAttr + '="' + r.id + '" title="Assign" aria-label="Assign">' + ICON_PERSON + '</button>') : ''}</td>
         <td>${canEdit ? ('<button class="grid-del-btn" ' + deleteAttr + '="' + i + '" title="Remove">×</button>') : ''}</td>
       </tr>`;
@@ -687,6 +690,15 @@ document.getElementById('castTableBody').addEventListener('input', (e) => {
   markDirty();
 });
 document.getElementById('rolesTableBody').addEventListener('click', (e) => {
+  const unBtn = e.target.closest('[data-unassign-role]');
+  if (unBtn) {
+    const itemId = unBtn.getAttribute('data-unassign-role');
+    const selected = (currentShow.roleAssignments[itemId] || []).filter(x => x !== unBtn.getAttribute('data-person'));
+    currentShow.roleAssignments[itemId] = selected;
+    renderRolesCard();
+    saveAssignmentNow('roleAssignments', itemId, selected);
+    return;
+  }
   const delIdx = e.target.closest('[data-role-delete]')?.getAttribute('data-role-delete') ?? null;
   if (delIdx !== null) {
     const item = currentShow.roles[Number(delIdx)];
@@ -701,7 +713,9 @@ document.getElementById('rolesTableBody').addEventListener('click', (e) => {
   const assignRoleId = e.target.closest('[data-assign-role]')?.getAttribute('data-assign-role');
   if (assignRoleId) {
     const role = currentShow.roles.find(r => r.id === assignRoleId);
-    openPeopleModal(`Assign: ${role?.name || 'role'}`, currentShow.roleAssignments[assignRoleId] || [], (selected) => {
+    openPeopleModal(`Assign: ${role?.name || 'role'}`, [], (picked) => {
+      // Adding only: whoever is already assigned stays; picked people are appended.
+      const selected = [...new Set([...(currentShow.roleAssignments[assignRoleId] || []), ...picked])];
       currentShow.roleAssignments[assignRoleId] = selected;
       renderRolesCard();
       saveAssignmentNow('roleAssignments', assignRoleId, selected);
@@ -709,6 +723,15 @@ document.getElementById('rolesTableBody').addEventListener('click', (e) => {
   }
 });
 document.getElementById('castTableBody').addEventListener('click', (e) => {
+  const unBtn = e.target.closest('[data-unassign-cast]');
+  if (unBtn) {
+    const itemId = unBtn.getAttribute('data-unassign-cast');
+    const selected = (currentShow.castAssignments[itemId] || []).filter(x => x !== unBtn.getAttribute('data-person'));
+    currentShow.castAssignments[itemId] = selected;
+    renderCastCard();
+    saveAssignmentNow('castAssignments', itemId, selected);
+    return;
+  }
   const delIdx = e.target.closest('[data-cast-delete]')?.getAttribute('data-cast-delete') ?? null;
   if (delIdx !== null) {
     const item = currentShow.cast[Number(delIdx)];
@@ -722,7 +745,9 @@ document.getElementById('castTableBody').addEventListener('click', (e) => {
   const assignCastId = e.target.closest('[data-assign-cast]')?.getAttribute('data-assign-cast');
   if (assignCastId) {
     const part = currentShow.cast.find(r => r.id === assignCastId);
-    openPeopleModal(`Assign: ${part?.name || 'part'}`, currentShow.castAssignments[assignCastId] || [], (selected) => {
+    openPeopleModal(`Assign: ${part?.name || 'part'}`, [], (picked) => {
+      // Adding only: whoever is already assigned stays; picked people are appended.
+      const selected = [...new Set([...(currentShow.castAssignments[assignCastId] || []), ...picked])];
       currentShow.castAssignments[assignCastId] = selected;
       renderCastCard();
       saveAssignmentNow('castAssignments', assignCastId, selected);
