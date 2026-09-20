@@ -76,6 +76,26 @@ Portal → Users (Managers only):
   gsutil cors set cors.json gs://pirton-players-showmanager.firebasestorage.app
   ```
 
+## Sign in from pirtonplayers.org (Joomla)
+
+A menu item on the Joomla site signs a logged-in member straight into the portal. It signs in
+the showmanager account with the same email, creating an Expenses-only one on their first visit
+if they don't have one yet. It never signs in Managers (they use their password) and never changes
+an existing account's access — grant more from portal → Users.
+
+1. `openssl rand -hex 32` for a secret, then `firebase functions:secrets:set SSO_SECRET` (paste it).
+2. `firebase deploy --only functions` (adds `ssoLogin`). If a sign-in reports failure and the
+   function log shows a `signBlob`/permission error, grant the function's service account
+   (Google Cloud Console → IAM) the **Service Account Token Creator** role.
+3. Edit `joomla/showmanager-sso.php` (paste the same secret in), upload it to the Joomla root, and
+   add a menu item of type **External URL** → `https://www.pirtonplayers.org/showmanager-sso.php`,
+   access level Registered. Optionally list your members' Joomla group ID(s) in
+   `SHOWMANAGER_SSO_ALLOWED_GROUPS` so only they get through.
+
+Trust note: anyone who can log in to the Joomla site as a given email gets that showmanager
+account, so Joomla must not let members change their email without confirming it (or self-register
+with an address they don't own) — or restrict by group as above.
+
 ## Migrating the existing expenses/showdrinks projects' data
 
 See `migration/MIGRATION.md` — deliberately a separate, manually-run step, not something done as

@@ -299,6 +299,31 @@ document.getElementById('changePasswordForm').addEventListener('submit', async (
   }
 });
 
+// Sign-in hand-off from pirtonplayers.org — functions/index.js ssoLogin redirects here with
+// either #sso=<custom token> or #sso-error=<code> in the fragment. The fragment is cleared
+// straight away so the token doesn't linger in the address bar/history; onAuthStateChanged below
+// then takes over exactly as it would after a password sign-in.
+(() => {
+  const hash = location.hash.replace(/^#/, '');
+  if (!hash.startsWith('sso=') && !hash.startsWith('sso-error=')) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  const showLoginError = (msg) => {
+    const el = document.getElementById('loginError');
+    el.textContent = msg;
+    el.style.display = 'block';
+    document.getElementById('authGate').style.display = 'none';
+  };
+  if (hash.startsWith('sso=')) {
+    firebase.auth().signInWithCustomToken(hash.slice(4)).catch(err => showLoginError('Sign-in from the website failed: ' + err.message));
+    return;
+  }
+  const code = hash.slice('sso-error='.length);
+  showLoginError({
+    disabled: 'Your showmanager account is disabled — ask a manager.',
+    manager: 'Managers need to sign in here with their password.',
+  }[code] || 'Sign-in from the website failed — please try again, or sign in here with your password.');
+})();
+
 let currentAccount = null;
 let dashboardInitialized = false;
 

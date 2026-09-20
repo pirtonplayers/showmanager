@@ -6,7 +6,8 @@
 // always requests europe-west1 explicitly).
 
 const { onDocumentWritten } = require('firebase-functions/v2/firestore');
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
+const crypto = require('crypto');
 const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
@@ -21,6 +22,7 @@ const SMTP_USER = defineSecret('SMTP_USER');
 const SMTP_PASS = defineSecret('SMTP_PASS');
 const SMTP_FROM = defineSecret('SMTP_FROM');
 const SMTP_SECRETS = [SMTP_USER, SMTP_PASS, SMTP_FROM];
+const SSO_SECRET = defineSecret('SSO_SECRET');
 
 const EXPENSES_ADMIN_URL = 'https://antonjung.github.io/showmanager/expenses/admin.html';
 const PORTAL_URL = 'https://antonjung.github.io/showmanager/index.html';
@@ -97,6 +99,67 @@ async function requireAppAccess(request, key) {
   }
   return data;
 }
+
+// ── Sign in from pirtonplayers.org (Joomla) ──────────────────────────────────
+// A menu item on the Joomla site points at joomla/showmanager-sso.php (repo root), which — for a
+// member already logged in there — redirects here with their email, a timestamp and a random
+// nonce, signed with a shared secret (HMAC-SHA256 over "email\nname\nts\nnonce"). This verifies the
+// signature, that it's under two minutes old, and that the nonce hasn't been used before, then
+// redirects to the portal with a Firebase custom token in the URL *fragment* (never sent to any
+// server or logged), which portal.js exchanges for a real sign-in and immediately strips.
+//
+// A member with no showmanager account yet gets one created on their first visit — Expenses
+// access only (submit their own expenses), no password (they always arrive via the website; the
+// portal's "Forgot password?" can still set one). Never a Manager, and never touches an existing
+// account's access. So anyone who can log in to the Joomla site with a given email gets that
+// showmanager account (or a fresh Expenses-only one), which is why the Joomla script can also
+// restrict by user group — and why portal admin stays behind a password: a Manager's account is
+// refused here, so a compromised website can't hand out control of every app.
+exports.ssoLogin = onRequest({ region: 'europe-west1', secrets: [SSO_SECRET] }, async (req, res) => {
+  const back = (frag) => res.redirect(302, `${PORTAL_URL}#${frag}`);
+  try {
+    const email = String(req.query.email || '').trim().toLowerCase();
+    const name = String(req.query.name || '').trim().slice(0, 100) || email;
+    const ts = Number(req.query.ts);
+    const nonce = String(req.query.nonce || '');
+    const sig = String(req.query.sig || '');
+
+    const expected = crypto.createHmac('sha256', SSO_SECRET.value()).update(`${email}\n${name}\n${req.query.ts}\n${nonce}`).digest('hex');
+    const sigOk = sig.length === expected.length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+    if (!email || !sigOk || !/^[a-f0-9]{16,64}$/.test(nonce) || !Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 120) {
+      return back('sso-error=invalid');
+    }
+    try {
+      await db.collection('portal_ssoNonces').doc(nonce).create({ email, usedAt: FieldValue.serverTimestamp() });
+    } catch { return back('sso-error=invalid'); } // already used — a replayed link
+
+    let user;
+    try {
+      user = await getAuth().getUserByEmail(email);
+    } catch (err) {
+      if (err.code !== 'auth/user-not-found') throw err;
+      user = await getAuth().createUser({ email, displayName: name });
+    }
+    if (user.disabled) return back('sso-error=disabled');
+    const userRef = db.collection('users').doc(user.uid);
+    const doc = await userRef.get();
+    if (!doc.exists) {
+      await userRef.set({
+        name, email, isManager: false, mustChangePassword: false, ssoCreated: true,
+        access: { expenses: true, expensesAdmin: false, showdrinksAdmin: false, showdrinksTabsPos: false, budget: false, showplanner: false },
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } else if (doc.data().isManager === true) {
+      return back('sso-error=manager');
+    }
+
+    const token = await getAuth().createCustomToken(user.uid);
+    return back(`sso=${token}`);
+  } catch (err) {
+    console.error('ssoLogin failed', err);
+    return back('sso-error=invalid');
+  }
+});
 
 // ── Users (portal — shared across every app) ────────────────────────────────
 
