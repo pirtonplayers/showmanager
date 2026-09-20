@@ -393,19 +393,7 @@ function renderEditor() {
 // ── Plan (task templates → real tasks) ──────────────────────────────────
 
 function renderPlanCard() {
-  const sel = document.getElementById('planTemplateSelect');
-  sel.innerHTML = allTemplates.length
-    ? allTemplates.map(t => `<option value="${t.id}"${t.id === currentShow.planTemplateId ? ' selected' : ''}>${escapeHtml(t.name)}</option>`).join('')
-    : '<option value="">No task templates yet</option>';
   const canEdit = currentUserCanEditPlan();
-  sel.disabled = !canEdit;
-  document.getElementById('generatePlanBtn').disabled = !allTemplates.length || !canEdit;
-  // Once a plan exists (any tasks at all — generated or hand-added), the "start from a template"
-  // control has nothing left to do — Generate always means "replace everything", which isn't
-  // what this row is for once there's already a real plan in progress. Pulling in MORE tasks from
-  // a (possibly different) template is the "planAddRow" below instead, which stays available
-  // regardless — additive, never destructive, so there's no reason to hide it once a plan exists.
-  document.getElementById('planGenerateRow').style.display = (currentShowTasks.length || !canEdit) ? 'none' : '';
   const addSel = document.getElementById('planAddTemplateSelect');
   addSel.innerHTML = allTemplates.length
     ? allTemplates.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')
@@ -420,12 +408,11 @@ function renderPlanCard() {
     return;
   }
   if (!currentShowTasks.length) {
-    summaryEl.innerHTML = '<p class="muted">No plan yet — generate one from a task template above, pull in tasks from one or more templates, or add tasks manually below.</p>';
+    summaryEl.innerHTML = '<p class="muted">No plan yet — pull in tasks from one or more task templates above, or add tasks manually below.</p>';
     return;
   }
   const done = currentShowTasks.filter(t => t.status === 'completed').length;
   const inProgress = currentShowTasks.filter(t => t.status === 'in_progress').length;
-  const sourceTemplate = allTemplates.find(t => t.id === currentShow.planTemplateId);
   summaryEl.innerHTML = `
     <p style="margin-bottom:10px">
       <span class="badge badge-primary">${currentShowTasks.length} task${currentShowTasks.length === 1 ? '' : 's'}</span>
@@ -433,7 +420,6 @@ function renderPlanCard() {
       <span class="badge badge-warning">${inProgress} in progress</span>
       ${currentShow.roles.length ? `<span class="badge">${currentShow.roles.length} role${currentShow.roles.length === 1 ? '' : 's'}</span>` : ''}
     </p>
-    ${sourceTemplate ? `<p class="muted" style="font-size:13px">Generated from "${escapeHtml(sourceTemplate.name)}".</p>` : ''}
   `;
 }
 
@@ -443,80 +429,12 @@ function addDaysToIso(iso, days) {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
-async function generatePlanFromTemplate(template, baseDate) {
-  const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
-  const batch = db.batch();
-
-  currentShowTasks.forEach(t => batch.delete(tasksCol.doc(t.id)));
-
-  // normalizeTemplateTasks defensively handles a template that's never been opened in the editor
-  // since drag-and-drop landed (still in the old array-position/parentIndex shape) as well as one
-  // already in the current id/parentId shape.
-  const templateTasks = normalizeTemplateTasks(template.tasks || []);
-  const idMap = new Map(templateTasks.map(tt => [tt.id, tasksCol.doc().id]));
-  templateTasks.forEach((tt, i) => {
-    const parentId = tt.parentId ? idMap.get(tt.parentId) : null;
-    batch.set(tasksCol.doc(idMap.get(tt.id)), {
-      title: tt.title || '(untitled task)',
-      description: tt.description || '',
-      dueMode: 'daysBeforeShow',
-      daysBeforeShow: Number(tt.daysBeforeShow) || 0,
-      dueDate: addDaysToIso(baseDate, Number(tt.daysBeforeShow) || 0),
-      roleId: tt.roleId || null,
-      assigneeIds: [],
-      status: 'not_started',
-      parentTaskId: parentId,
-      order: tt.order ?? i,
-      comments: [],
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-  });
-
-  batch.set(db.collection('showplanner_shows').doc(currentShowId), {
-    roles: JSON.parse(JSON.stringify(template.roles || [])),
-    roleAssignments: {},
-    planTemplateId: template.id,
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
-
-  await batch.commit();
-  currentShow.roles = JSON.parse(JSON.stringify(template.roles || []));
-  currentShow.roleAssignments = {};
-  currentShow.planTemplateId = template.id;
-  await loadCurrentShowTasks();
-  collapseAllTasks(); // every task just got a fresh id — nothing left for old collapse state to refer to
-  renderPlanCard();
-  renderRolesCard();
-  renderTasksCard();
-}
-
-document.getElementById('generatePlanBtn').addEventListener('click', async () => {
-  const templateId = document.getElementById('planTemplateSelect').value;
-  const template = allTemplates.find(t => t.id === templateId);
-  if (!template) { showToast('Choose a task template', 'error'); return; }
-
-  const perfDates = (currentShow.fixedParams.performances || []).map(p => p.date).filter(Boolean).sort();
-  if (!perfDates.length) { showToast('Add at least one performance date first', 'error'); return; }
-  const baseDate = perfDates[0];
-
-  if (currentShowTasks.length && !confirm(`This will replace the ${currentShowTasks.length} existing task(s) with a fresh plan from "${template.name}". Continue?`)) return;
-
-  try {
-    await generatePlanFromTemplate(template, baseDate);
-    showToast('Plan generated', 'success');
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-});
-
-// Additive counterpart to generatePlanFromTemplate() above: appends a template's tasks as new
+// Appends a template's tasks as new
 // top-level trees (fresh ids, so pulling the same template in twice just adds a second copy —
 // deliberately no de-duplication, since re-running a template on purpose, e.g. one per act, is a
 // legitimate use) rather than replacing the plan, and merges in any of its roles not already
-// present by name rather than wiping currentShow.roles. Never touches planTemplateId — that stays
-// whatever a full Generate last set (or null), since a plan built from several pulled-in
-// templates doesn't have one single "source" template any more.
+// present by name rather than wiping currentShow.roles. Doesn't record a source template, since a plan built
+// from several pulled-in templates doesn't have one.
 async function addTasksFromTemplate(template, baseDate) {
   const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
   const batch = db.batch();
@@ -673,7 +591,7 @@ function renderGroupCard(kind) {
         <td>${canEdit ? ('<button class="btn btn-secondary btn-sm" ' + assignAttr + '="' + r.id + '">Assign</button>') : ''}</td>
         <td>${canEdit ? ('<button class="grid-del-btn" ' + deleteAttr + '="' + i + '" title="Remove">×</button>') : ''}</td>
       </tr>`;
-  }).join('') : `<tr><td colspan="5" class="empty-state">No ${noun}s yet${canEdit ? (` — add one${isCast ? '' : ', or generate a plan from a task template above'}.`) : '.'}</td></tr>`;
+  }).join('') : `<tr><td colspan="5" class="empty-state">No ${noun}s yet${canEdit ? (` — add one${isCast ? '' : ', or pull in a task template on the Plan tab'}.`) : '.'}</td></tr>`;
   if (canEdit) initGroupSortable(kind); else destroyGroupSortable(kind);
 }
 function renderRolesCard() { renderGroupCard('crew'); }
@@ -880,7 +798,7 @@ function applyPlanCardVisibility() {
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────
-// Manual task CRUD, on top of whatever generatePlanFromTemplate() seeded — each write here goes
+// Manual task CRUD, on top of whatever a pulled-in template seeded — each write here goes
 // straight to Firestore (unlike roles/budget lines above, which wait for the page's own Save
 // changes button) since tasks live in their own subcollection, not on the show doc itself.
 
@@ -1761,7 +1679,7 @@ document.getElementById('deleteShowBtn').addEventListener('click', async () => {
 });
 
 // ── Task Templates ───────────────────────────────────────────────────────
-// Reusable checklists (showplanner_templates) that generatePlanFromTemplate() turns into real
+// Reusable checklists (showplanner_templates) that pulling into a plan turns into real
 // dated tasks on a show — kept entirely separate from the budget "template" concept above
 // (isTemplate on a show doc), which is why these are always called "task template" in the UI.
 
