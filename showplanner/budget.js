@@ -400,7 +400,7 @@ function renderPlanCard() {
     : '<option value="">No task templates yet</option>';
   addSel.disabled = !canEdit;
   document.getElementById('planAddTasksBtn').disabled = !allTemplates.length || !canEdit;
-  document.getElementById('planAddRow').style.display = canEdit ? '' : 'none';
+  document.getElementById('planAddTasksBtn').style.display = canEdit && !currentShow.isTemplate ? '' : 'none';
 
   const summaryEl = document.getElementById('planSummary');
   if (currentShow.isTemplate) {
@@ -408,7 +408,7 @@ function renderPlanCard() {
     return;
   }
   if (!currentShowTasks.length) {
-    summaryEl.innerHTML = '<p class="muted">No plan yet — pull in tasks from one or more task templates above, or add tasks manually below.</p>';
+    summaryEl.innerHTML = '<p class="muted">No plan yet — use “Pull in tasks” at the bottom to add tasks from a task template, or add tasks manually below.</p>';
     return;
   }
   const done = currentShowTasks.filter(t => t.status === 'completed').length;
@@ -478,7 +478,12 @@ async function addTasksFromTemplate(template, baseDate) {
   renderRolesCard();
   renderTasksCard();
 }
-document.getElementById('planAddTasksBtn').addEventListener('click', async () => {
+document.getElementById('planAddTasksBtn').addEventListener('click', () => {
+  document.getElementById('pullTasksModal').style.display = 'flex';
+});
+document.getElementById('pullTasksCloseBtn').addEventListener('click', () => { document.getElementById('pullTasksModal').style.display = 'none'; });
+document.getElementById('pullTasksModal').addEventListener('click', (e) => { if (e.target.id === 'pullTasksModal') e.target.style.display = 'none'; });
+document.getElementById('pullTasksConfirmBtn').addEventListener('click', async () => {
   const templateId = document.getElementById('planAddTemplateSelect').value;
   const template = allTemplates.find(t => t.id === templateId);
   if (!template) { showToast('Choose a task template', 'error'); return; }
@@ -488,6 +493,7 @@ document.getElementById('planAddTasksBtn').addEventListener('click', async () =>
 
   try {
     await addTasksFromTemplate(template, perfDates[0]);
+    document.getElementById('pullTasksModal').style.display = 'none';
     showToast(`Tasks added from "${template.name}"`, 'success');
   } catch (err) {
     showToast(err.message, 'error');
