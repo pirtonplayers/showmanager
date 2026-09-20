@@ -865,18 +865,8 @@ function orderedTaskList() {
   return out;
 }
 
-// Depth-based coloring: every top-level task shares one color, every direct child of a top-level
-// task shares the next, their own children the next again, cycling after that — a purely visual
-// aid for telling which level you're looking at, independent of status (status now lives only in
-// the "…" menu's pills, not on the row).
-const TASK_DEPTH_COLOR_COUNT = 5;
-function taskDepthClass(depth) { return 'task-depth-' + (depth % TASK_DEPTH_COLOR_COUNT); }
-
-function statusBadgeHtml(t) {
-  const status = computeTaskStatus(t);
-  return `<span class="badge ${STATUS_BADGE[status]}">${STATUS_LABEL[status]}</span>`;
-}
-
+// Row colour follows status (not depth) — see .task-status-* in style.css. Nesting is shown by the
+// indented .task-children container.
 function taskRowHtml(t, depth, canEdit) {
   const children = childTasksSorted(t.id);
   const hasChildren = children.length > 0;
@@ -886,11 +876,10 @@ function taskRowHtml(t, depth, canEdit) {
   const handleHtml = canEdit ? '<span class="task-drag-handle" title="Drag to move">⠿</span>' : '';
   const menuHtml = canEdit ? `<button class="tpl-task-more-btn" data-task-open-menu="${t.id}" title="Task menu">…</button>` : '';
   return `
-    <div class="task-row ${taskDepthClass(depth)}" data-open-task="${t.id}">
+    <div class="task-row task-status-${computeTaskStatus(t)}" data-open-task="${t.id}">
       ${handleHtml}
       ${toggleHtml}
       <span class="task-title">${escapeHtml(t.title || '(untitled)')}</span>
-      ${statusBadgeHtml(t)}
       ${menuHtml}
     </div>`;
 }

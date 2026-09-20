@@ -27,11 +27,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   --text-muted: #64748b;
   /* Task tree depth (Plan tab) — one flat tint per level, cycling after 5; distinct from every
      status/semantic color above so depth and status never read as the same signal. */
-  --task-depth-0: #ffffff;
-  --task-depth-1: #eef2ff;
-  --task-depth-2: #ecfeff;
-  --task-depth-3: #fdf4ff;
-  --task-depth-4: #fffbeb;
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
   --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
@@ -242,20 +237,15 @@ input[type="file"].form-control { padding: 7px 10px; }
 .show-subtab-panel.active { display: block; }
 
 /* ── Task list (Plan) ──
-   Deliberately minimal per row now — grab handle, expand/collapse toggle, title, "…" menu — every
-   other field (status, description, due date, role, assignees, comments) lives in the "…" menu's
-   pills or the full edit modal, not on the row itself. Depth is shown by background color instead
-   of indentation text: .task-depth-N cycles through TASK_DEPTH_COLOR_COUNT colors (see budget.js
-   taskDepthClass()) so every level reads as visually distinct at a glance, however deep it nests. */
+   Deliberately minimal per row — grab handle, expand/collapse toggle, title, "…" menu. Status
+   (shown only by the row's colour, .task-status-*) is changed from the "…" menu's pills or the
+   full edit modal. */
 .task-row { display: flex; align-items: center; gap: 4px 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; font-size: 13px; }
 .task-row .task-drag-handle { margin-right: -4px; }
 .task-row .task-title { flex: 1 1 auto; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.task-row .badge { flex-shrink: 0; }
-.task-depth-0 { background: var(--task-depth-0); }
-.task-depth-1 { background: var(--task-depth-1); }
-.task-depth-2 { background: var(--task-depth-2); }
-.task-depth-3 { background: var(--task-depth-3); }
-.task-depth-4 { background: var(--task-depth-4); }
+.task-status-not_started { background: var(--danger-light); border-color: var(--danger); }
+.task-status-in_progress { background: var(--warning-light); border-color: var(--warning); }
+.task-status-completed { background: var(--success-light); border-color: var(--success); }
 /* A bigger tap target than the arrow glyph itself needs — this is the one control that shows or
    hides a whole subtree, so it's worth making it hard to miss/mis-tap, especially on a phone.
    3x the original 16px/10px. */
