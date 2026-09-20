@@ -335,6 +335,13 @@ function switchShowSubtab(id) {
   document.querySelectorAll('.show-subtab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('showsubtab-' + id).classList.add('active');
   document.querySelectorAll('.show-subtab-btn[data-subtab]').forEach(b => b.classList.toggle('active', b.dataset.subtab === id));
+  updatePullTasksBtnVisibility();
+}
+// "Pull in tasks" lives beside Save changes (outside the sub-tab panels) but only makes sense on
+// the Plan sub-tab, and only for someone who can edit the plan on a real (non-template) show.
+function updatePullTasksBtnVisibility() {
+  const onPlan = document.getElementById('showsubtab-plan').classList.contains('active');
+  document.getElementById('planAddTasksBtn').style.display = onPlan && currentShow && !currentShow.isTemplate && currentUserCanEditPlan() ? '' : 'none';
 }
 document.querySelectorAll('.show-subtab-btn[data-subtab]').forEach(btn => {
   btn.addEventListener('click', () => switchShowSubtab(btn.dataset.subtab));
@@ -401,7 +408,7 @@ function renderPlanCard() {
     : '<option value="">No task templates yet</option>';
   addSel.disabled = !canEdit;
   document.getElementById('planAddTasksBtn').disabled = !allTemplates.length || !canEdit;
-  document.getElementById('planAddTasksBtn').style.display = canEdit && !currentShow.isTemplate ? '' : 'none';
+  updatePullTasksBtnVisibility();
 
   const summaryEl = document.getElementById('planSummary');
   if (currentShow.isTemplate) {
