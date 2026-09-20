@@ -713,9 +713,7 @@ document.getElementById('rolesTableBody').addEventListener('click', (e) => {
   const assignRoleId = e.target.closest('[data-assign-role]')?.getAttribute('data-assign-role');
   if (assignRoleId) {
     const role = currentShow.roles.find(r => r.id === assignRoleId);
-    openPeopleModal(`Assign: ${role?.name || 'role'}`, [], (picked) => {
-      // Adding only: whoever is already assigned stays; picked people are appended.
-      const selected = [...new Set([...(currentShow.roleAssignments[assignRoleId] || []), ...picked])];
+    openPeopleModal(`Assign: ${role?.name || 'role'}`, currentShow.roleAssignments[assignRoleId] || [], (selected) => {
       currentShow.roleAssignments[assignRoleId] = selected;
       renderRolesCard();
       saveAssignmentNow('roleAssignments', assignRoleId, selected);
@@ -745,9 +743,7 @@ document.getElementById('castTableBody').addEventListener('click', (e) => {
   const assignCastId = e.target.closest('[data-assign-cast]')?.getAttribute('data-assign-cast');
   if (assignCastId) {
     const part = currentShow.cast.find(r => r.id === assignCastId);
-    openPeopleModal(`Assign: ${part?.name || 'part'}`, [], (picked) => {
-      // Adding only: whoever is already assigned stays; picked people are appended.
-      const selected = [...new Set([...(currentShow.castAssignments[assignCastId] || []), ...picked])];
+    openPeopleModal(`Assign: ${part?.name || 'part'}`, currentShow.castAssignments[assignCastId] || [], (selected) => {
       currentShow.castAssignments[assignCastId] = selected;
       renderCastCard();
       saveAssignmentNow('castAssignments', assignCastId, selected);
