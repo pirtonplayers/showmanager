@@ -651,6 +651,19 @@ async function initGroupSortable(kind) {
   });
 }
 
+// Assignments are written the moment they're picked (just that one entry, merged into the show's
+// map) rather than waiting for Save changes — the rest of the editor stays a pending edit.
+async function saveAssignmentNow(field, itemId, selected) {
+  try {
+    await db.collection('showplanner_shows').doc(currentShowId).set({
+      [field]: { [itemId]: selected },
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    showToast('Assignment saved', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
 document.getElementById('addRoleBtn').addEventListener('click', () => {
   currentShow.roles.push({ id: uid(), name: '' });
   markDirty();
@@ -690,9 +703,8 @@ document.getElementById('rolesTableBody').addEventListener('click', (e) => {
     const role = currentShow.roles.find(r => r.id === assignRoleId);
     openPeopleModal(`Assign: ${role?.name || 'role'}`, currentShow.roleAssignments[assignRoleId] || [], (selected) => {
       currentShow.roleAssignments[assignRoleId] = selected;
-      markDirty();
       renderRolesCard();
-      showToast('Assignment updated — click Save changes below to store it', 'success');
+      saveAssignmentNow('roleAssignments', assignRoleId, selected);
     });
   }
 });
@@ -712,9 +724,8 @@ document.getElementById('castTableBody').addEventListener('click', (e) => {
     const part = currentShow.cast.find(r => r.id === assignCastId);
     openPeopleModal(`Assign: ${part?.name || 'part'}`, currentShow.castAssignments[assignCastId] || [], (selected) => {
       currentShow.castAssignments[assignCastId] = selected;
-      markDirty();
       renderCastCard();
-      showToast('Assignment updated — click Save changes below to store it', 'success');
+      saveAssignmentNow('castAssignments', assignCastId, selected);
     });
   }
 });
