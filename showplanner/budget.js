@@ -872,6 +872,11 @@ function orderedTaskList() {
 const TASK_DEPTH_COLOR_COUNT = 5;
 function taskDepthClass(depth) { return 'task-depth-' + (depth % TASK_DEPTH_COLOR_COUNT); }
 
+function statusBadgeHtml(t) {
+  const status = computeTaskStatus(t);
+  return `<span class="badge ${STATUS_BADGE[status]}">${STATUS_LABEL[status]}</span>`;
+}
+
 function taskRowHtml(t, depth, canEdit) {
   const children = childTasksSorted(t.id);
   const hasChildren = children.length > 0;
@@ -885,6 +890,7 @@ function taskRowHtml(t, depth, canEdit) {
       ${handleHtml}
       ${toggleHtml}
       <span class="task-title">${escapeHtml(t.title || '(untitled)')}</span>
+      ${statusBadgeHtml(t)}
       ${menuHtml}
     </div>`;
 }
@@ -1032,9 +1038,8 @@ function openRealTaskMenu(anchorBtn, taskId) {
   const effectiveStatus = hasChildren ? computeTaskStatus(t) : (t.status || 'not_started');
   document.querySelectorAll('#realTaskMenuPills .status-pill').forEach(btn => {
     btn.classList.toggle('active', btn.getAttribute('data-realtask-status') === effectiveStatus);
-    // A task with sub-tasks doesn't carry its own status — see computeTaskStatus() — so its pills
-    // just mirror the derived value here and can't be clicked, same rule as the full detail modal.
-    btn.disabled = hasChildren;
+    // A task with sub-tasks shows its derived status (see computeTaskStatus()); picking a pill
+    // here sets that status on every sub-task beneath it.
   });
   const menu = document.getElementById('realTaskMenu');
   const rect = anchorBtn.getBoundingClientRect();
@@ -1053,7 +1058,6 @@ document.getElementById('realTaskMenu').addEventListener('click', async (e) => {
   if (!taskId) return;
   const pillBtn = e.target.closest('[data-realtask-status]');
   if (pillBtn) {
-    if (pillBtn.disabled) return;
     closeRealTaskMenu();
     await setRealTaskStatus(taskId, pillBtn.getAttribute('data-realtask-status'));
     return;
@@ -1075,7 +1079,11 @@ document.addEventListener('click', (e) => {
 async function setRealTaskStatus(taskId, status) {
   const tasksCol = db.collection('showplanner_shows').doc(currentShowId).collection('tasks');
   try {
-    await tasksCol.doc(taskId).set({ status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    const batch = db.batch();
+    [taskId, ...descendantTaskIds(taskId)].forEach(id => {
+      batch.set(tasksCol.doc(id), { status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    });
+    await batch.commit();
     await loadCurrentShowTasks();
     renderTasksCard();
     renderPlanCard();

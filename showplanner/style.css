@@ -223,9 +223,9 @@ input[type="file"].form-control { padding: 7px 10px; }
 .status-pill { padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; transition: all .15s; }
 .status-pill:hover:not(:disabled) { border-color: var(--primary); color: var(--text); }
 .status-pill:disabled { cursor: not-allowed; opacity: .6; }
-.status-pill.active[data-status-pill="not_started"] { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
-.status-pill.active[data-status-pill="in_progress"] { background: var(--warning-light); color: var(--warning); border-color: var(--warning); }
-.status-pill.active[data-status-pill="completed"] { background: var(--success-light); color: var(--success); border-color: var(--success); }
+.status-pill.active[data-status-pill="not_started"], .status-pill.active[data-realtask-status="not_started"] { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
+.status-pill.active[data-status-pill="in_progress"], .status-pill.active[data-realtask-status="in_progress"] { background: var(--warning-light); color: var(--warning); border-color: var(--warning); }
+.status-pill.active[data-status-pill="completed"], .status-pill.active[data-realtask-status="completed"] { background: var(--success-light); color: var(--success); border-color: var(--success); }
 .count-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
 
 /* ── Show editor sub-tabs (Details/Plan/Roles/Budget) ──
@@ -249,6 +249,7 @@ input[type="file"].form-control { padding: 7px 10px; }
 .task-row { display: flex; align-items: center; gap: 4px 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; font-size: 13px; }
 .task-row .task-drag-handle { margin-right: -4px; }
 .task-row .task-title { flex: 1 1 auto; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-row .badge { flex-shrink: 0; }
 .task-depth-0 { background: var(--task-depth-0); }
 .task-depth-1 { background: var(--task-depth-1); }
 .task-depth-2 { background: var(--task-depth-2); }
