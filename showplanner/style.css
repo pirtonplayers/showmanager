@@ -219,6 +219,10 @@ input[type="file"].form-control { padding: 7px 10px; }
 .status-pill:hover:not(:disabled) { border-color: var(--primary); color: var(--text); }
 .status-pill[hidden] { display: none; }
 .status-pill:disabled { cursor: not-allowed; opacity: .6; }
+.tpl-task-menu .status-pill[data-realtask-status="not_started"] { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
+.tpl-task-menu .status-pill[data-realtask-status="in_progress"] { background: var(--warning-light); color: var(--warning); border-color: var(--warning); }
+.tpl-task-menu .status-pill[data-realtask-status="completed"] { background: var(--success-light); color: var(--success); border-color: var(--success); }
+.status-pill-row[hidden] { display: none; }
 .status-pill.active[data-status-pill="not_started"], .status-pill.active[data-realtask-status="not_started"] { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
 .status-pill.active[data-status-pill="in_progress"], .status-pill.active[data-realtask-status="in_progress"] { background: var(--warning-light); color: var(--warning); border-color: var(--warning); }
 .status-pill.active[data-status-pill="completed"], .status-pill.active[data-realtask-status="completed"] { background: var(--success-light); color: var(--success); border-color: var(--success); }
