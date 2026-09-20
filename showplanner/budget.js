@@ -15,6 +15,7 @@ function uid() { return crypto.randomUUID(); }
 const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>';
 const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
 const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+const ICON_PERSON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
 const ICON_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
 const ICON_CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 
@@ -592,12 +593,11 @@ function renderGroupCard(kind) {
     return `
       <tr data-item-id="${r.id}">
         ${handleCell}
-        <td>${nameCell}</td>
-        <td class="role-assignees">${escapeHtml(assignedNames)}</td>
-        <td>${canEdit ? ('<button class="btn btn-secondary btn-sm" ' + assignAttr + '="' + r.id + '">Assign</button>') : ''}</td>
+        <td>${nameCell}<div class="role-assignees" style="margin-top:3px">${escapeHtml(assignedNames)}</div></td>
+        <td>${canEdit ? ('<button class="icon-btn" ' + assignAttr + '="' + r.id + '" title="Assign" aria-label="Assign">' + ICON_PERSON + '</button>') : ''}</td>
         <td>${canEdit ? ('<button class="grid-del-btn" ' + deleteAttr + '="' + i + '" title="Remove">×</button>') : ''}</td>
       </tr>`;
-  }).join('') : `<tr><td colspan="5" class="empty-state">No ${noun}s yet${canEdit ? (` — add one${isCast ? '' : ', or pull in a task template on the Plan tab'}.`) : '.'}</td></tr>`;
+  }).join('') : `<tr><td colspan="4" class="empty-state">No ${noun}s yet${canEdit ? (` — add one${isCast ? '' : ', or pull in a task template on the Plan tab'}.`) : '.'}</td></tr>`;
   if (canEdit) initGroupSortable(kind); else destroyGroupSortable(kind);
 }
 function renderRolesCard() { renderGroupCard('crew'); }
@@ -667,8 +667,10 @@ document.getElementById('castTableBody').addEventListener('input', (e) => {
   markDirty();
 });
 document.getElementById('rolesTableBody').addEventListener('click', (e) => {
-  const delIdx = e.target.getAttribute('data-role-delete');
+  const delIdx = e.target.closest('[data-role-delete]')?.getAttribute('data-role-delete') ?? null;
   if (delIdx !== null) {
+    const item = currentShow.roles[Number(delIdx)];
+    if (!confirm(`Remove ${item?.name ? `"${item.name}"` : 'this role'}?`)) return;
     const removed = currentShow.roles.splice(Number(delIdx), 1)[0];
     delete currentShow.roleAssignments[removed.id];
     markDirty();
@@ -676,7 +678,7 @@ document.getElementById('rolesTableBody').addEventListener('click', (e) => {
     renderTasksCard();
     return;
   }
-  const assignRoleId = e.target.getAttribute('data-assign-role');
+  const assignRoleId = e.target.closest('[data-assign-role]')?.getAttribute('data-assign-role');
   if (assignRoleId) {
     const role = currentShow.roles.find(r => r.id === assignRoleId);
     openPeopleModal(`Assign: ${role?.name || 'role'}`, currentShow.roleAssignments[assignRoleId] || [], (selected) => {
@@ -688,15 +690,17 @@ document.getElementById('rolesTableBody').addEventListener('click', (e) => {
   }
 });
 document.getElementById('castTableBody').addEventListener('click', (e) => {
-  const delIdx = e.target.getAttribute('data-cast-delete');
+  const delIdx = e.target.closest('[data-cast-delete]')?.getAttribute('data-cast-delete') ?? null;
   if (delIdx !== null) {
+    const item = currentShow.cast[Number(delIdx)];
+    if (!confirm(`Remove ${item?.name ? `"${item.name}"` : 'this part'}?`)) return;
     const removed = currentShow.cast.splice(Number(delIdx), 1)[0];
     delete currentShow.castAssignments[removed.id];
     markDirty();
     renderCastCard();
     return;
   }
-  const assignCastId = e.target.getAttribute('data-assign-cast');
+  const assignCastId = e.target.closest('[data-assign-cast]')?.getAttribute('data-assign-cast');
   if (assignCastId) {
     const part = currentShow.cast.find(r => r.id === assignCastId);
     openPeopleModal(`Assign: ${part?.name || 'part'}`, currentShow.castAssignments[assignCastId] || [], (selected) => {
