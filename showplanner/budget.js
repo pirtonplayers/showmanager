@@ -740,7 +740,10 @@ function openPeopleModal(title, selectedIds, onSave) {
   peopleModalOnSave = onSave;
   document.getElementById('assignRoleModalTitle').textContent = title;
   document.getElementById('assignRoleFilter').value = '';
-  renderPeopleModalList(selectedIds || [], '');
+  // Wipe the previous selection outright before rebuilding, so nothing ticked last time can carry
+  // over — the list is then built only from this item's own saved ids.
+  document.getElementById('assignRoleChecklist').innerHTML = '';
+  renderPeopleModalList([...(selectedIds || [])], '');
   document.getElementById('assignRoleModal').style.display = 'flex';
 }
 function renderPeopleModalList(selectedIds, filterText) {
@@ -759,6 +762,8 @@ function renderPeopleModalList(selectedIds, filterText) {
       <label for="assignUser-${u.id}">${escapeHtml(u.name)}${u.isGuest ? ' <span class="muted" style="font-size:11px">(guest)</span>' : ''}</label>
     </div>
   `).join('') : '<p class="muted" style="padding:6px">No matches.</p>';
+  const selectedNow = new Set(selectedIds);
+  document.querySelectorAll('#assignRoleChecklist input[type="checkbox"]').forEach(cb => { cb.checked = selectedNow.has(cb.value); });
   const exactMatch = q && list.some(p => p.name.toLowerCase() === q);
   const guestRow = document.getElementById('assignRoleAddGuestRow');
   guestRow.style.display = (filterText.trim() && !exactMatch) ? '' : 'none';
@@ -782,7 +787,10 @@ document.getElementById('assignRoleModal').addEventListener('click', (e) => { if
 document.getElementById('assignRoleSaveBtn').addEventListener('click', () => {
   const checked = Array.from(document.querySelectorAll('#assignRoleChecklist input:checked')).map(cb => cb.value);
   document.getElementById('assignRoleModal').style.display = 'none';
-  peopleModalOnSave?.(checked);
+  const onSave = peopleModalOnSave;
+  peopleModalOnSave = null;
+  document.getElementById('assignRoleChecklist').innerHTML = '';
+  onSave?.(checked);
 });
 
 
