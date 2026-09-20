@@ -786,22 +786,54 @@ document.getElementById('assignRoleSaveBtn').addEventListener('click', () => {
 });
 
 
+// Who can edit this show's plan. Same rule as currentUserCanEditPlan(): an empty planAccess map
+// means open to everyone (listed as every ShowPlanner login); once set, only 'edit' entries count.
+function planAccessEditorIds() {
+  const map = currentShow.planAccess || {};
+  if (Object.keys(map).length === 0) return allShowplannerUsers.map(u => u.id);
+  return Object.keys(map).filter(id => map[id] === 'edit');
+}
 function renderPlanAccessCard() {
   const el = document.getElementById('planAccessList');
-  if (!allShowplannerUsers.length) {
-    el.innerHTML = '<p class="muted" style="padding:6px">No other ShowPlanner accounts yet.</p>';
-    return;
-  }
-  const explicit = Object.keys(currentShow.planAccess || {}).length > 0;
-  el.innerHTML = allShowplannerUsers.map(u => {
-    const checked = explicit ? currentShow.planAccess[u.id] === 'edit' : true;
-    return `
-      <div class="checklist-row">
-        <input type="checkbox" id="planAccess-${u.id}" value="${u.id}" ${checked ? 'checked' : ''}>
-        <label for="planAccess-${u.id}">${escapeHtml(u.name)}</label>
-      </div>`;
-  }).join('');
+  const ids = planAccessEditorIds();
+  const canEdit = currentUserCanEditPlan();
+  document.getElementById('planAccessAddBtn').style.display = canEdit ? '' : 'none';
+  el.innerHTML = ids.length ? ids.map(id => `
+    <div class="checklist-row" style="justify-content:space-between">
+      <span>${escapeHtml(userName(id))}</span>
+      ${canEdit ? `<button class="grid-del-btn" data-plan-access-remove="${id}" title="Remove access" aria-label="Remove access">×</button>` : ''}
+    </div>`).join('') : '<p class="muted" style="padding:6px">Nobody has edit access yet.</p>';
 }
+// Writes the whole access list straight away (like crew/cast assignments): everyone chosen gets
+// 'edit', every other known person is set to 'read' so the restriction is explicit.
+async function savePlanAccess(editorIds) {
+  const chosen = new Set(editorIds);
+  const map = {};
+  [...Object.keys(currentShow.planAccess || {}), ...allShowplannerUsers.map(u => u.id), ...chosen]
+    .forEach(id => { map[id] = chosen.has(id) ? 'edit' : 'read'; });
+  const previous = currentShow.planAccess;
+  currentShow.planAccess = map;
+  renderPlanAccessCard();
+  try {
+    await db.collection('showplanner_shows').doc(currentShowId).set({
+      planAccess: map,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    showToast('Plan access saved', 'success');
+  } catch (err) {
+    currentShow.planAccess = previous;
+    renderPlanAccessCard();
+    showToast(err.message, 'error');
+  }
+}
+document.getElementById('planAccessAddBtn').addEventListener('click', () => {
+  openPeopleModal('Plan access', planAccessEditorIds(), (selected) => savePlanAccess(selected.filter(id => !isGuestId(id))));
+});
+document.getElementById('planAccessList').addEventListener('click', (e) => {
+  const id = e.target.closest('[data-plan-access-remove]')?.getAttribute('data-plan-access-remove');
+  if (!id) return;
+  savePlanAccess(planAccessEditorIds().filter(x => x !== id));
+});
 
 // isTemplate: the budget template has no plan at all. Plan access card specifically: only a
 // plan editor manages who else can edit — mirrors the Roles/Tasks cards' own canEdit gating.
