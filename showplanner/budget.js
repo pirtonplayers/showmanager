@@ -1974,6 +1974,8 @@ async function initTemplateSortables() {
     templateSortables.push(Sortable.create(container, {
       group: 'template-tasks',
       handle: '.tpl-drag-handle',
+      filter: '.task-quick-add',
+      preventOnFilter: false,
       animation: 150,
       easing: 'cubic-bezier(0.2, 0, 0, 1)',
       fallbackOnBody: true,
@@ -2171,9 +2173,8 @@ function templateParentOptionsHtml(excludeTaskId, parentId) {
       .map(t => `<option value="${t.id}"${parentId === t.id ? ' selected' : ''}>${'— '.repeat(templateDepth(t.id))}${escapeHtml(t.title || '(untitled)')}</option>`).join('');
 }
 let tplTaskEditTargetId = null; // set when editing a task already in currentTemplate.tasks
-let tplTaskEditDraft = null;    // set instead, while adding a brand new one not yet saved
 function tplTaskEditFocusTarget() {
-  return tplTaskEditDraft || currentTemplate.tasks.find(x => x.id === tplTaskEditTargetId);
+  return currentTemplate.tasks.find(x => x.id === tplTaskEditTargetId);
 }
 function fillTplTaskEditFields(t, excludeTaskId) {
   document.getElementById('tplTaskEditTitle').value = t.title || '';
@@ -2186,44 +2187,53 @@ function openTplTaskEditModal(taskId) {
   const t = currentTemplate.tasks.find(x => x.id === taskId);
   if (!t) return;
   tplTaskEditTargetId = taskId;
-  tplTaskEditDraft = null;
   document.getElementById('tplTaskEditModalTitle').textContent = 'Edit task';
   fillTplTaskEditFields(t, taskId);
   document.getElementById('tplTaskEditModal').style.display = 'flex';
   document.getElementById('tplTaskEditTitle').focus();
 }
-// Adding a task/sub-task opens this same modal but on a draft that isn't in
-// currentTemplate.tasks yet — see closeTplTaskEditModal() for what happens to it on close.
+// Adding a task/sub-task asks for just a name, inline where the task will land — same quick-add
+// flow as a real show's plan. Enter confirms and opens a fresh blank input in the same spot to chain
+// the next one; Escape or clicking away discards. Everything else is set later via "…" > Edit.
+let tplQuickAddParentId = undefined; // undefined = closed; null = open at top level
 function openTplTaskNewModal(parentId) {
-  tplTaskEditTargetId = null;
-  tplTaskEditDraft = { title: '', description: '', daysBeforeShow: 0, roleId: null, parentId };
-  document.getElementById('tplTaskEditModalTitle').textContent = parentId ? 'New sub-task' : 'New task';
-  fillTplTaskEditFields(tplTaskEditDraft, null);
-  document.getElementById('tplTaskEditModal').style.display = 'flex';
-  document.getElementById('tplTaskEditTitle').focus();
+  closeTplQuickAdd();
+  tplQuickAddParentId = parentId || null;
+  if (parentId) collapsedTemplateChildren.delete(parentId);
+  renderTemplateTasksTable();
+  const container = parentId ? document.querySelector(`.tpl-task-children[data-parent-id="${parentId}"]`) : document.getElementById('templateTasksList');
+  if (!container) { tplQuickAddParentId = undefined; return; }
+  const row = document.createElement('div');
+  row.className = 'task-quick-add';
+  row.innerHTML = '<input type="text" class="form-control" id="tplQuickAddInput" placeholder="Task name…">';
+  container.appendChild(row);
+  const input = row.querySelector('input');
+  input.focus();
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); confirmTplQuickAdd(); }
+    else if (e.key === 'Escape') closeTplQuickAdd();
+  });
+  input.addEventListener('blur', () => closeTplQuickAdd());
 }
-// × ("confirm this one"): a draft with a real title is saved, then immediately replaced with
-// a fresh blank draft for the next sibling — type, ×, type, × ... — until closing an empty one
-// ends the chain. A draft with no title is discarded, same as backdrop-click always is.
-document.getElementById('tplTaskEditCloseBtn').addEventListener('click', () => closeTplTaskEditModal({ confirm: true }));
-document.getElementById('tplTaskEditModal').addEventListener('click', (e) => { if (e.target.id === 'tplTaskEditModal') closeTplTaskEditModal({ confirm: false }); });
-function closeTplTaskEditModal({ confirm }) {
-  if (tplTaskEditDraft) {
-    const draft = tplTaskEditDraft;
-    tplTaskEditDraft = null;
-    const title = draft.title.trim();
-    if (confirm && title) {
-      const newTask = { id: uid(), title, description: draft.description || '', daysBeforeShow: draft.daysBeforeShow || 0, roleId: draft.roleId || null, parentId: draft.parentId || null, order: (draft.parentId ? templateChildrenSorted(draft.parentId) : templateTopLevelSorted()).length };
-      currentTemplate.tasks.push(newTask);
-      renderTemplateTasksTable();
-      openTplTaskNewModal(draft.parentId || null); // chain straight into the next one
-      return;
-    }
-    // No title (whichever way it closed), or closed via backdrop click — nothing to save.
-    document.getElementById('tplTaskEditModal').style.display = 'none';
-    return;
-  }
-  // Editing an existing task — already live-bound field by field, nothing to discard either way.
+let tplQuickAddClosing = false; // removing the focused input fires blur synchronously — guard the reentrant call
+function closeTplQuickAdd() {
+  if (tplQuickAddClosing) return;
+  tplQuickAddClosing = true;
+  try { document.querySelector('.task-quick-add')?.remove(); } finally { tplQuickAddClosing = false; }
+  tplQuickAddParentId = undefined;
+}
+function confirmTplQuickAdd() {
+  const title = document.getElementById('tplQuickAddInput')?.value.trim();
+  const parentId = tplQuickAddParentId;
+  if (!title) { closeTplQuickAdd(); return; }
+  tplQuickAddParentId = undefined; // the blur from re-rendering must not close the row we're about to open
+  currentTemplate.tasks.push({ id: uid(), title, description: '', daysBeforeShow: 0, roleId: null, parentId: parentId || null,
+    order: (parentId ? templateChildrenSorted(parentId) : templateTopLevelSorted()).length });
+  openTplTaskNewModal(parentId);
+}
+document.getElementById('tplTaskEditCloseBtn').addEventListener('click', () => closeTplTaskEditModal());
+document.getElementById('tplTaskEditModal').addEventListener('click', (e) => { if (e.target.id === 'tplTaskEditModal') closeTplTaskEditModal(); });
+function closeTplTaskEditModal() {
   document.getElementById('tplTaskEditModal').style.display = 'none';
   tplTaskEditTargetId = null;
   renderTemplateTasksTable();
@@ -2241,7 +2251,7 @@ document.getElementById('tplTaskEditModal').addEventListener('change', (e) => {
   if (e.target.id === 'tplTaskEditRole') t.roleId = e.target.value || null;
   else if (e.target.id === 'tplTaskEditParent') {
     t.parentId = e.target.value || null;
-    if (!tplTaskEditDraft) t.order = (t.parentId ? templateChildrenSorted(t.parentId) : templateTopLevelSorted()).length;
+    t.order = (t.parentId ? templateChildrenSorted(t.parentId) : templateTopLevelSorted()).length;
   }
 });
 
