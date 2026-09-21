@@ -1740,8 +1740,8 @@ function renderRehearsals() {
   const dis = canEdit ? '' : ' disabled';
   const rows = currentShow.rehearsals;
   document.getElementById('rehearsalTableBody').innerHTML = rows.length ? rows.map((r, i) => `
-    <tr class="reh-row-${r.kind || 'rehearsal'}">
-      <td>${dayShort(r.date)}</td>
+    <tr class="reh-row-${r.kind || 'rehearsal'}" data-reh-row="${r.id}">
+      <td class="reh-day">${dayShort(r.date)}</td>
       <td><input type="date" class="form-control" value="${r.date || ''}" data-reh-field="${i}:date"${dis}></td>
       <td><div class="reh-time"><input type="time" class="form-control" value="${r.start || ''}" data-reh-field="${i}:start"${dis}>–<input type="time" class="form-control" value="${r.end || ''}" data-reh-field="${i}:end"${dis}></div></td>
       <td><input type="text" class="form-control" value="${escapeHtml(r.description || '')}" data-reh-field="${i}:description"${dis}></td>
@@ -1754,8 +1754,11 @@ function renderRehearsals() {
     : `<tr><td colspan="7" class="empty-state">No rehearsals yet${canEdit ? ' — use Generate, or add one.' : '.'}</td></tr>`;
 }
 
-// Fields edit in place; the list only re-sorts (and Day re-renders) once a date/time edit is
-// committed, so rows don't jump around under the cursor while typing.
+// Fields edit in place. A date/start edit only flags the list as needing a re-sort; the sort
+// happens once focus leaves that field (or right before something else re-renders the table), so
+// rows never jump around while you're still editing or filling in a new one.
+let rehSortPending = false;
+function commitRehSort() { if (rehSortPending) { sortRehearsals(); rehSortPending = false; } }
 document.getElementById('rehearsalTableBody').addEventListener('input', (e) => {
   const key = e.target.getAttribute('data-reh-field');
   if (!key) return;
@@ -1767,13 +1770,29 @@ document.getElementById('rehearsalTableBody').addEventListener('change', (e) => 
   const key = e.target.getAttribute('data-reh-field');
   if (!key) return;
   const field = key.split(':')[1];
-  if (field === 'date' || field === 'start') { sortRehearsals(); renderRehearsals(); }
+  if (field === 'date' || field === 'start') {
+    rehSortPending = true;
+    if (field === 'date') e.target.closest('tr').querySelector('.reh-day').textContent = dayShort(e.target.value);
+  }
+});
+document.getElementById('rehearsalTableBody').addEventListener('focusout', (e) => {
+  if (!rehSortPending) return;
+  const next = e.relatedTarget;
+  // Moving between segments of the same date/time input isn't clicking away; and a click on a
+  // row's buttons must not have the row under it replaced first — their handlers sort themselves.
+  if (next === e.target || next?.closest?.('[data-reh-remove], [data-reh-called]')) return;
+  const inBody = next && document.getElementById('rehearsalTableBody').contains(next);
+  const focusRow = inBody ? next.closest('tr').dataset.rehRow : null;
+  const focusField = inBody ? next.getAttribute('data-reh-field')?.split(':')[1] : null;
+  commitRehSort();
+  renderRehearsals();
+  if (focusField) document.querySelector(`[data-reh-row="${focusRow}"] [data-reh-field$=":${focusField}"]`)?.focus();
 });
 document.getElementById('rehearsalTableBody').addEventListener('click', (e) => {
   const rm = e.target.closest('[data-reh-remove]');
   if (rm) {
     currentShow.rehearsals.splice(Number(rm.getAttribute('data-reh-remove')), 1);
-    markDirty(); renderRehearsals(); return;
+    commitRehSort(); markDirty(); renderRehearsals(); return;
   }
   const called = e.target.closest('[data-reh-called]');
   if (called) openCalledModal(Number(called.getAttribute('data-reh-called')));
@@ -1782,7 +1801,7 @@ document.getElementById('addRehearsalBtn').addEventListener('click', () => {
   const last = currentShow.rehearsals[currentShow.rehearsals.length - 1];
   currentShow.rehearsals.push({
     id: uid(), date: '', start: last?.start || '19:30', end: last?.end || '22:00', kind: 'rehearsal',
-    description: 'Rehearsal', called: currentShow.cast.map(c => c.id), comment: '',
+    description: '', called: currentShow.cast.map(c => c.id), comment: '',
   });
   markDirty(); renderRehearsals();
 });
@@ -1812,7 +1831,7 @@ document.getElementById('rehCalledModal').addEventListener('click', (e) => { if 
 document.getElementById('rehCalledDoneBtn').addEventListener('click', () => {
   currentShow.rehearsals[calledEditIdx].called =
     [...document.querySelectorAll('#rehCalledList input:checked')].map(b => b.getAttribute('data-called-cast'));
-  markDirty(); closeCalledModal(); renderRehearsals();
+  commitRehSort(); markDirty(); closeCalledModal(); renderRehearsals();
 });
 
 // Generate
@@ -1860,19 +1879,21 @@ document.getElementById('rehGenSubmitBtn').addEventListener('click', () => {
   const list = [];
   for (let d = first; d < tech; d = addDaysIso(d, 1)) {
     const t = days[isoToDate(d).getDay()];
-    if (t) list.push(mk(d, t, 'rehearsal', 'Rehearsal'));
+    if (t) list.push(mk(d, t, 'rehearsal', ''));
   }
   if (tech >= first) list.push(mk(tech, { start: document.getElementById('rehTechStart').value, end: document.getElementById('rehTechEnd').value }, 'technical', 'Technical rehearsal'));
   const dressT = { start: document.getElementById('rehDressStart').value, end: document.getElementById('rehDressEnd').value };
-  ['Sunday', 'Monday', 'Tuesday'].forEach((name, i) => {
+  const dressSunT = { start: document.getElementById('rehDressSunStart').value, end: document.getElementById('rehDressSunEnd').value };
+  [dressSunT, dressT, dressT].forEach((t, i) => {
     const d = addDaysIso(tech, i + 1);
-    if (d < perf && d >= first) list.push(mk(d, dressT, 'dress', `Dress rehearsal (${name})`));
+    if (d < perf && d >= first) list.push(mk(d, t, 'dress', 'Dress rehearsal'));
   });
   if (!list.length) { errEl.textContent = 'First rehearsal date is after the technical — nothing to generate.'; return; }
 
   if (currentShow.rehearsals.length &&
       !confirm(`Replace the ${currentShow.rehearsals.length} existing rehearsal(s) with ${list.length} generated one(s)?`)) return;
   currentShow.rehearsals = list;
+  rehSortPending = false;
   sortRehearsals();
   markDirty(); closeRehGenModal(); renderRehearsals();
 });

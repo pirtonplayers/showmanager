@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.3"></script>
+  <script src="../shared/embed.js?v=1.1.4"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#6d28d9">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowPlanner</title>
-  <link rel="manifest" href="manifest.json?v=1.1.3">
-  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.1.3">
-  <link rel="stylesheet" href="style.css?v=1.1.3">
+  <link rel="manifest" href="manifest.json?v=1.1.4">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.1.4">
+  <link rel="stylesheet" href="style.css?v=1.1.4">
 </head>
 <body class="theme-showplanner">
 
@@ -427,7 +427,10 @@
         <input type="time" id="rehTechStart" class="form-control" value="10:00">
         <input type="time" id="rehTechEnd" class="form-control" value="18:00"></div>
       <label style="margin-top:14px;display:block">Dress rehearsals (Sunday, Monday, Tuesday of show week)</label>
-      <div class="reh-day-row"><span>Dress</span>
+      <div class="reh-day-row"><span>Dress – Sunday</span>
+        <input type="time" id="rehDressSunStart" class="form-control" value="14:00">
+        <input type="time" id="rehDressSunEnd" class="form-control" value="17:00"></div>
+      <div class="reh-day-row"><span>Dress – Mon &amp; Tue</span>
         <input type="time" id="rehDressStart" class="form-control" value="19:00">
         <input type="time" id="rehDressEnd" class="form-control" value="22:00"></div>
       <p class="muted" id="rehGenNote" style="margin:12px 0"></p>
@@ -686,11 +689,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.3"></script>
-<script src="../shared/load-script.js?v=1.1.3"></script>
-<script src="../shared/firebase-config.js?v=1.1.3"></script>
-<script src="../shared/auth.js?v=1.1.3"></script>
-<script src="../shared/suite-nav.js?v=1.1.3"></script>
-<script src="budget.js?v=1.1.3"></script>
+<script src="../shared/version.js?v=1.1.4"></script>
+<script src="../shared/load-script.js?v=1.1.4"></script>
+<script src="../shared/firebase-config.js?v=1.1.4"></script>
+<script src="../shared/auth.js?v=1.1.4"></script>
+<script src="../shared/suite-nav.js?v=1.1.4"></script>
+<script src="budget.js?v=1.1.4"></script>
 </body>
 </html>
