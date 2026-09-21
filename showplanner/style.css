@@ -715,3 +715,20 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 
 .assignee-remove { border: none; background: none; padding: 0 2px; color: var(--text-muted); font-size: 13px; line-height: 1; cursor: pointer; }
 .assignee-remove:hover { color: var(--danger); }
+
+/* Crew/Cast rows: name beside the role on a PC (larger), underneath on a phone.
+   Filled = green, empty = red. */
+.group-role-cell { display: flex; align-items: center; gap: 16px; }
+.group-role-cell > .form-control { flex: 0 1 45%; }
+.group-role-cell > .group-assignees { flex: 1 1 auto; margin: 0; }
+.group-assignees { font-size: 16px; font-weight: 600; }
+.group-assignees.is-filled { color: var(--success); }
+.group-assignees.is-empty { color: var(--danger); }
+@media (max-width: 700px) {
+  .group-role-cell { flex-direction: column; align-items: stretch; gap: 3px; }
+  .group-role-cell > .form-control { flex: none; }
+  .group-assignees { font-size: 14px; }
+}
+@media print {
+  .group-assignees { font-size: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

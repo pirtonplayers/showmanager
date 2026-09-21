@@ -600,15 +600,15 @@ function renderGroupCard(kind) {
     const assignedIds = assignments[r.id] || [];
     const removeAttr = isCast ? 'data-unassign-cast' : 'data-unassign-role';
     const assignedNames = assignedIds.length
-      ? assignedIds.map(id => escapeHtml(userName(id)) + (canEdit ? ' <button type="button" class="assignee-remove" ' + removeAttr + '="' + r.id + '" data-person="' + escapeHtml(id) + '" title="Remove" aria-label="Remove ' + escapeHtml(userName(id)) + '">×</button>' : '')).join(', ')
-      : '—';
+      ? assignedIds.map(id => escapeHtml(userName(id)) + (isGuestId(id) ? ' (non member)' : '') + (canEdit ? ' <button type="button" class="assignee-remove" ' + removeAttr + '="' + r.id + '" data-person="' + escapeHtml(id) + '" title="Remove" aria-label="Remove ' + escapeHtml(userName(id)) + '">×</button>' : '')).join(', ')
+      : 'Unfilled';
     const nameCell = canEdit
       ? '<input type="text" class="form-control" placeholder="' + (isCast ? 'Part' : 'Role') + ' name" value="' + escapeHtml(r.name || '') + '" ' + nameAttr + '="' + i + '">'
       : escapeHtml(r.name || ('(unnamed ' + noun + ')'));
     return `
       <tr data-item-id="${r.id}">
         ${handleCell}
-        <td>${nameCell}<div class="role-assignees" style="margin-top:3px">${assignedNames}</div></td>
+        <td><div class="group-role-cell">${nameCell}<div class="role-assignees group-assignees ${assignedIds.length ? 'is-filled' : 'is-empty'}">${assignedNames}</div></div></td>
         <td>${canEdit ? ('<button class="icon-btn" ' + assignAttr + '="' + r.id + '" title="Assign" aria-label="Assign">' + ICON_PERSON + '</button>') : ''}</td>
         <td>${canEdit ? ('<button class="grid-del-btn" ' + deleteAttr + '="' + i + '" title="Remove">×</button>') : ''}</td>
       </tr>`;
