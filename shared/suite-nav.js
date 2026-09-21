@@ -58,7 +58,9 @@ const APP_SUBNAV = {
 
 // account: users/{uid} data (isManager, access) — same shape checkAccess() resolves.
 function accessibleApps(account) {
-  return ACCESS_APPS.filter(a => account.isManager || account.access?.[a.key]);
+  // Managers implicitly reach every app — except ShowBudget, which is being retired in favour of
+  // ShowPlanner, so it only appears for a manager who's had it explicitly ticked.
+  return ACCESS_APPS.filter(a => account.access?.[a.key] || (account.isManager && a.key !== 'budget'));
 }
 
 // ── Standalone-page nav (visiting an app's own URL directly, not through the shell) ─────────
