@@ -1723,6 +1723,8 @@ function dateToIso(dt) { return `${dt.getFullYear()}-${String(dt.getMonth() + 1)
 function addDaysIso(iso, n) { const dt = isoToDate(iso); dt.setDate(dt.getDate() + n); return dateToIso(dt); }
 function dayShort(iso) { return iso ? DOW_SHORT[isoToDate(iso).getDay()] : ''; }
 
+function safeColor(v) { return /^#[0-9a-f]{6}$/i.test(v || '') ? v : ''; }
+
 function sortRehearsals() {
   currentShow.rehearsals.sort((a, b) =>
     (a.date || '9999').localeCompare(b.date || '9999') || (a.start || '').localeCompare(b.start || ''));
@@ -1740,7 +1742,7 @@ function renderRehearsals() {
   const dis = canEdit ? '' : ' disabled';
   const rows = currentShow.rehearsals;
   document.getElementById('rehearsalTableBody').innerHTML = rows.length ? rows.map((r, i) => `
-    <tr class="reh-row-${r.kind || 'rehearsal'}" data-reh-row="${r.id}">
+    <tr class="${safeColor(r.color) ? 'reh-coloured' : ''}"${safeColor(r.color) ? ` style="--reh-color:${r.color}"` : ''} data-reh-row="${r.id}">
       <td class="reh-day">${dayShort(r.date)}</td>
       <td><input type="date" class="form-control" value="${r.date || ''}" data-reh-field="${i}:date"${dis}></td>
       <td><div class="reh-time"><input type="time" class="form-control" value="${r.start || ''}" data-reh-field="${i}:start"${dis}>–<input type="time" class="form-control" value="${r.end || ''}" data-reh-field="${i}:end"${dis}></div></td>
@@ -1874,7 +1876,12 @@ document.getElementById('rehGenSubmitBtn').addEventListener('click', () => {
   let tech = addDaysIso(perf, -1);
   while (isoToDate(tech).getDay() !== 6) tech = addDaysIso(tech, -1);
   const called = currentShow.cast.map(c => c.id);
-  const mk = (date, t, kind, description) => ({ id: uid(), date, start: t.start, end: t.end, kind, description, called: [...called], comment: '' });
+  const colours = {
+    rehearsal: document.getElementById('rehColRehearsal').value,
+    technical: document.getElementById('rehColTechnical').value,
+    dress: document.getElementById('rehColDress').value,
+  };
+  const mk = (date, t, kind, description) => ({ id: uid(), date, start: t.start, end: t.end, kind, color: colours[kind], description, called: [...called], comment: '' });
 
   const list = [];
   for (let d = first; d < tech; d = addDaysIso(d, 1)) {

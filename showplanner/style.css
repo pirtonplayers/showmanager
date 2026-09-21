@@ -740,4 +740,6 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .reh-time { display: flex; gap: 4px; align-items: center; }
 .reh-time .form-control { min-width: 0; }
 .reh-called-btn { text-align: left; background: none; border: 1px dashed var(--border, #ccc); border-radius: 6px; padding: 6px 8px; cursor: pointer; font: inherit; color: inherit; width: 100%; }
-.reh-row-technical td, .reh-row-dress td { background: rgba(0,0,0,.03); }
+.reh-coloured td { background: var(--reh-color); color: #111; }
+.reh-colour-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.reh-colour-row input[type=color] { width: 56px; height: 32px; padding: 2px; border: 1px solid var(--border, #ccc); border-radius: 6px; background: none; cursor: pointer; }
