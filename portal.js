@@ -364,7 +364,7 @@ firebase.auth().onAuthStateChanged(async user => {
       if (!dashboardInitialized) {
         dashboardInitialized = true;
         document.getElementById('headerVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';
-        if (data.isManager) { await loadPortalSettings(); await loadUsers(); }
+        if (data.isManager) await loadUsers();
       }
     }
   } else {
@@ -462,7 +462,6 @@ function renderUserList() {
         <div class="item-sub">${escapeHtml(u.email)}</div>
       </div>
       <div class="item-actions">
-        <button class="btn btn-secondary btn-sm" data-send-link="${u.id}">Send link</button>
         <button class="icon-btn" data-edit-user="${u.id}" title="Edit" aria-label="Edit">${ICON_EDIT}</button>
         <button class="icon-btn icon-btn-danger" data-delete-user="${u.id}" ${isSelf ? 'disabled title="You can\'t delete your own account this way"' : 'title="Delete" aria-label="Delete"'}>${ICON_TRASH}</button>
       </div>
@@ -609,16 +608,6 @@ document.getElementById('addUserModalCloseBtn').addEventListener('click', () => 
 });
 document.getElementById('addUserModal').addEventListener('click', (e) => {
   if (e.target.id === 'addUserModal') document.getElementById('addUserModal').style.display = 'none';
-});
-
-document.getElementById('openDefaultLinkMessageBtn').addEventListener('click', () => {
-  document.getElementById('defaultLinkMessageModal').style.display = 'flex';
-});
-document.getElementById('defaultLinkMessageCloseBtn').addEventListener('click', () => {
-  document.getElementById('defaultLinkMessageModal').style.display = 'none';
-});
-document.getElementById('defaultLinkMessageModal').addEventListener('click', (e) => {
-  if (e.target.id === 'defaultLinkMessageModal') document.getElementById('defaultLinkMessageModal').style.display = 'none';
 });
 
 document.getElementById('resyncClaimsBtn').addEventListener('click', async () => {
@@ -955,13 +944,6 @@ document.getElementById('userList').addEventListener('click', async (e) => {
   const editBtn = e.target.closest('[data-edit-user]'); // icon-btn's <svg> is the actual click target
   if (editBtn) { openEditUserModal(editBtn.getAttribute('data-edit-user')); return; }
 
-  const linkId = e.target.getAttribute('data-send-link');
-  if (linkId) {
-    const user = allUsers.find(u => u.id === linkId);
-    if (user) showUserLinkModal(user.name || user.email, user.email);
-    return;
-  }
-
   const deleteBtn = e.target.closest('[data-delete-user]'); // icon-btn's <svg> is the actual click target
   if (!deleteBtn) return;
   const id = deleteBtn.getAttribute('data-delete-user');
@@ -974,76 +956,6 @@ document.getElementById('userList').addEventListener('click', async (e) => {
     await loadUsers();
   } catch (err) {
     deleteBtn.disabled = false;
-    showToast(err.message, 'error');
-  }
-});
-
-// ── Send link (portal's own — separate from expenses admin's own Users → Send link) ────────
-
-const PORTAL_ENTRY_URL = new URL('index.html', location.href).href;
-
-function showUserLinkModal(name, email) {
-  document.getElementById('userLinkName').textContent = name;
-  document.getElementById('userLinkUrl').value = PORTAL_ENTRY_URL;
-  document.getElementById('userLinkMessage').value = document.getElementById('defaultLinkMessageInput').value;
-  document.getElementById('userLinkModal').dataset.email = email;
-  document.getElementById('userLinkModal').style.display = 'flex';
-}
-
-function closeUserLinkModal() {
-  document.getElementById('userLinkModal').style.display = 'none';
-}
-
-document.getElementById('userLinkCloseBtn').addEventListener('click', closeUserLinkModal);
-document.getElementById('userLinkDoneBtn').addEventListener('click', closeUserLinkModal);
-document.getElementById('userLinkModal').addEventListener('click', (e) => {
-  if (e.target.id === 'userLinkModal') closeUserLinkModal();
-});
-
-document.getElementById('copyUserLinkBtn').addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText(document.getElementById('userLinkUrl').value);
-    showToast('Link copied', 'success');
-  } catch (err) {
-    showToast('Could not copy — select and copy the link manually', 'error');
-  }
-});
-
-document.getElementById('sendUserLinkEmailBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('sendUserLinkEmailBtn');
-  const email = document.getElementById('userLinkModal').dataset.email;
-  const message = document.getElementById('userLinkMessage').value.trim();
-  btn.disabled = true;
-  try {
-    await functionsRegion.httpsCallable('sendPortalUserLink')({ email, message });
-    showToast('Link sent', 'success');
-    closeUserLinkModal();
-  } catch (err) {
-    showToast(err.message, 'error');
-  } finally {
-    btn.disabled = false;
-  }
-});
-
-// ── Default link message (portal_config/settings — separate from expenses admin's own) ─────
-
-async function loadPortalSettings() {
-  try {
-    const doc = await db.collection('portal_config').doc('settings').get();
-    document.getElementById('defaultLinkMessageInput').value = doc.exists ? (doc.data().defaultLinkMessage || '') : '';
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
-
-document.getElementById('defaultLinkMessageForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const defaultLinkMessage = document.getElementById('defaultLinkMessageInput').value.trim();
-  try {
-    await db.collection('portal_config').doc('settings').set({ defaultLinkMessage }, { merge: true });
-    document.getElementById('defaultLinkMessageModal').style.display = 'none';
-    showToast('Saved', 'success');
-  } catch (err) {
     showToast(err.message, 'error');
   }
 });

@@ -852,7 +852,6 @@ async function loadNotifySettings() {
     const doc = await db.collection('expenses_config').doc('settings').get();
     notifyEmails = doc.exists ? (doc.data().notifyEmails || []) : [];
     document.getElementById('fromEmailInput').value = doc.exists ? (doc.data().fromEmail || '') : '';
-    document.getElementById('defaultLinkMessageInput').value = doc.exists ? (doc.data().defaultLinkMessage || '') : '';
   } catch (err) {
     showToast(err.message, 'error');
     return;
@@ -889,17 +888,6 @@ document.getElementById('fromEmailForm').addEventListener('submit', async (e) =>
   const fromEmail = document.getElementById('fromEmailInput').value.trim();
   try {
     await db.collection('expenses_config').doc('settings').set({ fromEmail }, { merge: true });
-    showToast('Saved', 'success');
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-});
-
-document.getElementById('defaultLinkMessageForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const defaultLinkMessage = document.getElementById('defaultLinkMessageInput').value.trim();
-  try {
-    await db.collection('expenses_config').doc('settings').set({ defaultLinkMessage }, { merge: true });
     showToast('Saved', 'success');
   } catch (err) {
     showToast(err.message, 'error');
@@ -1063,27 +1051,6 @@ document.getElementById('markPaidSubmitBtn').addEventListener('click', async () 
 // changes (Expenses admin, other apps, Manager) and managing existing accounts still live in
 // the portal's Users screen only.
 
-// Points at the portal root, not this app's own entry page — sign-in is unified there now, and
-// it's what shows someone whatever tiles they actually have (just Expenses, for most of these).
-const ENTRY_URL = new URL('../index.html', location.href).href;
-
-// Shared by both "just created" (addUserForm submit) and "send an existing user their link
-// again" (the All users list's per-row Send link button) — same modal, same fields either way.
-function showSendLinkModal(name, email) {
-  document.getElementById('newUserLinkName').textContent = name;
-  document.getElementById('newUserLinkUrl').value = ENTRY_URL;
-  // Pre-fill from Settings → Default link message (still editable per person before sending —
-  // see that card's own note); this was previously always left blank.
-  document.getElementById('newUserLinkMessage').value = document.getElementById('defaultLinkMessageInput').value;
-  const modal = document.getElementById('newUserLinkModal');
-  modal.dataset.email = email;
-  modal.style.display = 'flex';
-}
-
-function closeSendLinkModal() {
-  document.getElementById('newUserLinkModal').style.display = 'none';
-}
-
 // One modal, two modes — _editingExpensesUserId null means "add", set means "edit that user".
 let _editingExpensesUserId = null;
 
@@ -1195,7 +1162,6 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
       if (!password || password.length < 6) { errorEl.textContent = 'Enter a temporary password (6+ characters).'; btn.disabled = false; return; }
       await functionsRegion.httpsCallable('createExpensesUser')({ name, email, password });
       closeAddExpensesUserModal();
-      showSendLinkModal(name, email);
       showToast(`Account created for ${name} — pass on the temporary password`, 'success');
     }
     await loadExpensesUsers();
@@ -1238,7 +1204,6 @@ function renderExpensesUserList() {
       </div>
       <div class="item-actions">
         <button type="button" class="btn btn-secondary btn-sm" data-view-user-expenses="${escapeHtml(u.email)}">View expenses</button>
-        <button type="button" class="btn btn-secondary btn-sm" data-send-link="${u.id}">Send link</button>
         <button type="button" class="icon-btn" data-edit-expenses-user="${u.id}" title="Edit" aria-label="Edit">${ICON_EDIT}</button>
       </div>
     </div>
@@ -1247,12 +1212,6 @@ function renderExpensesUserList() {
 document.getElementById('expensesUserSearchInput').addEventListener('input', renderExpensesUserList);
 
 document.getElementById('expensesUserList').addEventListener('click', (e) => {
-  const uid = e.target.getAttribute('data-send-link');
-  if (uid) {
-    const user = expensesUsers.find(u => u.id === uid);
-    if (user) showSendLinkModal(user.name, user.email);
-    return;
-  }
   const email = e.target.getAttribute('data-view-user-expenses');
   if (email) { openUserExpenses(email); return; }
   const editBtn = e.target.closest('[data-edit-expenses-user]'); // icon-btn's <svg> is the actual click target
@@ -1270,37 +1229,6 @@ function openUserExpenses(email) {
   renderExpenseList();
   activateTab('dashboard');
 }
-
-document.getElementById('newUserLinkCloseBtn').addEventListener('click', closeSendLinkModal);
-document.getElementById('newUserLinkDoneBtn').addEventListener('click', closeSendLinkModal);
-document.getElementById('newUserLinkModal').addEventListener('click', (e) => {
-  if (e.target.id === 'newUserLinkModal') closeSendLinkModal();
-});
-
-document.getElementById('copyLinkBtn').addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText(document.getElementById('newUserLinkUrl').value);
-    showToast('Link copied', 'success');
-  } catch (err) {
-    showToast('Could not copy — select and copy the link manually', 'error');
-  }
-});
-
-document.getElementById('sendLinkEmailBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('sendLinkEmailBtn');
-  const email = document.getElementById('newUserLinkModal').dataset.email;
-  const message = document.getElementById('newUserLinkMessage').value.trim();
-  btn.disabled = true;
-  try {
-    await functionsRegion.httpsCallable('sendUserLink')({ email, message });
-    showToast('Link sent', 'success');
-    closeSendLinkModal();
-  } catch (err) {
-    showToast(err.message, 'error');
-  } finally {
-    btn.disabled = false;
-  }
-});
 
 // ── Service worker update banner ────────────────────────────────────────
 

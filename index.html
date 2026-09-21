@@ -8,9 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Pirton Players</title>
-  <link rel="manifest" href="manifest.json?v=1.0.256">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1.0.256">
-  <link rel="stylesheet" href="style.css?v=1.0.256">
+  <link rel="manifest" href="manifest.json?v=1.0.257">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1.0.257">
+  <link rel="stylesheet" href="style.css?v=1.0.257">
 </head>
 <body class="theme-portal">
 
@@ -160,53 +160,6 @@
         </div>
       </div>
 
-      <!-- #openDefaultLinkMessageBtn (in the All users card header below) opens this. -->
-      <div id="defaultLinkMessageModal" class="modal-backdrop" style="display:none">
-        <div class="modal-card">
-          <div class="modal-header">
-            <h3>Default link message</h3>
-            <button class="modal-close-btn" id="defaultLinkMessageCloseBtn" aria-label="Close">×</button>
-          </div>
-          <div class="modal-body">
-            <form id="defaultLinkMessageForm">
-              <div class="form-group">
-                <label for="defaultLinkMessageInput">Message</label>
-                <textarea id="defaultLinkMessageInput" class="form-control" rows="4" style="resize:vertical" placeholder="e.g. Here's your login link..."></textarea>
-              </div>
-              <button type="submit" class="btn btn-primary btn-full">Save</button>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      <div id="userLinkModal" class="modal-backdrop" style="display:none">
-        <div class="modal-card">
-          <div class="modal-header">
-            <h3>Send <span id="userLinkName"></span> their link</h3>
-            <button class="modal-close-btn" id="userLinkCloseBtn" aria-label="Close">×</button>
-          </div>
-          <div class="modal-body">
-            <div class="form-group">
-              <label for="userLinkUrl">Portal link</label>
-              <div style="display:flex;gap:8px">
-                <input type="text" id="userLinkUrl" class="form-control" readonly>
-                <button type="button" class="icon-btn" id="copyUserLinkBtn" title="Copy link" aria-label="Copy link" style="flex-shrink:0">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                </button>
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="userLinkMessage">Message (optional, included in the email)</label>
-              <textarea id="userLinkMessage" class="form-control" rows="3" style="resize:vertical"></textarea>
-            </div>
-            <div style="display:flex;gap:8px">
-              <button type="button" class="btn btn-primary" id="sendUserLinkEmailBtn">Send email</button>
-              <button type="button" class="btn btn-secondary" id="userLinkDoneBtn">Done</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div class="card">
         <div class="card-header">
           <h2>All users</h2>
@@ -221,7 +174,6 @@
       <!-- Sticky rather than in the card header above — these are occasional/whole-list
            actions, not something you need reachable while scrolling past any particular row. -->
       <div class="sticky-actions-bar">
-        <button class="btn btn-secondary btn-sm" id="openDefaultLinkMessageBtn">Default link message</button>
         <button class="btn btn-secondary btn-sm" id="resyncClaimsBtn">Sync permissions</button>
         <button class="btn btn-secondary btn-sm" id="importMembersBtn">⬆ Import Members (CSV)</button>
         <input type="file" id="importMembersFile" accept=".csv,text/csv" style="display:none">
@@ -296,12 +248,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-<script src="shared/version.js?v=1.0.256"></script>
-<script src="shared/firebase-config.js?v=1.0.256"></script>
-<script src="shared/auth.js?v=1.0.256"></script>
-<script src="shared/suite-nav.js?v=1.0.256"></script>
-<script src="shared/load-script.js?v=1.0.256"></script>
-<script src="shared/a2hs.js?v=1.0.256"></script>
-<script src="portal.js?v=1.0.256"></script>
+<script src="shared/version.js?v=1.0.257"></script>
+<script src="shared/firebase-config.js?v=1.0.257"></script>
+<script src="shared/auth.js?v=1.0.257"></script>
+<script src="shared/suite-nav.js?v=1.0.257"></script>
+<script src="shared/load-script.js?v=1.0.257"></script>
+<script src="shared/a2hs.js?v=1.0.257"></script>
+<script src="portal.js?v=1.0.257"></script>
 </body>
 </html>
