@@ -249,6 +249,7 @@ function withDefaults(show) {
     roleAssignments: show.roleAssignments || {},
     cast: show.cast || [],
     castAssignments: show.castAssignments || {},
+    rehearsals: show.rehearsals || [],
     planAccess: show.planAccess || {},
     planTemplateId: show.planTemplateId || null,
     fixedParams: { ...emptyFixedParams(), ...(show.fixedParams || {}) },
@@ -397,6 +398,7 @@ function renderEditor() {
   renderPlanCard();
   renderRolesCard();
   renderCastCard();
+  renderRehearsals();
   renderTasksCard();
   renderPlanAccessCard();
   applyPlanCardVisibility();
@@ -884,7 +886,7 @@ function applyPlanCardVisibility() {
   // those tab buttons outright rather than leave a click landing on an empty panel, and bounce off
   // them if that's somehow the panel showing already (e.g. this show WAS a regular show a moment
   // ago).
-  ['plan', 'roles', 'cast'].forEach(id => {
+  ['plan', 'roles', 'cast', 'rehearsals'].forEach(id => {
     const btn = document.querySelector(`.show-subtab-btn[data-subtab="${id}"]`);
     btn.style.display = isTemplateShow ? 'none' : '';
     if (isTemplateShow && document.getElementById('showsubtab-' + id).classList.contains('active')) switchShowSubtab('details');
@@ -1700,6 +1702,202 @@ document.getElementById('addItemSubmitBtn').addEventListener('click', () => {
   renderForecast();
 });
 
+// ── Rehearsal Schedule ───────────────────────────────────────────────────
+// currentShow.rehearsals: [{ id, date 'YYYY-MM-DD', start 'HH:MM', end, kind 'rehearsal'|
+// 'technical'|'dress', description, called: [castPartIds], comment }]. "Who is called" is picked
+// from the show's Cast parts (currentShow.cast), not from the people assigned to them.
+
+const REH_DAYS = [
+  { dow: 1, label: 'Monday', start: '19:30', end: '22:00' },
+  { dow: 2, label: 'Tuesday', start: '19:30', end: '22:00' },
+  { dow: 3, label: 'Wednesday', start: '19:30', end: '22:00' },
+  { dow: 4, label: 'Thursday', start: '19:30', end: '22:00' },
+  { dow: 5, label: 'Friday', start: '19:30', end: '22:00' },
+  { dow: 6, label: 'Saturday', start: '10:00', end: '13:00' },
+  { dow: 0, label: 'Sunday', start: '14:00', end: '17:00' },
+];
+const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function isoToDate(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
+function dateToIso(dt) { return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`; }
+function addDaysIso(iso, n) { const dt = isoToDate(iso); dt.setDate(dt.getDate() + n); return dateToIso(dt); }
+function dayShort(iso) { return iso ? DOW_SHORT[isoToDate(iso).getDay()] : ''; }
+
+function sortRehearsals() {
+  currentShow.rehearsals.sort((a, b) =>
+    (a.date || '9999').localeCompare(b.date || '9999') || (a.start || '').localeCompare(b.start || ''));
+}
+function calledText(r) {
+  const ids = (r.called || []).filter(id => currentShow.cast.some(c => c.id === id));
+  if (!ids.length) return '';
+  if (ids.length === currentShow.cast.length) return 'All cast';
+  return ids.map(id => castName(id) || '(unnamed part)').join(', ');
+}
+
+function renderRehearsals() {
+  const canEdit = currentUserCanEditPlan();
+  ['rehGenerateBtn', 'addRehearsalBtn'].forEach(id => { document.getElementById(id).style.display = canEdit ? '' : 'none'; });
+  const dis = canEdit ? '' : ' disabled';
+  const rows = currentShow.rehearsals;
+  document.getElementById('rehearsalTableBody').innerHTML = rows.length ? rows.map((r, i) => `
+    <tr class="reh-row-${r.kind || 'rehearsal'}">
+      <td>${dayShort(r.date)}</td>
+      <td><input type="date" class="form-control" value="${r.date || ''}" data-reh-field="${i}:date"${dis}></td>
+      <td><div class="reh-time"><input type="time" class="form-control" value="${r.start || ''}" data-reh-field="${i}:start"${dis}>–<input type="time" class="form-control" value="${r.end || ''}" data-reh-field="${i}:end"${dis}></div></td>
+      <td><input type="text" class="form-control" value="${escapeHtml(r.description || '')}" data-reh-field="${i}:description"${dis}></td>
+      <td>${canEdit
+        ? `<button type="button" class="reh-called-btn" data-reh-called="${i}">${escapeHtml(calledText(r)) || '<span class="muted">Choose…</span>'}</button>`
+        : escapeHtml(calledText(r))}</td>
+      <td><input type="text" class="form-control" value="${escapeHtml(r.comment || '')}" data-reh-field="${i}:comment"${dis}></td>
+      <td class="no-print">${canEdit ? `<button class="grid-del-btn" data-reh-remove="${i}" title="Remove">×</button>` : ''}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="7" class="empty-state">No rehearsals yet${canEdit ? ' — use Generate, or add one.' : '.'}</td></tr>`;
+}
+
+// Fields edit in place; the list only re-sorts (and Day re-renders) once a date/time edit is
+// committed, so rows don't jump around under the cursor while typing.
+document.getElementById('rehearsalTableBody').addEventListener('input', (e) => {
+  const key = e.target.getAttribute('data-reh-field');
+  if (!key) return;
+  const [idx, field] = key.split(':');
+  currentShow.rehearsals[Number(idx)][field] = e.target.value;
+  markDirty();
+});
+document.getElementById('rehearsalTableBody').addEventListener('change', (e) => {
+  const key = e.target.getAttribute('data-reh-field');
+  if (!key) return;
+  const field = key.split(':')[1];
+  if (field === 'date' || field === 'start') { sortRehearsals(); renderRehearsals(); }
+});
+document.getElementById('rehearsalTableBody').addEventListener('click', (e) => {
+  const rm = e.target.closest('[data-reh-remove]');
+  if (rm) {
+    currentShow.rehearsals.splice(Number(rm.getAttribute('data-reh-remove')), 1);
+    markDirty(); renderRehearsals(); return;
+  }
+  const called = e.target.closest('[data-reh-called]');
+  if (called) openCalledModal(Number(called.getAttribute('data-reh-called')));
+});
+document.getElementById('addRehearsalBtn').addEventListener('click', () => {
+  const last = currentShow.rehearsals[currentShow.rehearsals.length - 1];
+  currentShow.rehearsals.push({
+    id: uid(), date: '', start: last?.start || '19:30', end: last?.end || '22:00', kind: 'rehearsal',
+    description: 'Rehearsal', called: currentShow.cast.map(c => c.id), comment: '',
+  });
+  markDirty(); renderRehearsals();
+});
+
+// Who is called
+let calledEditIdx = null;
+function openCalledModal(idx) {
+  calledEditIdx = idx;
+  const called = new Set(currentShow.rehearsals[idx].called || []);
+  document.getElementById('rehCalledList').innerHTML = currentShow.cast.length
+    ? currentShow.cast.map(c => `<label class="reh-check"><input type="checkbox" data-called-cast="${c.id}"${called.has(c.id) ? ' checked' : ''}> ${escapeHtml(c.name || '(unnamed part)')}</label>`).join('')
+    : '<p class="muted">No cast parts yet — add them on the Cast tab.</p>';
+  syncCalledAll();
+  document.getElementById('rehCalledModal').style.display = 'flex';
+}
+function syncCalledAll() {
+  const boxes = [...document.querySelectorAll('#rehCalledList input')];
+  document.getElementById('rehCalledAll').checked = boxes.length > 0 && boxes.every(b => b.checked);
+}
+document.getElementById('rehCalledAll').addEventListener('change', (e) => {
+  document.querySelectorAll('#rehCalledList input').forEach(b => { b.checked = e.target.checked; });
+});
+document.getElementById('rehCalledList').addEventListener('change', syncCalledAll);
+function closeCalledModal() { document.getElementById('rehCalledModal').style.display = 'none'; }
+document.getElementById('rehCalledCloseBtn').addEventListener('click', closeCalledModal);
+document.getElementById('rehCalledModal').addEventListener('click', (e) => { if (e.target.id === 'rehCalledModal') closeCalledModal(); });
+document.getElementById('rehCalledDoneBtn').addEventListener('click', () => {
+  currentShow.rehearsals[calledEditIdx].called =
+    [...document.querySelectorAll('#rehCalledList input:checked')].map(b => b.getAttribute('data-called-cast'));
+  markDirty(); closeCalledModal(); renderRehearsals();
+});
+
+// Generate
+function firstPerformanceDate() {
+  return (currentShow.fixedParams.performances || []).map(p => p.date).filter(Boolean).sort()[0] || null;
+}
+document.getElementById('rehGenerateBtn').addEventListener('click', () => {
+  document.getElementById('rehDayRows').innerHTML = REH_DAYS.map(d => `
+    <div class="reh-day-row" data-dow="${d.dow}">
+      <label><input type="checkbox" data-reh-on> ${d.label}</label>
+      <input type="time" class="form-control" data-reh-start value="${d.start}">
+      <input type="time" class="form-control" data-reh-end value="${d.end}">
+    </div>`).join('');
+  document.getElementById('rehGenError').textContent = '';
+  const fp = firstPerformanceDate();
+  document.getElementById('rehGenNote').textContent = fp
+    ? `First performance: ${fmtPerfDate({ date: fp })}. Rehearsals run up to the day before the Saturday technical.`
+    : 'Add a performance date on the Details tab first — the schedule is built back from it.';
+  document.getElementById('rehGenModal').style.display = 'flex';
+});
+function closeRehGenModal() { document.getElementById('rehGenModal').style.display = 'none'; }
+document.getElementById('rehGenCloseBtn').addEventListener('click', closeRehGenModal);
+document.getElementById('rehGenModal').addEventListener('click', (e) => { if (e.target.id === 'rehGenModal') closeRehGenModal(); });
+
+document.getElementById('rehGenSubmitBtn').addEventListener('click', () => {
+  const errEl = document.getElementById('rehGenError');
+  const first = document.getElementById('rehFirstDate').value;
+  const perf = firstPerformanceDate();
+  if (!first) { errEl.textContent = 'Pick the first rehearsal date.'; return; }
+  if (!perf) { errEl.textContent = 'Add a performance date on the Details tab first.'; return; }
+  const days = {};
+  document.querySelectorAll('#rehDayRows .reh-day-row').forEach(row => {
+    if (!row.querySelector('[data-reh-on]').checked) return;
+    days[row.dataset.dow] = { start: row.querySelector('[data-reh-start]').value, end: row.querySelector('[data-reh-end]').value };
+  });
+  if (!Object.keys(days).length) { errEl.textContent = 'Tick at least one rehearsal day.'; return; }
+
+  // Technical = the last Saturday strictly before the first performance; dress rehearsals are the
+  // Sunday/Monday/Tuesday straight after it (skipping any that would land on/after opening).
+  let tech = addDaysIso(perf, -1);
+  while (isoToDate(tech).getDay() !== 6) tech = addDaysIso(tech, -1);
+  const called = currentShow.cast.map(c => c.id);
+  const mk = (date, t, kind, description) => ({ id: uid(), date, start: t.start, end: t.end, kind, description, called: [...called], comment: '' });
+
+  const list = [];
+  for (let d = first; d < tech; d = addDaysIso(d, 1)) {
+    const t = days[isoToDate(d).getDay()];
+    if (t) list.push(mk(d, t, 'rehearsal', 'Rehearsal'));
+  }
+  if (tech >= first) list.push(mk(tech, { start: document.getElementById('rehTechStart').value, end: document.getElementById('rehTechEnd').value }, 'technical', 'Technical rehearsal'));
+  const dressT = { start: document.getElementById('rehDressStart').value, end: document.getElementById('rehDressEnd').value };
+  ['Sunday', 'Monday', 'Tuesday'].forEach((name, i) => {
+    const d = addDaysIso(tech, i + 1);
+    if (d < perf && d >= first) list.push(mk(d, dressT, 'dress', `Dress rehearsal (${name})`));
+  });
+  if (!list.length) { errEl.textContent = 'First rehearsal date is after the technical — nothing to generate.'; return; }
+
+  if (currentShow.rehearsals.length &&
+      !confirm(`Replace the ${currentShow.rehearsals.length} existing rehearsal(s) with ${list.length} generated one(s)?`)) return;
+  currentShow.rehearsals = list;
+  sortRehearsals();
+  markDirty(); closeRehGenModal(); renderRehearsals();
+});
+
+// Export
+function rehearsalRows() {
+  return currentShow.rehearsals.map(r => ({
+    Day: dayShort(r.date),
+    Date: r.date ? fmtPerfDate(r) : '',
+    Time: [r.start, r.end].filter(Boolean).join(' – '),
+    Description: r.description || '',
+    'Who is called': calledText(r),
+    Comment: r.comment || '',
+  }));
+}
+document.getElementById('rehExportBtn').addEventListener('click', async () => {
+  if (!currentShow.rehearsals.length) { showToast('No rehearsals to export', 'error'); return; }
+  try { await loadScript(XLSX_LIB_URL, 'XLSX'); } catch (e) { showToast(e.message, 'error'); return; }
+  const ws = XLSX.utils.json_to_sheet(rehearsalRows());
+  ws['!cols'] = [{ wch: 6 }, { wch: 12 }, { wch: 14 }, { wch: 32 }, { wch: 40 }, { wch: 40 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Rehearsal Schedule');
+  XLSX.writeFile(wb, `${(currentShow.name || 'show').replace(/[^a-z0-9]+/gi, '-')}-rehearsal-schedule.xlsx`);
+});
+
 // ── Save / Template / Delete ────────────────────────────────────────────
 
 document.getElementById('saveShowBtn').addEventListener('click', async () => {
@@ -1719,6 +1917,7 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
       roleAssignments: currentShow.roleAssignments || {},
       cast: currentShow.cast || [],
       castAssignments: currentShow.castAssignments || {},
+      rehearsals: currentShow.rehearsals || [],
       planAccess: currentShow.planAccess || {},
       planTemplateId: currentShow.planTemplateId || null,
       isTemplate: currentShow.isTemplate === true,
@@ -2387,6 +2586,9 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
       Assigned: (currentShow.castAssignments[c.id] || []).map(userName).join(', ') || '—',
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(castRows), 'Cast');
+  }
+  if (!currentShow.isTemplate && currentShow.rehearsals.length) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rehearsalRows()), 'Rehearsals');
   }
   if (!currentShow.isTemplate && currentShowTasks.length) {
     const taskRows = orderedTaskList().map(({ task: t, depth }) => ({

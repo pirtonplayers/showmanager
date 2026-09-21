@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.2"></script>
+  <script src="../shared/embed.js?v=1.1.3"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#6d28d9">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowPlanner</title>
-  <link rel="manifest" href="manifest.json?v=1.1.2">
-  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.1.2">
-  <link rel="stylesheet" href="style.css?v=1.1.2">
+  <link rel="manifest" href="manifest.json?v=1.1.3">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.1.3">
+  <link rel="stylesheet" href="style.css?v=1.1.3">
 </head>
 <body class="theme-showplanner">
 
@@ -209,6 +209,7 @@
         <button class="show-subtab-btn" data-subtab="plan">Plan</button>
         <button class="show-subtab-btn" data-subtab="roles">Crew</button>
         <button class="show-subtab-btn" data-subtab="cast">Cast</button>
+        <button class="show-subtab-btn" data-subtab="rehearsals">Rehearsal Schedule</button>
         <button class="show-subtab-btn" data-subtab="budget">Budget</button>
       </div>
 
@@ -313,6 +314,29 @@
       </div>
       </div>
 
+      <div id="showsubtab-rehearsals" class="show-subtab-panel">
+      <div class="card" style="margin-bottom:20px" id="rehearsalsCard">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <h2>Rehearsal Schedule</h2>
+          <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" id="rehGenerateBtn">Generate…</button>
+            <button class="btn btn-secondary btn-sm" id="rehExportBtn">⬇ Export to Excel</button>
+          </div>
+        </div>
+        <div class="card-body" style="padding:0">
+          <div class="expense-table-wrap">
+            <table class="expense-table" id="rehearsalTable">
+              <thead><tr><th style="width:56px">Day</th><th style="width:150px">Date</th><th style="width:210px">Time</th><th>Description</th><th style="width:200px">Who is called</th><th>Comment</th><th class="no-print" style="width:44px"></th></tr></thead>
+              <tbody id="rehearsalTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-body no-print" style="padding-top:0">
+          <button class="btn btn-secondary btn-sm" id="addRehearsalBtn">+ Add rehearsal</button>
+        </div>
+      </div>
+      </div>
+
       <div id="showsubtab-budget" class="show-subtab-panel">
       <div class="card" style="margin-bottom:20px">
         <div class="card-header"><h2>Ticket &amp; income parameters</h2></div>
@@ -382,6 +406,50 @@
     </div>
 
   </main>
+</div>
+
+<!-- Generate rehearsal schedule modal -->
+<div id="rehGenModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Generate rehearsal schedule</h3>
+      <button class="modal-close-btn" id="rehGenCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="rehFirstDate">First rehearsal date</label>
+        <input type="date" id="rehFirstDate" class="form-control">
+      </div>
+      <label>Rehearsal days</label>
+      <div id="rehDayRows"></div>
+      <label style="margin-top:14px;display:block">Technical (Saturday before the first performance)</label>
+      <div class="reh-day-row"><span>Technical</span>
+        <input type="time" id="rehTechStart" class="form-control" value="10:00">
+        <input type="time" id="rehTechEnd" class="form-control" value="18:00"></div>
+      <label style="margin-top:14px;display:block">Dress rehearsals (Sunday, Monday, Tuesday of show week)</label>
+      <div class="reh-day-row"><span>Dress</span>
+        <input type="time" id="rehDressStart" class="form-control" value="19:00">
+        <input type="time" id="rehDressEnd" class="form-control" value="22:00"></div>
+      <p class="muted" id="rehGenNote" style="margin:12px 0"></p>
+      <div id="rehGenError" style="color:var(--danger);margin-bottom:8px"></div>
+      <button class="btn btn-primary btn-full" id="rehGenSubmitBtn">Generate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Who is called modal -->
+<div id="rehCalledModal" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Who is called</h3>
+      <button class="modal-close-btn" id="rehCalledCloseBtn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <label class="reh-check"><input type="checkbox" id="rehCalledAll"> <strong>All cast</strong></label>
+      <div id="rehCalledList"></div>
+      <button class="btn btn-primary btn-full" id="rehCalledDoneBtn" style="margin-top:12px">Done</button>
+    </div>
+  </div>
 </div>
 
 <!-- New show modal -->
@@ -618,11 +686,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.2"></script>
-<script src="../shared/load-script.js?v=1.1.2"></script>
-<script src="../shared/firebase-config.js?v=1.1.2"></script>
-<script src="../shared/auth.js?v=1.1.2"></script>
-<script src="../shared/suite-nav.js?v=1.1.2"></script>
-<script src="budget.js?v=1.1.2"></script>
+<script src="../shared/version.js?v=1.1.3"></script>
+<script src="../shared/load-script.js?v=1.1.3"></script>
+<script src="../shared/firebase-config.js?v=1.1.3"></script>
+<script src="../shared/auth.js?v=1.1.3"></script>
+<script src="../shared/suite-nav.js?v=1.1.3"></script>
+<script src="budget.js?v=1.1.3"></script>
 </body>
 </html>

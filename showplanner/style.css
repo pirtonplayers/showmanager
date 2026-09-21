@@ -732,3 +732,12 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 @media print {
   .group-assignees { font-size: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* Rehearsal Schedule */
+.reh-day-row { display: grid; grid-template-columns: 1fr 110px 110px; gap: 8px; align-items: center; margin-bottom: 6px; }
+.reh-day-row label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 500; }
+.reh-check { display: flex; align-items: center; gap: 8px; padding: 6px 0; margin: 0; }
+.reh-time { display: flex; gap: 4px; align-items: center; }
+.reh-time .form-control { min-width: 0; }
+.reh-called-btn { text-align: left; background: none; border: 1px dashed var(--border, #ccc); border-radius: 6px; padding: 6px 8px; cursor: pointer; font: inherit; color: inherit; width: 100%; }
+.reh-row-technical td, .reh-row-dress td { background: rgba(0,0,0,.03); }
