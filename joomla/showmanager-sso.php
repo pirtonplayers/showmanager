@@ -28,14 +28,31 @@ require_once JPATH_BASE . '/includes/framework.php';
 use Joomla\CMS\Application\SiteApplication;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Uri\Uri;
+use Joomla\CMS\User\User;
 
+// Same session wiring as Joomla's own includes/app.php (which we can't include — it also runs
+// the whole site). Without these aliases SiteApplication can't be built ("SessionInterface has
+// not been registered").
 $container = Factory::getContainer();
+$container->alias('session.web', 'session.web.site')
+    ->alias('session', 'session.web.site')
+    ->alias('JSession', 'session.web.site')
+    ->alias(\Joomla\CMS\Session\Session::class, 'session.web.site')
+    ->alias(\Joomla\Session\Session::class, 'session.web.site')
+    ->alias(\Joomla\Session\SessionInterface::class, 'session.web.site');
 $app = $container->get(SiteApplication::class);
 Factory::$application = $app;
 $app->createExtensionNamespaceMap();
-$user = $app->getIdentity();
 
-if ($user->guest || !$user->email) {
+// The logged-in user lives in the session under 'user' (the app's own identity isn't loaded
+// because we never run the app).
+$session = $app->getSession();
+if (!$session->isStarted()) {
+    $session->start();
+}
+$user = $session->get('user');
+
+if (!($user instanceof User) || $user->guest || !$user->email) {
     $return = base64_encode(Uri::root() . basename(__FILE__));
     header('Location: ' . Uri::root() . 'index.php?option=com_users&view=login&return=' . urlencode($return));
     exit;

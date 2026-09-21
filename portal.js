@@ -189,6 +189,13 @@ function renderShellNav() {
       <button class="tab-btn${t.id === current ? ' active' : ''}" data-app="${activeKey}" data-subtab="${t.id}">${escapeHtml(t.label)}</button>
     `).join('');
   }
+  const who = currentAccount.name || currentAccount.email || firebase.auth().currentUser?.email || '';
+  const email = currentAccount.email || firebase.auth().currentUser?.email || '';
+  if (who) {
+    html = `<div class="nav-user"><div class="nav-user-name">${escapeHtml(who)}</div>`
+      + (email && email !== who ? `<div class="nav-user-email">${escapeHtml(email)}</div>` : '')
+      + '</div><div class="dropdown-divider"></div>' + html;
+  }
   document.getElementById('shellNavSidebar').innerHTML = html;
   document.getElementById('shellNavDropdown').innerHTML = html;
 }

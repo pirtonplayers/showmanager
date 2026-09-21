@@ -219,6 +219,11 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .admin-sidebar { display: none; }
 .sidebar-toggle { display: none; }
 
+/* Current user, first thing in both the sidebar and the mobile dropdown (renderShellNav). */
+.nav-user { padding: 6px 12px; min-width: 0; }
+.nav-user-name { font-size: 14px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.nav-user-email { font-size: 12px; color: var(--text-muted, var(--text)); opacity: .7; overflow-wrap: anywhere; }
+
 @media (min-width: 900px) {
   .admin-header .hamburger-btn, .admin-header #shellNavDropdown { display: none; }
 
