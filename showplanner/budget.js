@@ -1743,7 +1743,7 @@ function renderRehearsals() {
   const rows = currentShow.rehearsals;
   document.getElementById('rehearsalTableBody').innerHTML = rows.length ? rows.map((r, i) => `
     <tr class="${safeColor(r.color) ? 'reh-coloured' : ''}"${safeColor(r.color) ? ` style="--reh-color:${r.color}"` : ''} data-reh-row="${r.id}">
-      <td class="reh-day">${dayShort(r.date)}</td>
+      <td><span class="reh-day">${dayShort(r.date)}</span><input type="color" class="reh-colour-input no-print" value="${safeColor(r.color) || '#ffffff'}" data-reh-field="${i}:color" title="Row colour" aria-label="Row colour"${dis}></td>
       <td><input type="date" class="form-control" value="${r.date || ''}" data-reh-field="${i}:date"${dis}></td>
       <td><div class="reh-time"><input type="time" class="form-control" value="${r.start || ''}" data-reh-field="${i}:start"${dis}>–<input type="time" class="form-control" value="${r.end || ''}" data-reh-field="${i}:end"${dis}></div></td>
       <td><input type="text" class="form-control" value="${escapeHtml(r.description || '')}" data-reh-field="${i}:description"${dis}></td>
@@ -1766,6 +1766,11 @@ document.getElementById('rehearsalTableBody').addEventListener('input', (e) => {
   if (!key) return;
   const [idx, field] = key.split(':');
   currentShow.rehearsals[Number(idx)][field] = e.target.value;
+  if (field === 'color') {
+    const tr = e.target.closest('tr');
+    tr.classList.add('reh-coloured');
+    tr.style.setProperty('--reh-color', e.target.value);
+  }
   markDirty();
 });
 document.getElementById('rehearsalTableBody').addEventListener('change', (e) => {
@@ -1802,7 +1807,7 @@ document.getElementById('rehearsalTableBody').addEventListener('click', (e) => {
 document.getElementById('addRehearsalBtn').addEventListener('click', () => {
   const last = currentShow.rehearsals[currentShow.rehearsals.length - 1];
   currentShow.rehearsals.push({
-    id: uid(), date: '', start: last?.start || '19:30', end: last?.end || '22:00', kind: 'rehearsal',
+    id: uid(), date: '', start: last?.start || '19:30', end: last?.end || '22:00', kind: 'rehearsal', color: last?.color || '',
     description: '', called: currentShow.cast.map(c => c.id), comment: '',
   });
   markDirty(); renderRehearsals();
