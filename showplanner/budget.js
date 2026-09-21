@@ -1710,8 +1710,8 @@ document.getElementById('addItemSubmitBtn').addEventListener('click', () => {
 const REH_DAYS = [
   { dow: 1, label: 'Monday', start: '19:30', end: '22:00', color: '#dbeafe' },
   { dow: 2, label: 'Tuesday', start: '19:30', end: '22:00', color: '#e0e7ff' },
-  { dow: 3, label: 'Wednesday', start: '19:30', end: '22:00', color: '#ede9fe' },
-  { dow: 4, label: 'Thursday', start: '19:30', end: '22:00', color: '#cffafe' },
+  { dow: 3, label: 'Wednesday', start: '19:30', end: '22:00', color: '#cffafe' },
+  { dow: 4, label: 'Thursday', start: '19:30', end: '22:00', color: '#ede9fe' },
   { dow: 5, label: 'Friday', start: '19:30', end: '22:00', color: '#ccfbf1' },
   { dow: 6, label: 'Saturday', start: '10:00', end: '13:00', color: '#fed7aa' },
   { dow: 0, label: 'Sunday', start: '14:00', end: '17:00', color: '#fef3c7' },

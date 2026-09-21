@@ -1,18 +1,18 @@
-const CACHE = 'portal-1.1.8';
+const CACHE = 'portal-1.1.9';
 const STATIC = [
   './',
   './index.html',
-  './style.css?v=1.1.8',
-  './portal.js?v=1.1.8',
-  './shared/firebase-config.js?v=1.1.8',
-  './shared/auth.js?v=1.1.8',
-  './shared/suite-nav.js?v=1.1.8',
-  './shared/load-script.js?v=1.1.8',
-  './shared/a2hs.js?v=1.1.8',
-  './shared/version.js?v=1.1.8',
-  './manifest.json?v=1.1.8',
-  './icons/icon-192.png?v=1.1.8',
-  './icons/icon-512.png?v=1.1.8',
+  './style.css?v=1.1.9',
+  './portal.js?v=1.1.9',
+  './shared/firebase-config.js?v=1.1.9',
+  './shared/auth.js?v=1.1.9',
+  './shared/suite-nav.js?v=1.1.9',
+  './shared/load-script.js?v=1.1.9',
+  './shared/a2hs.js?v=1.1.9',
+  './shared/version.js?v=1.1.9',
+  './manifest.json?v=1.1.9',
+  './icons/icon-192.png?v=1.1.9',
+  './icons/icon-512.png?v=1.1.9',
 ];
 
 self.addEventListener('install', e => {
