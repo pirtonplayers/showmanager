@@ -1716,6 +1716,25 @@ const REH_DAYS = [
   { dow: 6, label: 'Saturday', start: '10:00', end: '13:00', color: '#fed7aa' },
   { dow: 0, label: 'Sunday', start: '14:00', end: '17:00', color: '#fef3c7' },
 ];
+// A short list of plain pastel colours rather than a free colour wheel — the row keeps the hex,
+// the name is only for the dropdown.
+const REH_PALETTE = [
+  ['Blue', '#dbeafe'], ['Indigo', '#e0e7ff'], ['Violet', '#ede9fe'], ['Lilac', '#f5d0fe'],
+  ['Pink', '#fbcfe8'], ['Red', '#fecaca'], ['Orange', '#fed7aa'], ['Amber', '#fde68a'],
+  ['Yellow', '#fef3c7'], ['Green', '#d1fae5'], ['Teal', '#ccfbf1'], ['Cyan', '#cffafe'], ['Grey', '#e5e7eb'],
+];
+function colourOptionsHtml(value) {
+  const known = REH_PALETTE.some(([, hex]) => hex === value);
+  return (known ? '' : `<option value="${value}" style="background:${value}" selected>Current</option>`) +
+    REH_PALETTE.map(([name, hex]) => `<option value="${hex}" style="background:${hex}"${hex === value ? ' selected' : ''}>${name}</option>`).join('');
+}
+function fillColourSelect(sel, value) {
+  sel.innerHTML = colourOptionsHtml(value);
+  sel.style.background = value;
+}
+document.getElementById('rehGenModal').addEventListener('change', (e) => {
+  if (e.target.classList.contains('reh-colour-select')) e.target.style.background = e.target.value;
+});
 const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function isoToDate(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
@@ -1846,10 +1865,13 @@ document.getElementById('rehGenerateBtn').addEventListener('click', () => {
       <label><input type="checkbox" data-reh-on> ${d.label}</label>
       <input type="time" class="form-control" data-reh-start value="${d.start}">
       <input type="time" class="form-control" data-reh-end value="${d.end}">
-      <input type="color" data-reh-col value="${d.color}" title="Colour">
+      <select class="reh-colour-select" data-reh-col title="Colour" style="background:${d.color}">${colourOptionsHtml(d.color)}</select>
     </div>`).join('');
   document.getElementById('rehGenError').textContent = '';
-  document.getElementById('rehExtraCol').value = safeColor(currentShow.rehearsalExtraColor) || '#d1fae5';
+  fillColourSelect(document.getElementById('rehTechCol'), '#fde68a');
+  fillColourSelect(document.getElementById('rehDressSunCol'), '#fbcfe8');
+  fillColourSelect(document.getElementById('rehDressCol'), '#f5d0fe');
+  fillColourSelect(document.getElementById('rehExtraCol'), safeColor(currentShow.rehearsalExtraColor) || '#d1fae5');
   const fp = firstPerformanceDate();
   document.getElementById('rehGenNote').textContent = fp
     ? `First performance: ${fmtPerfDate({ date: fp })}. Rehearsals run up to the day before the Saturday technical.`

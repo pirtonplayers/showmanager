@@ -734,14 +734,14 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 }
 
 /* Rehearsal Schedule */
-.reh-day-row { display: grid; grid-template-columns: 1fr 100px 100px 44px; gap: 8px; align-items: center; margin-bottom: 6px; }
+.reh-day-row { display: grid; grid-template-columns: 1fr 92px 92px 96px; gap: 8px; align-items: center; margin-bottom: 6px; }
 .reh-day-row label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 500; }
 .reh-check { display: flex; align-items: center; gap: 8px; padding: 6px 0; margin: 0; }
 .reh-time { display: flex; gap: 4px; align-items: center; }
 .reh-time .form-control { min-width: 0; }
 .reh-called-btn { text-align: left; background: none; border: 1px dashed var(--border, #ccc); border-radius: 6px; padding: 6px 8px; cursor: pointer; font: inherit; color: inherit; width: 100%; }
 .reh-coloured td { background: var(--reh-color); color: #111; }
-.reh-day-row input[type=color] { width: 44px; height: 32px; padding: 2px; border: 1px solid var(--border, #ccc); border-radius: 6px; background: none; cursor: pointer; }
+.reh-colour-select { width: 100%; height: 36px; padding: 0 6px; font: inherit; font-size: 13px; color: #111; border: 1px solid var(--border, #ccc); border-radius: 6px; cursor: pointer; }
 /* Compact schedule table: smaller type, tighter rows, a rule between each. */
 #rehearsalTable { font-size: 12px; }
 #rehearsalTable th, #rehearsalTable td { padding: 2px 6px; border-bottom: 1px solid rgba(0,0,0,.35); }
@@ -749,4 +749,4 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 #rehearsalTable .reh-called-btn { font-size: 12px; padding: 3px 6px; }
 #rehearsalTable .grid-del-btn { padding: 0 6px; }
 .reh-colour-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.reh-colour-row input[type=color] { width: 56px; height: 32px; padding: 2px; border: 1px solid var(--border, #ccc); border-radius: 6px; background: none; cursor: pointer; }
+.reh-colour-row .reh-colour-select { width: 120px; }
