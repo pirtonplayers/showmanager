@@ -13,8 +13,11 @@ const versionFile = 'shared/version.js';
 const content = fs.readFileSync(versionFile, 'utf8');
 const m = content.match(/APP_VERSION = '(\d+\.\d+\.)(\d+)'/);
 if (!m) { console.error('Could not find version in', versionFile); process.exit(1); }
-const next    = parseInt(m[2], 10) + 1;
-const version = `${m[1]}${next}`;
+// `node bump-version.js 1.1.0` sets an explicit version (for minor/major bumps); with no
+// argument it just increments the patch number.
+const explicit = process.argv[2];
+if (explicit && !/^\d+\.\d+\.\d+$/.test(explicit)) { console.error('Version must look like 1.2.3'); process.exit(1); }
+const version = explicit || `${m[1]}${parseInt(m[2], 10) + 1}`;
 fs.writeFileSync(versionFile, content.replace(/APP_VERSION = '[\d.]+'/, `APP_VERSION = '${version}'`));
 
 // Every local asset reference (script/link tags in the HTML, and the same file list in each
