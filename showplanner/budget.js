@@ -1708,13 +1708,13 @@ document.getElementById('addItemSubmitBtn').addEventListener('click', () => {
 // from the show's Cast parts (currentShow.cast), not from the people assigned to them.
 
 const REH_DAYS = [
-  { dow: 1, label: 'Monday', start: '19:30', end: '22:00' },
-  { dow: 2, label: 'Tuesday', start: '19:30', end: '22:00' },
-  { dow: 3, label: 'Wednesday', start: '19:30', end: '22:00' },
-  { dow: 4, label: 'Thursday', start: '19:30', end: '22:00' },
-  { dow: 5, label: 'Friday', start: '19:30', end: '22:00' },
-  { dow: 6, label: 'Saturday', start: '10:00', end: '13:00' },
-  { dow: 0, label: 'Sunday', start: '14:00', end: '17:00' },
+  { dow: 1, label: 'Monday', start: '19:30', end: '22:00', color: '#dbeafe' },
+  { dow: 2, label: 'Tuesday', start: '19:30', end: '22:00', color: '#e0e7ff' },
+  { dow: 3, label: 'Wednesday', start: '19:30', end: '22:00', color: '#ede9fe' },
+  { dow: 4, label: 'Thursday', start: '19:30', end: '22:00', color: '#cffafe' },
+  { dow: 5, label: 'Friday', start: '19:30', end: '22:00', color: '#ccfbf1' },
+  { dow: 6, label: 'Saturday', start: '10:00', end: '13:00', color: '#fed7aa' },
+  { dow: 0, label: 'Sunday', start: '14:00', end: '17:00', color: '#fef3c7' },
 ];
 const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -1743,7 +1743,7 @@ function renderRehearsals() {
   const rows = currentShow.rehearsals;
   document.getElementById('rehearsalTableBody').innerHTML = rows.length ? rows.map((r, i) => `
     <tr class="${safeColor(r.color) ? 'reh-coloured' : ''}"${safeColor(r.color) ? ` style="--reh-color:${r.color}"` : ''} data-reh-row="${r.id}">
-      <td><span class="reh-day">${dayShort(r.date)}</span><input type="color" class="reh-colour-input no-print" value="${safeColor(r.color) || '#ffffff'}" data-reh-field="${i}:color" title="Row colour" aria-label="Row colour"${dis}></td>
+      <td class="reh-day">${dayShort(r.date)}</td>
       <td><input type="date" class="form-control" value="${r.date || ''}" data-reh-field="${i}:date"${dis}></td>
       <td><div class="reh-time"><input type="time" class="form-control" value="${r.start || ''}" data-reh-field="${i}:start"${dis}>–<input type="time" class="form-control" value="${r.end || ''}" data-reh-field="${i}:end"${dis}></div></td>
       <td><input type="text" class="form-control" value="${escapeHtml(r.description || '')}" data-reh-field="${i}:description"${dis}></td>
@@ -1766,11 +1766,6 @@ document.getElementById('rehearsalTableBody').addEventListener('input', (e) => {
   if (!key) return;
   const [idx, field] = key.split(':');
   currentShow.rehearsals[Number(idx)][field] = e.target.value;
-  if (field === 'color') {
-    const tr = e.target.closest('tr');
-    tr.classList.add('reh-coloured');
-    tr.style.setProperty('--reh-color', e.target.value);
-  }
   markDirty();
 });
 document.getElementById('rehearsalTableBody').addEventListener('change', (e) => {
@@ -1807,7 +1802,7 @@ document.getElementById('rehearsalTableBody').addEventListener('click', (e) => {
 document.getElementById('addRehearsalBtn').addEventListener('click', () => {
   const last = currentShow.rehearsals[currentShow.rehearsals.length - 1];
   currentShow.rehearsals.push({
-    id: uid(), date: '', start: last?.start || '19:30', end: last?.end || '22:00', kind: 'rehearsal', color: last?.color || '',
+    id: uid(), date: '', start: last?.start || '19:30', end: last?.end || '22:00', kind: 'rehearsal', color: safeColor(currentShow.rehearsalExtraColor) || '#d1fae5',
     description: '', called: currentShow.cast.map(c => c.id), comment: '',
   });
   markDirty(); renderRehearsals();
@@ -1851,8 +1846,10 @@ document.getElementById('rehGenerateBtn').addEventListener('click', () => {
       <label><input type="checkbox" data-reh-on> ${d.label}</label>
       <input type="time" class="form-control" data-reh-start value="${d.start}">
       <input type="time" class="form-control" data-reh-end value="${d.end}">
+      <input type="color" data-reh-col value="${d.color}" title="Colour">
     </div>`).join('');
   document.getElementById('rehGenError').textContent = '';
+  document.getElementById('rehExtraCol').value = safeColor(currentShow.rehearsalExtraColor) || '#d1fae5';
   const fp = firstPerformanceDate();
   document.getElementById('rehGenNote').textContent = fp
     ? `First performance: ${fmtPerfDate({ date: fp })}. Rehearsals run up to the day before the Saturday technical.`
@@ -1872,7 +1869,7 @@ document.getElementById('rehGenSubmitBtn').addEventListener('click', () => {
   const days = {};
   document.querySelectorAll('#rehDayRows .reh-day-row').forEach(row => {
     if (!row.querySelector('[data-reh-on]').checked) return;
-    days[row.dataset.dow] = { start: row.querySelector('[data-reh-start]').value, end: row.querySelector('[data-reh-end]').value };
+    days[row.dataset.dow] = { start: row.querySelector('[data-reh-start]').value, end: row.querySelector('[data-reh-end]').value, color: row.querySelector('[data-reh-col]').value };
   });
   if (!Object.keys(days).length) { errEl.textContent = 'Tick at least one rehearsal day.'; return; }
 
@@ -1881,21 +1878,16 @@ document.getElementById('rehGenSubmitBtn').addEventListener('click', () => {
   let tech = addDaysIso(perf, -1);
   while (isoToDate(tech).getDay() !== 6) tech = addDaysIso(tech, -1);
   const called = currentShow.cast.map(c => c.id);
-  const colours = {
-    rehearsal: document.getElementById('rehColRehearsal').value,
-    technical: document.getElementById('rehColTechnical').value,
-    dress: document.getElementById('rehColDress').value,
-  };
-  const mk = (date, t, kind, description) => ({ id: uid(), date, start: t.start, end: t.end, kind, color: colours[kind], description, called: [...called], comment: '' });
+  const mk = (date, t, kind, description) => ({ id: uid(), date, start: t.start, end: t.end, kind, color: t.color, description, called: [...called], comment: '' });
 
   const list = [];
   for (let d = first; d < tech; d = addDaysIso(d, 1)) {
     const t = days[isoToDate(d).getDay()];
     if (t) list.push(mk(d, t, 'rehearsal', ''));
   }
-  if (tech >= first) list.push(mk(tech, { start: document.getElementById('rehTechStart').value, end: document.getElementById('rehTechEnd').value }, 'technical', 'Technical rehearsal'));
-  const dressT = { start: document.getElementById('rehDressStart').value, end: document.getElementById('rehDressEnd').value };
-  const dressSunT = { start: document.getElementById('rehDressSunStart').value, end: document.getElementById('rehDressSunEnd').value };
+  if (tech >= first) list.push(mk(tech, { start: document.getElementById('rehTechStart').value, end: document.getElementById('rehTechEnd').value, color: document.getElementById('rehTechCol').value }, 'technical', 'Technical rehearsal'));
+  const dressT = { start: document.getElementById('rehDressStart').value, end: document.getElementById('rehDressEnd').value, color: document.getElementById('rehDressCol').value };
+  const dressSunT = { start: document.getElementById('rehDressSunStart').value, end: document.getElementById('rehDressSunEnd').value, color: document.getElementById('rehDressSunCol').value };
   [dressSunT, dressT, dressT].forEach((t, i) => {
     const d = addDaysIso(tech, i + 1);
     if (d < perf && d >= first) list.push(mk(d, t, 'dress', 'Dress rehearsal'));
@@ -1905,6 +1897,7 @@ document.getElementById('rehGenSubmitBtn').addEventListener('click', () => {
   if (currentShow.rehearsals.length &&
       !confirm(`Replace the ${currentShow.rehearsals.length} existing rehearsal(s) with ${list.length} generated one(s)?`)) return;
   currentShow.rehearsals = list;
+  currentShow.rehearsalExtraColor = document.getElementById('rehExtraCol').value;
   rehSortPending = false;
   sortRehearsals();
   markDirty(); closeRehGenModal(); renderRehearsals();
@@ -1951,6 +1944,7 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
       cast: currentShow.cast || [],
       castAssignments: currentShow.castAssignments || {},
       rehearsals: currentShow.rehearsals || [],
+      rehearsalExtraColor: currentShow.rehearsalExtraColor || null,
       planAccess: currentShow.planAccess || {},
       planTemplateId: currentShow.planTemplateId || null,
       isTemplate: currentShow.isTemplate === true,
