@@ -126,12 +126,14 @@ exports.ssoLogin = onRequest({ region: 'europe-west1', secrets: [SSO_SECRET] }, 
 
     const expected = crypto.createHmac('sha256', SSO_SECRET.value()).update(`${email}\n${name}\n${req.query.ts}\n${nonce}`).digest('hex');
     const sigOk = sig.length === expected.length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
-    if (!email || !sigOk || !/^[a-f0-9]{16,64}$/.test(nonce) || !Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 120) {
+    const skew = Math.round(Date.now() / 1000 - ts);
+    if (!email || !sigOk || !/^[a-f0-9]{16,64}$/.test(nonce) || !Number.isFinite(ts) || Math.abs(skew) > 120) {
+      console.warn('ssoLogin rejected', { emailGiven: !!email, sigOk, nonceOk: /^[a-f0-9]{16,64}$/.test(nonce), tsOk: Number.isFinite(ts), skewSeconds: skew });
       return back('sso-error=invalid');
     }
     try {
       await db.collection('portal_ssoNonces').doc(nonce).create({ email, usedAt: FieldValue.serverTimestamp() });
-    } catch { return back('sso-error=invalid'); } // already used — a replayed link
+    } catch (err) { console.warn('ssoLogin nonce not stored', err.code || err.message); return back('sso-error=invalid'); } // already used — a replayed link
 
     let user;
     try {
