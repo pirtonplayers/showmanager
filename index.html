@@ -8,9 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Pirton Players</title>
-  <link rel="manifest" href="manifest.json?v=1.1.12">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1.1.12">
-  <link rel="stylesheet" href="style.css?v=1.1.12">
+  <link rel="manifest" href="manifest.json?v=1.1.13">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1.1.13">
+  <link rel="stylesheet" href="style.css?v=1.1.13">
 </head>
 <body class="theme-portal">
 
@@ -166,7 +166,10 @@
           <button class="btn btn-primary btn-sm" id="openAddUserBtn">+ Add user</button>
         </div>
         <div class="card-body">
-          <input type="text" id="userSearchInput" class="form-control" placeholder="Search by name or email" style="margin-bottom:14px">
+          <!-- autocomplete="off" — otherwise the browser can silently autofill this with the
+               signed-in manager's own saved email, which then filters the whole list down to just
+               their own row with nothing on screen to explain why everyone else vanished. -->
+          <input type="text" id="userSearchInput" class="form-control" placeholder="Search by name or email" autocomplete="off" style="margin-bottom:14px">
           <div class="item-list" id="userList"></div>
         </div>
       </div>
@@ -174,10 +177,6 @@
       <!-- Sticky rather than in the card header above — these are occasional/whole-list
            actions, not something you need reachable while scrolling past any particular row. -->
       <div class="sticky-actions-bar">
-        <!-- TEMPORARY — one-time repair for the 2026-09-22 users/{uid} data loss (see
-             restoreMissingUsers20260922 in functions/index.js). Remove this button and that
-             function together once Sophie/Trevor/Janet are confirmed back. -->
-        <button class="btn btn-secondary btn-sm" id="restoreMissingUsersBtn">⚠ Restore missing users (one-time)</button>
         <button class="btn btn-secondary btn-sm" id="resyncClaimsBtn">Sync permissions</button>
         <button class="btn btn-secondary btn-sm" id="importMembersBtn">⬆ Import Members (CSV)</button>
         <input type="file" id="importMembersFile" accept=".csv,text/csv" style="display:none">
@@ -252,12 +251,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-<script src="shared/version.js?v=1.1.12"></script>
-<script src="shared/firebase-config.js?v=1.1.12"></script>
-<script src="shared/auth.js?v=1.1.12"></script>
-<script src="shared/suite-nav.js?v=1.1.12"></script>
-<script src="shared/load-script.js?v=1.1.12"></script>
-<script src="shared/a2hs.js?v=1.1.12"></script>
-<script src="portal.js?v=1.1.12"></script>
+<script src="shared/version.js?v=1.1.13"></script>
+<script src="shared/firebase-config.js?v=1.1.13"></script>
+<script src="shared/auth.js?v=1.1.13"></script>
+<script src="shared/suite-nav.js?v=1.1.13"></script>
+<script src="shared/load-script.js?v=1.1.13"></script>
+<script src="shared/a2hs.js?v=1.1.13"></script>
+<script src="portal.js?v=1.1.13"></script>
 </body>
 </html>

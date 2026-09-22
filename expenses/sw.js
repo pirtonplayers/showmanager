@@ -1,27 +1,27 @@
-const CACHE = 'expenses-1.1.12';
+const CACHE = 'expenses-1.1.13';
 const STATIC = [
   './',
   './index.html',
   './admin.html',
   './help.html',
   './admin-help.html',
-  './style.css?v=1.1.12',
-  './app.js?v=1.1.12',
-  './admin.js?v=1.1.12',
-  '../shared/firebase-config.js?v=1.1.12',
-  '../shared/auth.js?v=1.1.12',
-  '../shared/suite-nav.js?v=1.1.12',
-  '../shared/a2hs.js?v=1.1.12',
-  '../shared/embed.js?v=1.1.12',
-  '../shared/version.js?v=1.1.12',
-  './manifest.json?v=1.1.12',
-  './admin-manifest.json?v=1.1.12',
-  './icons/icon-192.png?v=1.1.12',
-  './icons/icon-512.png?v=1.1.12',
-  './icons/apple-touch-icon.png?v=1.1.12',
-  './icons/icon-admin-192.png?v=1.1.12',
-  './icons/icon-admin-512.png?v=1.1.12',
-  './icons/apple-touch-icon-admin.png?v=1.1.12',
+  './style.css?v=1.1.13',
+  './app.js?v=1.1.13',
+  './admin.js?v=1.1.13',
+  '../shared/firebase-config.js?v=1.1.13',
+  '../shared/auth.js?v=1.1.13',
+  '../shared/suite-nav.js?v=1.1.13',
+  '../shared/a2hs.js?v=1.1.13',
+  '../shared/embed.js?v=1.1.13',
+  '../shared/version.js?v=1.1.13',
+  './manifest.json?v=1.1.13',
+  './admin-manifest.json?v=1.1.13',
+  './icons/icon-192.png?v=1.1.13',
+  './icons/icon-512.png?v=1.1.13',
+  './icons/apple-touch-icon.png?v=1.1.13',
+  './icons/icon-admin-192.png?v=1.1.13',
+  './icons/icon-admin-512.png?v=1.1.13',
+  './icons/apple-touch-icon-admin.png?v=1.1.13',
 ];
 
 self.addEventListener('install', e => {
@@ -63,7 +63,10 @@ self.addEventListener('fetch', e => {
     fetch(new Request(e.request, { cache: 'reload' }))
       .then(resp => {
         if (resp && resp.status === 200 && url.origin === location.origin) {
-          caches.open(CACHE).then(c => c.put(e.request, resp.clone()));
+          // Clone synchronously, right here — doing it inside caches.open().then() below raced the
+          // browser already starting to consume resp's body, throwing "Response body is already used".
+          const respClone = resp.clone();
+          caches.open(CACHE).then(c => c.put(e.request, respClone));
         }
         return resp;
       })

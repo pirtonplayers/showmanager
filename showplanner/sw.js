@@ -1,17 +1,17 @@
-const CACHE = 'showplanner-1.1.12';
+const CACHE = 'showplanner-1.1.13';
 const STATIC = [
   './',
   './index.html',
-  './style.css?v=1.1.12',
-  './budget.js?v=1.1.12',
-  '../shared/firebase-config.js?v=1.1.12',
-  '../shared/auth.js?v=1.1.12',
-  '../shared/suite-nav.js?v=1.1.12',
-  '../shared/embed.js?v=1.1.12',
-  '../shared/version.js?v=1.1.12',
-  './manifest.json?v=1.1.12',
-  './icons/icon-192.png?v=1.1.12',
-  './icons/icon-512.png?v=1.1.12',
+  './style.css?v=1.1.13',
+  './budget.js?v=1.1.13',
+  '../shared/firebase-config.js?v=1.1.13',
+  '../shared/auth.js?v=1.1.13',
+  '../shared/suite-nav.js?v=1.1.13',
+  '../shared/embed.js?v=1.1.13',
+  '../shared/version.js?v=1.1.13',
+  './manifest.json?v=1.1.13',
+  './icons/icon-192.png?v=1.1.13',
+  './icons/icon-512.png?v=1.1.13',
 ];
 
 self.addEventListener('install', e => {
@@ -45,7 +45,9 @@ self.addEventListener('fetch', e => {
     fetch(new Request(e.request, { cache: 'reload' }))
       .then(resp => {
         if (resp && resp.status === 200 && url.origin === location.origin) {
-          caches.open(CACHE).then(c => c.put(e.request, resp.clone()));
+          const respClone = resp.clone(); // clone synchronously — doing it inside caches.open().then() below
+          // raced the browser already starting to consume resp's body, throwing 'Response body is already used'.
+          caches.open(CACHE).then(c => c.put(e.request, respClone));
         }
         return resp;
       })

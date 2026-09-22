@@ -1,12 +1,12 @@
-const CACHE = 'showdrinks-1.1.12';
+const CACHE = 'showdrinks-1.1.13';
 const STATIC = [
   './',
   './index.html',
-  './style.css?v=1.1.12',
-  './order.js?v=1.1.12',
-  '../shared/a2hs.js?v=1.1.12',
-  '../shared/version.js?v=1.1.12',
-  './manifest.json?v=1.1.12',
+  './style.css?v=1.1.13',
+  './order.js?v=1.1.13',
+  '../shared/a2hs.js?v=1.1.13',
+  '../shared/version.js?v=1.1.13',
+  './manifest.json?v=1.1.13',
 ];
 
 self.addEventListener('install', e => {
@@ -37,7 +37,10 @@ self.addEventListener('fetch', e => {
     fetch(e.request)
       .then(resp => {
         if (resp && resp.status === 200 && url.origin === location.origin) {
-          caches.open(CACHE).then(c => c.put(e.request, resp.clone()));
+          // Clone synchronously, right here — doing it inside caches.open().then() below raced the
+          // browser already starting to consume resp's body, throwing "Response body is already used".
+          const respClone = resp.clone();
+          caches.open(CACHE).then(c => c.put(e.request, respClone));
         }
         return resp;
       })
