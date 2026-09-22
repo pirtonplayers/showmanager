@@ -240,6 +240,7 @@ function renderShowEditor() {
     const d = sessions[id] || DEFAULT_SESSIONS[id];
     document.getElementById(`${id}Name`).value = d.name || '';
     document.getElementById(`${id}Enabled`).value = d.enabled !== false ? 'true' : 'false';
+    document.getElementById(`${id}Cutoff`).value = d.cutoffTime || '';
   });
 }
 
@@ -252,6 +253,8 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
     sessions[id] = {
       name: document.getElementById(`${id}Name`).value.trim(),
       enabled: document.getElementById(`${id}Enabled`).value === 'true',
+      // Blank = no cutoff — order.js's sessionCutoffPassed() treats a falsy cutoffTime that way.
+      cutoffTime: document.getElementById(`${id}Cutoff`).value || '',
     };
   });
 

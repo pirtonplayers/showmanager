@@ -65,6 +65,7 @@ input, textarea, select, [contenteditable] {
 /* ── Forms ── */
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; font-size: 13px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+.required-marker { color: var(--danger); font-weight: 400; }
 /* font-size must be >= 16px — below that, iOS/Android auto-zoom the page on focus regardless
    of the viewport meta's user-scalable=no/maximum-scale, which is what was really causing the
    "can't stop it zooming" complaint (the meta tag alone doesn't prevent that specific zoom). */
@@ -361,6 +362,7 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .eu-total { font-weight: 700; color: var(--primary); white-space: nowrap; }
 .expense-row { padding: 8px 16px; border-top: 1px solid var(--border); }
 .er-main { font-size: 13px; margin-bottom: 4px; }
+.er-ref { color: var(--text-muted); font-weight: 600; }
 .er-show { color: var(--text-muted); }
 .er-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; }
 .er-date { color: var(--text-muted); white-space: nowrap; }

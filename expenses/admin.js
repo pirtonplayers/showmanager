@@ -551,7 +551,7 @@ function renderExpenseList() {
         </div>
         ${g.rows.map(r => `
           <div class="expense-row">
-            <div class="er-main">${r.showName ? `<span class="er-show">${escapeHtml(r.showName)}</span> · ` : ''}${escapeHtml(r.description)}</div>
+            <div class="er-main">${r.referenceNumber ? `<span class="er-ref">#${r.referenceNumber}</span> · ` : ''}${r.showName ? `<span class="er-show">${escapeHtml(r.showName)}</span> · ` : ''}${escapeHtml(r.description)}</div>
             <div class="er-line">
               <span class="er-date">${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : ''}</span>
               <span class="er-amount${r.paid ? '' : ' unpaid'}">${money(r.amount)}</span>
@@ -669,6 +669,7 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
     return;
   }
   const rows = filteredExpenses().map(r => ({
+    Ref: r.referenceNumber || '',
     Show: r.showName || '',
     Description: r.description,
     Amount: Number(r.amount),
@@ -680,7 +681,7 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
   }));
   if (!rows.length) { showToast('Nothing to export with the current filters', 'info'); return; }
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [{ wch: 22 }, { wch: 32 }, { wch: 10 }, { wch: 20 }, { wch: 28 }, { wch: 10 }, { wch: 14 }, { wch: 14 }];
+  ws['!cols'] = [{ wch: 8 }, { wch: 22 }, { wch: 32 }, { wch: 10 }, { wch: 20 }, { wch: 28 }, { wch: 10 }, { wch: 14 }, { wch: 14 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
   XLSX.writeFile(wb, `expenses-${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -754,6 +755,7 @@ function renderReports() {
 
   document.getElementById('reportDetailBody').innerHTML = rows.map(r => `
     <tr>
+      <td>${r.referenceNumber ? '#' + r.referenceNumber : '—'}</td>
       <td>${escapeHtml(r.showName || '—')}</td>
       <td>${escapeHtml(r.description)}</td>
       <td>${escapeHtml(r.userName)}<br><span class="muted">${escapeHtml(r.userEmail)}</span></td>
@@ -762,7 +764,7 @@ function renderReports() {
       <td class="amount-cell${r.paid ? '' : ' unpaid'}">${money(r.amount)}</td>
       <td><span class="badge ${r.paid ? 'badge-success' : 'badge-warning'}">${r.paid ? 'Paid' : 'Unpaid'}</span></td>
     </tr>
-  `).join('') || `<tr><td colspan="7" class="empty-state">No expenses match these filters.</td></tr>`;
+  `).join('') || `<tr><td colspan="8" class="empty-state">No expenses match these filters.</td></tr>`;
 }
 
 ['reportFilterShow', 'reportFilterFrom', 'reportFilterTo', 'reportFilterPaid'].forEach(id => {
@@ -829,6 +831,7 @@ document.getElementById('exportReportBtn').addEventListener('click', async () =>
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byUser), 'By Submitter');
 
   const detail = rows.map(r => ({
+    Ref: r.referenceNumber || '',
     Show: r.showName || '',
     Description: r.description,
     Amount: Number(r.amount),
@@ -987,7 +990,7 @@ function selectMarkPaidPerson(email) {
   listEl.innerHTML = person.expenses.map(exp => `
     <label class="item-row" style="cursor:pointer;margin-bottom:8px">
       <input type="checkbox" data-mark-paid-check="${exp.id}" checked>
-      <div class="item-name" style="flex:1">${escapeHtml(exp.showName)}: ${escapeHtml(exp.description)}</div>
+      <div class="item-name" style="flex:1">${exp.referenceNumber ? `#${exp.referenceNumber} · ` : ''}${escapeHtml(exp.showName)}: ${escapeHtml(exp.description)}</div>
       <div>${money(exp.amount)}</div>
     </label>
   `).join('');

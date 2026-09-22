@@ -490,7 +490,7 @@ exports.notifyExpensesSubmitted = onCall({ region: 'europe-west1', secrets: SMTP
     ...mailBody([
       `${userName} (${userEmail}) submitted ${expenses.length} new expense${expenses.length === 1 ? '' : 's'}.`,
       '',
-      ...expenses.map(e => `- ${e.showName}: ${e.description} — ${money(e.amount)}`),
+      ...expenses.map(e => `- ${e.referenceNumber ? '#' + e.referenceNumber + ' ' : ''}${e.showName}: ${e.description} — ${money(e.amount)}`),
       '',
       `Total: ${money(total)}`,
       receiptTotal ? `${receiptTotal} receipt photo${receiptTotal === 1 ? '' : 's'} attached — view them in the admin app.` : 'No receipts attached.',
@@ -535,7 +535,7 @@ exports.notifyExpensesPaid = onCall({ region: 'europe-west1', secrets: SMTP_SECR
         '',
         `${own.length} expense${own.length === 1 ? ' has' : 's have'} been marked as paid:`,
         '',
-        ...own.map(e => `- ${e.showName}: ${e.description} — ${money(e.amount)}`),
+        ...own.map(e => `- ${e.referenceNumber ? '#' + e.referenceNumber + ' ' : ''}${e.showName}: ${e.description} — ${money(e.amount)}`),
         '',
         `Total: ${money(total)}`,
         '',

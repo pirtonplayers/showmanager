@@ -271,12 +271,25 @@ document.getElementById('nextBtn').addEventListener('click', async () => {
 
 // ── Screen 0: Home ─────────────────────────────────────────────────────────
 
+// A session's own optional order cutoff — "HH:MM" (24h, local time), set in Admin → Show &
+// Sessions. Blank/missing means no cutoff at all: the session stays orderable for as long as
+// it's enabled. Compared against the real clock, not state.showDate — this whole app only ever
+// has one current show, always assumed to be "today" (see today()).
+function sessionCutoffPassed(session) {
+  if (!session || !session.cutoffTime) return false;
+  const [h, m] = session.cutoffTime.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return false;
+  const cutoff = new Date();
+  cutoff.setHours(h, m, 0, 0);
+  return new Date() >= cutoff;
+}
+
 function getAvailableSessions() {
   const sessions = state.sessions || {};
   return ['before','interval','after'].map(id => {
     const s = sessions[id] || {};
     if (!s.enabled) return null;
-    return { id, name: s.name || id };
+    return { id, name: s.name || id, cutoffTime: s.cutoffTime || '', closed: sessionCutoffPassed(s) };
   }).filter(Boolean);
 }
 
@@ -284,8 +297,9 @@ function sessionButtonsHtml() {
   const items = getAvailableSessions();
   if (!items.length) return '<p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">No sessions available.</p>';
   return '<div class="session-btn-grid">' + items.map(s => `
-    <button class="selector-btn" onclick="startSessionOrder('${s.id}','${escHtml(s.name)}')">
+    <button class="selector-btn${s.closed ? ' unavailable' : ''}" ${s.closed ? 'disabled' : ''} onclick="startSessionOrder('${s.id}','${escHtml(s.name)}')">
       ${escHtml(s.name)}
+      ${s.closed ? `<span class="sub">Ordering closed${s.cutoffTime ? ' at ' + s.cutoffTime : ''}</span>` : ''}
     </button>`).join('') + '</div>';
 }
 
@@ -464,6 +478,9 @@ window.changeName = function() {
 };
 
 window.startSessionOrder = function(id, name) {
+  // Shouldn't be reachable — the button's disabled once its own cutoff has passed — but no error
+  // pill either way (matches the other "shouldn't be reachable" guards in this file).
+  if (sessionCutoffPassed((state.sessions || {})[id])) return;
   state.showDate = today(); state.sessionId = id; state.sessionName = name; state.basket = {};
   state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
   state.selectedCategory = null;

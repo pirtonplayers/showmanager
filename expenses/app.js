@@ -280,7 +280,7 @@ function renderMyExpenses() {
     <div class="past-expense-card ${r.paid ? 'paid' : ''}" data-expense-detail="${r.id}">
       <div class="pec-info">
         <div class="pec-desc">${escapeHtml(r.description)}</div>
-        <div class="pec-detail">${escapeHtml(r.showName)} · ${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : ''}</div>
+        <div class="pec-detail">${r.referenceNumber ? `Ref #${r.referenceNumber} · ` : ''}${escapeHtml(r.showName)} · ${r.createdAt?.toDate ? formatDate(r.createdAt.toDate()) : ''}</div>
       </div>
       <div class="pec-right">
         <div class="pec-amount">${money(r.amount)}</div>
@@ -323,6 +323,7 @@ async function openExpenseDetail(id) {
 
   const body = document.getElementById('expenseDetailBody');
   body.innerHTML = `
+    ${r.referenceNumber ? `<div class="detail-row"><span class="dr-label">Reference</span><span class="dr-value">#${r.referenceNumber}</span></div>` : ''}
     <div class="detail-row"><span class="dr-label">Show</span><span class="dr-value">${escapeHtml(r.showName || '—')}</span></div>
     <div class="detail-row"><span class="dr-label">Description</span><span class="dr-value">${escapeHtml(r.description)}</span></div>
     <div class="detail-row"><span class="dr-label">Amount</span><span class="dr-value">${money(r.amount)}</span></div>
@@ -685,6 +686,13 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
   if (!showId) { statusEl.textContent = 'Please select a show.'; return; }
   if (!description) { statusEl.textContent = 'Please describe the expense.'; return; }
   if (!Number.isFinite(amount) || amount <= 0) { statusEl.textContent = 'Please enter a valid amount.'; return; }
+  // A receipt is mandatory — newly-picked files count, and so does whatever's already attached
+  // when editing a pending item (minus anything marked for removal) — only actually missing
+  // when both of those are empty.
+  const existingReceiptCount = editingPendingId
+    ? (pendingExpenses.find(x => x.id === editingPendingId)?.receiptPaths.filter(rp => !editingRemovedReceiptPaths.includes(rp)).length || 0)
+    : 0;
+  if (!files.length && !existingReceiptCount) { statusEl.textContent = 'Please attach at least one receipt photo.'; return; }
   lastSelectedShowId = showId;
 
   const wasEditing = editingPendingId;
@@ -743,17 +751,29 @@ document.getElementById('submitAllBtn').addEventListener('click', async () => {
   const submittedIds = [];
   for (const p of pendingExpenses) {
     try {
-      const ref = await db.collection('expenses').add({
-        showId: p.showId,
-        showName: p.showName,
-        description: p.description,
-        amount: p.amount,
-        userName: state.name,
-        userEmail: state.email,
-        receiptPaths: p.receiptPaths,
-        paid: false,
-        paidAt: null,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      // A short, sequential reference number (independent of the doc's own id) — same
+      // shared-counter-in-a-transaction pattern as showdrinks' orderNumber — so a player or
+      // treasurer can quote "expense #123" instead of a Firestore doc id.
+      const counterRef = db.collection('expenses_counters').doc('global');
+      const ref = db.collection('expenses').doc();
+      let referenceNumber;
+      await db.runTransaction(async t => {
+        const cDoc = await t.get(counterRef);
+        referenceNumber = (cDoc.exists ? (cDoc.data().next || 0) : 0) + 1;
+        t.set(counterRef, { next: referenceNumber }, { merge: true });
+        t.set(ref, {
+          showId: p.showId,
+          showName: p.showName,
+          description: p.description,
+          amount: p.amount,
+          userName: state.name,
+          userEmail: state.email,
+          receiptPaths: p.receiptPaths,
+          referenceNumber,
+          paid: false,
+          paidAt: null,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
       });
       submittedIds.push(ref.id);
     } catch (err) {

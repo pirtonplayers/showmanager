@@ -40,15 +40,22 @@ service cloud.firestore {
     match /expenses_config/{id} {
       allow read, write: if hasAccess('expensesAdmin');
     }
+    // Sequential reference numbers (app.js's submitAllBtn) — same shape as showdrinks_counters,
+    // incremented in a transaction by whoever's actually allowed to submit an expense.
+    match /expenses_counters/{id} {
+      allow read, write: if hasAccess('expensesAdmin') || (request.auth != null && hasAccess('expenses'));
+    }
     // A manager/expensesAdmin can always submit; an approved player (access.expenses) can submit
     // only as themselves (userEmail must match their own verified auth email). Reading is scoped
     // the same way. expensesAdmin can update any field (mark paid, etc.) or delete; the
     // submitter can only ever touch receiptPaths on their own doc (add/replace a forgotten or
     // extra receipt photo after the fact) — everything else (amount, paid, description...) stays
-    // locked to expensesAdmin even for the doc's own owner.
+    // locked to expensesAdmin even for the doc's own owner. A receipt is mandatory on every
+    // expense — receiptPaths must be a non-empty array — enforced here too, not just in app.js's
+    // own form validation, since this is the actual security boundary.
     match /expenses/{id} {
-      allow create: if hasAccess('expensesAdmin') ||
-        (request.auth != null && hasAccess('expenses') && request.resource.data.userEmail == request.auth.token.email);
+      allow create: if request.resource.data.receiptPaths.size() > 0 && (hasAccess('expensesAdmin') ||
+        (request.auth != null && hasAccess('expenses') && request.resource.data.userEmail == request.auth.token.email));
       allow read: if hasAccess('expensesAdmin') || (request.auth != null && resource.data.userEmail == request.auth.token.email);
       allow update: if hasAccess('expensesAdmin') ||
         (request.auth != null && resource.data.userEmail == request.auth.token.email &&
