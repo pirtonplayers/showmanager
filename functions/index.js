@@ -446,6 +446,38 @@ exports.resyncExpensesAdminClaims = onCall({ region: 'europe-west1' }, async (re
   return { ok: true, updated };
 });
 
+// ONE-TIME repair (2026-09-22): three users/{uid} docs (Sophie Davies, Trevor Clark, Janet
+// Tackley) were deleted directly in the Firestore console, outside the app — their Firebase Auth
+// logins were untouched, so they were locked out (checkAccess found no doc) even though their
+// account still existed. Recreates exactly what createUser would have written, with
+// mustChangePassword: false since these are real accounts that already had a working password,
+// not new ones. Only ever writes a doc that doesn't already exist, so it's safe to click more
+// than once and can't clobber anything restored another way in the meantime. Manager-only, and
+// meant to be deleted (along with its Users-screen button) once run.
+const USERS_TO_RESTORE = [
+  { uid: 'UUIRncOV4FOiQvWUZdvu8mJQeKA3', name: 'Sophie Davies', email: 'sophiejdavies@googlemail.com',
+    access: { expenses: true, expensesAdmin: false, showdrinksAdmin: false, showdrinksTabsPos: false, budget: false, showplanner: true } },
+  { uid: 'eglCXSFwbvh3X7CN3nmGmOviKcb2', name: 'Trevor Clark', email: 'trevor.clark15@btinternet.com',
+    access: { expenses: true, expensesAdmin: true, showdrinksAdmin: false, showdrinksTabsPos: false, budget: false, showplanner: true } },
+  { uid: 'j4EOSX1gAyPUO3PyQYrpunlnhLG2', name: 'Janet Tackley', email: 'jmtackley@gmail.com',
+    access: { expenses: true, expensesAdmin: false, showdrinksAdmin: false, showdrinksTabsPos: false, budget: false, showplanner: true } },
+];
+exports.restoreMissingUsers20260922 = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireManager(request);
+  const restored = [];
+  const skipped = [];
+  for (const u of USERS_TO_RESTORE) {
+    const ref = db.collection('users').doc(u.uid);
+    if ((await ref.get()).exists) { skipped.push(u.name); continue; }
+    await ref.set({
+      name: u.name, email: u.email, isManager: false, access: u.access,
+      mustChangePassword: false, createdAt: FieldValue.serverTimestamp(),
+    });
+    restored.push(u.name);
+  }
+  return { ok: true, restored, skipped };
+});
+
 // ── Expenses ─────────────────────────────────────────────────────────────
 
 // Sums the actual size of every stored receipt — the project's on the Blaze plan (pay-as-you-go,

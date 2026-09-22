@@ -610,6 +610,27 @@ document.getElementById('addUserModal').addEventListener('click', (e) => {
   if (e.target.id === 'addUserModal') document.getElementById('addUserModal').style.display = 'none';
 });
 
+// TEMPORARY — one-time repair for the 2026-09-22 users/{uid} data loss (see
+// restoreMissingUsers20260922 in functions/index.js). Remove this handler and its button together
+// once Sophie/Trevor/Janet are confirmed back.
+document.getElementById('restoreMissingUsersBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('restoreMissingUsersBtn');
+  btn.disabled = true;
+  try {
+    const result = await functionsRegion.httpsCallable('restoreMissingUsers20260922')();
+    const { restored, skipped } = result.data;
+    const parts = [];
+    if (restored.length) parts.push(`Restored: ${restored.join(', ')}`);
+    if (skipped.length) parts.push(`Already present (skipped): ${skipped.join(', ')}`);
+    showToast(parts.join(' — ') || 'Nothing to do', restored.length ? 'success' : 'info');
+    await loadUsers();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 document.getElementById('resyncClaimsBtn').addEventListener('click', async () => {
   const btn = document.getElementById('resyncClaimsBtn');
   btn.disabled = true;
