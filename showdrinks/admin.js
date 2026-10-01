@@ -2401,7 +2401,7 @@ function buildMemberEmailPayload(member) {
   unpaidOrders.forEach(o => (o.items || []).forEach(i => {
     itemTotals[i.name] = (itemTotals[i.name] || 0) + i.quantity;
   }));
-  const drinks = Object.entries(itemTotals).map(([name, qty]) => `${qty}x ${name}`).join('\n');
+  const drinks = Object.entries(itemTotals).map(([name, qty]) => `x${qty} ${name}`).join('\n');
   const total = fmtCurrency(unpaidOrders.reduce((s, o) => s + (o.totalAmount || 0), 0));
 
   const fill = tpl => tpl
@@ -2491,7 +2491,7 @@ document.getElementById('exportTabSalesBtn').addEventListener('click', () => {
   const rows = sorted.map(o => [
     fmtDateTime(o.createdAt),
     o.memberName || '',
-    (o.items || []).map(i => `${i.quantity}x ${i.name}`).join('; '),
+    (o.items || []).map(i => `x${i.quantity} ${i.name}`).join('; '),
     (o.totalAmount || 0).toFixed(2),
     o.paid ? 'Yes' : 'No',
   ]);
