@@ -94,12 +94,18 @@ function isBuyNowItem(item) {
   return !!item && (item.category || '').trim().toLowerCase() === BUY_NOW_CATEGORY;
 }
 function effectivePaymentMode(buyNow) {
-  return buyNow ? 'sumup' : (state.settings?.paymentMode || 'bar');
+  const m = state.settings?.paymentMode || 'bar';
+  return buyNow ? (m === 'test' ? 'test' : 'sumup') : m;
 }
+// 'test' mode (Admin → payment mode "Test") offers pay-at-bar plus a fake online checkout that
+// pretends to take the money — for walking through the whole flow without charging anyone.
+function isTestMode() { return state.settings?.paymentMode === 'test'; }
 function canPayAtBar(buyNow) {
-  const m = effectivePaymentMode(buyNow);
-  return m === 'bar' || m === 'both';
+  if (buyNow) return false;
+  const m = effectivePaymentMode(false);
+  return m === 'bar' || m === 'both' || m === 'test';
 }
+function onlineBtnLabel() { return isTestMode() ? '🧪 Pay Online (TEST — no money taken)' : '💳 Pay Online with SumUp'; }
 
 // Shared by renderReview() (shows the payment section/Cancel Order option) and updateBottomBar()
 // (swaps "Order Status →" for a guaranteed-clickable "Cancel Order" button there instead — see
@@ -974,20 +980,20 @@ function renderReview() {
   }
   if (!viewing || viewingUnpaid) {
     const mode = effectivePaymentMode(state.sessionBuyNow);
-    const showBar   = mode === 'bar'   || mode === 'both';
-    const showSumup = mode === 'sumup' || mode === 'both';
+    const showBar   = mode === 'bar'   || mode === 'both' || (mode === 'test' && !state.sessionBuyNow);
+    const showSumup = mode === 'sumup' || mode === 'both' || mode === 'test';
     document.getElementById('payAtBarSection').style.display   = showBar ? '' : 'none';
     document.getElementById('sumupSection').style.display      = showSumup ? '' : 'none';
     // Only makes sense as a choice between two visible options, not layout filler above a lone
     // section — "both" is the only mode where it ever shows.
-    document.getElementById('paymentOrDivider').style.display  = mode === 'both' ? '' : 'none';
+    document.getElementById('paymentOrDivider').style.display  = showBar && showSumup ? '' : 'none';
 
     const barBtn = document.getElementById('payAtBarBtn');
     barBtn.disabled = false;
     barBtn.textContent = viewing ? "I'll Pay at the Bar" : 'Confirm Order (Pay at Bar)';
     const onlineBtn = document.getElementById('payOnlineBtn');
     onlineBtn.disabled = false;
-    onlineBtn.textContent = '💳 Pay Online with SumUp';
+    onlineBtn.textContent = onlineBtnLabel();
   }
 }
 
@@ -1089,7 +1095,7 @@ async function placeOrder(paymentMode) {
   } catch(e) {
     toast('Failed to place order: ' + e.message, 'error');
     btn.disabled = false;
-    btn.textContent = paymentMode === 'bar' ? 'Confirm Order (Pay at Bar)' : '💳 Pay Online with SumUp';
+    btn.textContent = paymentMode === 'bar' ? 'Confirm Order (Pay at Bar)' : onlineBtnLabel();
   }
 }
 
@@ -1100,6 +1106,7 @@ async function placeOrder(paymentMode) {
 // retry from the Status screen for an order that came back unpaid — see retrySumupPayment below,
 // which passes both explicitly since state.orderId isn't the right one there.
 async function initiateSumupPayment(orderId = state.orderId, btnId = 'payOnlineBtn') {
+  if (isTestMode()) { showTestCheckout(orderId, btnId); return; }
   const btn = document.getElementById(btnId);
   const label = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Redirecting to SumUp…'; }
@@ -1113,6 +1120,63 @@ async function initiateSumupPayment(orderId = state.orderId, btnId = 'payOnlineB
     toast(e.message || 'Could not start SumUp checkout', 'error');
     if (btn) { btn.disabled = false; btn.textContent = label; }
   }
+}
+
+// Back from a checkout without paying, and no pay-at-bar to fall back on: the order isn't going
+// anywhere, so mark it cancelled (retrySumupPayment un-cancels it if they try again). Returns the
+// order as it now stands.
+async function cancelIfUnsendable(order) {
+  if (orderStage(order) !== 'unpaid' || order.cancelled || canPayAtBar(order.buyNow === true)) return order;
+  try {
+    await db.collection('showdrinks_orders').doc(order.id).update({
+      cancelled: true, cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return { ...order, cancelled: true };
+  } catch(e) { console.error(e); return order; }
+}
+
+// TEST payment mode's stand-in for SumUp's hosted checkout page: a full-screen "checkout" with a
+// button to simulate success and one to simulate failure, so both outcomes can be walked through.
+// Nothing is charged. A "successful" one marks the order paid straight from here (the order rules
+// already let the customer page update its own order), and a buy-now order is collected as well,
+// same as the real verifySumupPayment does.
+function showTestCheckout(orderId, btnId) {
+  const btn = document.getElementById(btnId);
+  if (btn) btn.disabled = true;
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center';
+  ov.innerHTML = `<div style="font-size:12px;font-weight:700;letter-spacing:.1em;color:#b45309;background:#fef3c7;padding:4px 12px;border-radius:999px">TEST PAYMENT — NO MONEY TAKEN</div>
+    <div style="font-size:22px;font-weight:800">Test checkout</div>
+    <button class="btn btn-success btn-full btn-lg" id="testPayOk" style="height:56px;border-radius:12px">Simulate successful payment</button>
+    <button class="btn btn-secondary btn-full btn-lg" id="testPayFail" style="height:56px;border-radius:12px">Simulate failed / abandoned payment</button>`;
+  document.body.appendChild(ov);
+  const finish = async (paid) => {
+    ov.querySelectorAll('button').forEach(b => b.disabled = true);
+    try {
+      const ref = db.collection('showdrinks_orders').doc(orderId);
+      if (paid) {
+        const snap = await ref.get();
+        const upd = { paymentStatus: 'paid', testPayment: true, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+        if (snap.exists && snap.data().buyNow) Object.assign(upd, { prepStatus: 'collected', collectedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        await ref.update(upd);
+      }
+      const doc = await ref.get();
+      let order = { id: doc.id, ...doc.data() };
+      if (!paid) order = await cancelIfUnsendable(order);
+      ov.remove();
+      state.currentStatusOrderId = orderId;
+      showOrderStatus(order);
+      subscribeToOrderStatus(orderId);
+      goTo(3);
+    } catch(e) {
+      toast('Failed: ' + e.message, 'error');
+      ov.remove();
+    }
+    if (btn) btn.disabled = false;
+  };
+  document.getElementById('testPayOk').onclick = () => finish(true);
+  document.getElementById('testPayFail').onclick = () => finish(false);
 }
 
 // The Status screen's "Try Paying Online Again" button (see showOrderStatus) — reachable after
@@ -1384,15 +1448,7 @@ async function init() {
           let order = { id: doc.id, ...doc.data() };
           // Back from SumUp without paying, and no pay-at-bar to fall back on: the order isn't
           // going anywhere, so mark it cancelled (retrySumupPayment un-cancels it if they try again).
-          if (orderStage(order) === 'unpaid' && !order.cancelled && !canPayAtBar(order.buyNow === true)) {
-            try {
-              await db.collection('showdrinks_orders').doc(orderId).update({
-                cancelled: true, cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-              });
-              order = { ...order, cancelled: true };
-            } catch(e) { console.error(e); }
-          }
+          order = await cancelIfUnsendable(order);
           showOrderStatus(order);
           subscribeToOrderStatus(orderId);
           goTo(3);

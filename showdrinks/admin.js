@@ -888,7 +888,7 @@ function renderOrders(orders) {
           ${actionBtns}
           ${o.cancelled ? '' : `
           <span class="badge ${isPaid ? 'badge-success' : 'badge-warning'}" style="margin-left:auto">
-            ${isPaid ? '✓ Paid' : (o.paymentMode === 'bar' ? '💵 Unpaid (pay at bar)' : '⏳ Awaiting payment')}
+            ${isPaid ? (o.testPayment ? '🧪 Paid (test)' : '✓ Paid') : (o.paymentMode === 'bar' ? '💵 Unpaid (pay at bar)' : '⏳ Awaiting payment')}
           </span>`}
         </div>
       </div>`;
