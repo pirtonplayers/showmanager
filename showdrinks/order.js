@@ -168,16 +168,6 @@ function cancelFreshOrder() {
   renderHomeScreen();
 }
 
-// Category List mode's own back-to-home escape hatch (#heroBackBtn, shown only when there's
-// nothing else on screen to navigate with — see updateBottomBar). Nothing in the basket means
-// nothing to lose, so this goes straight home with no confirm(); the moment there's something in
-// it, this defers to the same confirm()-guarded cancel every other "discard a fresh order" path
-// already uses.
-window.heroGoBack = function() {
-  if (basketCount() > 0) cancelFreshOrder();
-  else { goTo(0); renderHomeScreen(); }
-};
-
 // Discarding in-progress edits to an order that already exists — same safeguard, different
 // wording, since it's the EDITS being lost here, not the order itself (that's still sitting in
 // the system exactly as it was before this edit session started).
@@ -195,11 +185,6 @@ function updateBottomBar() {
   const back = document.getElementById('backBtn');
   setAsCancelLink(back, false);
   setAsCancelLink(next, false);
-  // Only ever relevant on Category List's own fresh, still-empty order — every other case either
-  // has the bottom bar itself for navigation, or (Home/Status) doesn't need this at all. Set once
-  // up front and overridden below in the one branch that actually wants it on, rather than
-  // repeated in every early return.
-  document.getElementById('heroBackBtn').style.display = 'none';
   if (state.step === 0 || state.step === 3) { bar.style.display = 'none'; return; }
   if (state.step === 2) {
     bar.style.display = 'flex';
@@ -225,8 +210,7 @@ function updateBottomBar() {
     // the trolley is how you get to Review, so the bottom bar here is just Cancel — and with
     // nothing in the basket yet, there's nothing to cancel either, so the bar has nothing left to
     // show at all until something's actually been added. That left no way back to Home at all —
-    // #heroBackBtn fills exactly that gap.
-    if (basketCount() === 0) { bar.style.display = 'none'; document.getElementById('heroBackBtn').style.display = 'none'; return; }
+    if (basketCount() === 0) { bar.style.display = 'none'; return; }
     bar.style.display = 'flex';
     next.style.display = 'none';
     setAsCancelLink(back, true);
