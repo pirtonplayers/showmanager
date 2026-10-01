@@ -1122,7 +1122,13 @@ async function initiateSumupPayment(orderId = state.orderId, btnId = 'payOnlineB
 // backing out of/failing a SumUp checkout, so paying still isn't a dead end. Pay-at-bar needs no
 // equivalent button: staff take payment there directly and mark it paid from the admin side, no
 // action for the customer to take on this device.
-window.retrySumupPayment = function(orderId) {
+window.retrySumupPayment = async function(orderId) {
+  // An unpaid online-only order may have been auto-cancelled on return from SumUp — retrying revives it.
+  try {
+    await db.collection('showdrinks_orders').doc(orderId).update({
+      cancelled: false, updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch(e) { console.error(e); }
   initiateSumupPayment(orderId, 'retrySumupBtn');
 };
 
@@ -1372,7 +1378,19 @@ async function init() {
       try {
         const doc = await db.collection('showdrinks_orders').doc(orderId).get();
         if (doc.exists) {
-          showOrderStatus({ id: doc.id, ...doc.data() });
+          let order = { id: doc.id, ...doc.data() };
+          // Back from SumUp without paying, and no pay-at-bar to fall back on: the order isn't
+          // going anywhere, so mark it cancelled (retrySumupPayment un-cancels it if they try again).
+          if (orderStage(order) === 'unpaid' && !order.cancelled && !canPayAtBar(order.buyNow === true)) {
+            try {
+              await db.collection('showdrinks_orders').doc(orderId).update({
+                cancelled: true, cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              });
+              order = { ...order, cancelled: true };
+            } catch(e) { console.error(e); }
+          }
+          showOrderStatus(order);
           subscribeToOrderStatus(orderId);
           goTo(3);
           history.replaceState({}, '', window.location.pathname);
