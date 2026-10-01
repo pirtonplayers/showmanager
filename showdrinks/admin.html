@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.14"></script>
+  <script src="../shared/embed.js?v=1.1.15"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.14">
+  <link rel="stylesheet" href="style.css?v=1.1.15">
 </head>
 <body>
 
@@ -234,7 +234,7 @@
               <label style="display:flex;align-items:center;gap:8px;font-size:14px">
                 <input type="checkbox" id="beforeBuyNow"> Buy now
               </label>
-              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items flagged buy-now, pay online, and the order is marked collected once paid.</p>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items in the "Buy Now" category, pay online, and the order is marked collected once paid.</p>
             </div>
           </div>
         </div>
@@ -264,7 +264,7 @@
               <label style="display:flex;align-items:center;gap:8px;font-size:14px">
                 <input type="checkbox" id="intervalBuyNow"> Buy now
               </label>
-              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items flagged buy-now, pay online, and the order is marked collected once paid.</p>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items in the "Buy Now" category, pay online, and the order is marked collected once paid.</p>
             </div>
           </div>
         </div>
@@ -294,7 +294,7 @@
               <label style="display:flex;align-items:center;gap:8px;font-size:14px">
                 <input type="checkbox" id="afterBuyNow"> Buy now
               </label>
-              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items flagged buy-now, pay online, and the order is marked collected once paid.</p>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items in the "Buy Now" category, pay online, and the order is marked collected once paid.</p>
             </div>
           </div>
         </div>
@@ -644,11 +644,6 @@
           <input type="checkbox" id="editOnSale" checked> On sale (shows up for ordering)
         </label>
       </div>
-      <div class="form-group" id="editBuyNowGroup" style="display:none">
-        <label style="display:flex;align-items:center;gap:8px;font-size:14px">
-          <input type="checkbox" id="editBuyNow"> Buy now (offered in buy-now sessions)
-        </label>
-      </div>
       <div class="form-group" id="editVisibilityGroup" style="display:none">
         <label>Shows On</label>
         <div style="display:flex;gap:16px">
@@ -805,11 +800,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.14"></script>
-<script src="../shared/firebase-config.js?v=1.1.14"></script>
-<script src="../shared/auth.js?v=1.1.14"></script>
-<script src="../shared/suite-nav.js?v=1.1.14"></script>
-<script src="admin.js?v=1.1.14"></script>
+<script src="../shared/version.js?v=1.1.15"></script>
+<script src="../shared/firebase-config.js?v=1.1.15"></script>
+<script src="../shared/auth.js?v=1.1.15"></script>
+<script src="../shared/suite-nav.js?v=1.1.15"></script>
+<script src="admin.js?v=1.1.15"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

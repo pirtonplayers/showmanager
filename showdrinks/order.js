@@ -89,6 +89,10 @@ const ORDER_STAGE_BADGE = { unpaid: 'badge-danger', paid: 'badge-warning', ready
 // Payment methods on offer: the show's own setting (default pay-at-bar), except a buy-now order
 // which is always online-only — it's paid for on the spot and handed over, so there's no "pay at
 // the bar" for it. Used for both the Review screen and the Status screen's failed-payment wording.
+const BUY_NOW_CATEGORY = 'buy now';
+function isBuyNowItem(item) {
+  return !!item && (item.category || '').trim().toLowerCase() === BUY_NOW_CATEGORY;
+}
 function effectivePaymentMode(buyNow) {
   return buyNow ? 'sumup' : (state.settings?.paymentMode || 'bar');
 }
@@ -563,9 +567,9 @@ function posIsLight(hex) {
 // bar/customer-only under that short-lived scheme keep their setting. admin.js's Bar Tabs
 // POS/List has its own mirror-image itemShowsOnTab() (order.js is a separate script).
 function itemShowsOnPos(item) {
-  // A "buy-now" session (set per session in Admin → Show & Sessions) only offers items flagged
-  // buy-now (Admin → Price List → edit item) — see also renderPosGrid, which blanks the cell.
-  if (state.sessionBuyNow && !(item && item.buyNow === true)) return false;
+  // A "buy-now" session (set per session in Admin → Show & Sessions) only offers items in the
+  // "Buy Now" category — see also renderPosGrid, which blanks the cell.
+  if (state.sessionBuyNow && !isBuyNowItem(item)) return false;
   if (!item) return true;
   if (item.showOnPos !== undefined) return item.showOnPos !== false;
   if (item.visibility) return item.visibility !== 'bar';
@@ -597,7 +601,7 @@ function renderPosGrid() {
     const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
     const menuItem = cell.type === 'item' ? state.menuItems.find(mi => mi.id === cell.menuItemId) : null;
     // Buy-now session: items that aren't buy-now aren't just dimmed, they're not shown at all.
-    if (state.sessionBuyNow && cell.type === 'item' && !(menuItem && menuItem.buyNow === true)) {
+    if (state.sessionBuyNow && cell.type === 'item' && !isBuyNowItem(menuItem)) {
       return `<button class="pos-btn empty" disabled></button>`;
     }
     // Off-sale (or, same treatment, bar-only): dimmed and untappable, but still shown (a
@@ -798,11 +802,14 @@ function renderListMenu() {
   // of a separate screen for "what have I actually got so far".
   const hasOrder = basketCount() > 0;
   const validSelections = hasOrder ? [...catOrder, ORDER_CHIP] : catOrder;
-  const selected = state.selectedCategory && validSelections.includes(state.selectedCategory)
+  // Buy-now session: straight into the Buy Now category, with no category pills to switch away.
+  const buyNowCat = state.sessionBuyNow ? catOrder.find(c => c.trim().toLowerCase() === BUY_NOW_CATEGORY) : null;
+  const selected = buyNowCat ? buyNowCat
+    : state.selectedCategory && validSelections.includes(state.selectedCategory)
     ? state.selectedCategory : null;
   state.selectedCategory = selected;
 
-  barEl.style.display = (catOrder.length || hasOrder) ? 'flex' : 'none';
+  barEl.style.display = (!state.sessionBuyNow && (catOrder.length || hasOrder)) ? 'flex' : 'none';
   barEl.innerHTML =
     catOrder.map(cat => `
     <button type="button" class="cat-btn ${cat === selected ? 'active' : ''}"
@@ -882,7 +889,7 @@ function listMenuItemHtml(item) {
     <span class="mic-price">${fmtCurrency(item.price)}</span>
     ${qty > 0 ? `<div class="qty-control">
       <span class="qty-num">${qty}×</span>
-      <button onclick="event.stopPropagation();removeFromBasket('${encodeURIComponent(item.name)}')" title="Remove">🗑</button>
+      <button onclick="event.stopPropagation();listDecBasketItem('${encodeURIComponent(item.name)}')" title="Remove one">−</button>
     </div>` : ''}
   </div>`;
 }
