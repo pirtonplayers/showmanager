@@ -226,7 +226,7 @@ function updateBottomBar() {
     // nothing in the basket yet, there's nothing to cancel either, so the bar has nothing left to
     // show at all until something's actually been added. That left no way back to Home at all —
     // #heroBackBtn fills exactly that gap.
-    if (basketCount() === 0) { bar.style.display = 'none'; document.getElementById('heroBackBtn').style.display = state.sessionBuyNow ? 'none' : 'flex'; return; }
+    if (basketCount() === 0) { bar.style.display = 'none'; document.getElementById('heroBackBtn').style.display = 'none'; return; }
     bar.style.display = 'flex';
     next.style.display = 'none';
     setAsCancelLink(back, true);
@@ -760,16 +760,16 @@ function updateHeroBasket() {
   if (!totalEl) return;
   totalEl.textContent = fmtCurrency(basketTotal());
   const btn = document.getElementById('heroBasketBtn');
-  // Buy-now: with nothing left in the basket the big button becomes "Tap to exit" (back to Home)
+  // Category POS: with nothing left in the basket the big button becomes "Tap to exit" (back to Home)
   // instead of a disabled checkout.
-  const exitMode = state.sessionBuyNow && basketCount() === 0;
+  const exitMode = basketCount() === 0;
   if (btn) btn.disabled = basketCount() === 0 && !exitMode;
   const cap = btn && btn.querySelector('.hero-basket-caption');
   if (cap) cap.textContent = exitMode ? 'Tap to exit' : 'Tap to checkout';
 }
 
 window.goToListBasket = function() {
-  if (basketCount() === 0) { if (state.sessionBuyNow) { goTo(0); renderHomeScreen(); } return; } // shouldn't be reachable — button is disabled — but no error pill either way
+  if (basketCount() === 0) { goTo(0); renderHomeScreen(); return; } // shouldn't be reachable — button is disabled — but no error pill either way
   goTo(2); renderReview();
 };
 

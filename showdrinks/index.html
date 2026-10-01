@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowDrinks</title>
-  <link rel="manifest" href="manifest.json?v=1.1.28">
-  <link rel="stylesheet" href="style.css?v=1.1.28">
+  <link rel="manifest" href="manifest.json?v=1.1.29">
+  <link rel="stylesheet" href="style.css?v=1.1.29">
   <style>
     .pwa-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--primary); }
     .pwa-content { flex: 1; background: var(--bg); border-radius: 24px 24px 0 0; margin-top: 8px; padding: 24px 20px 40px; overflow-y: auto; }
@@ -166,12 +166,12 @@
        running total, not an item count — nothing here needs a per-item badge. */
     .list-screen #heroBasketBtn { grid-column:3; display:flex; flex-direction:column; align-items:center; gap:1px; justify-self:end; background:#fff; color:var(--primary); border:none; border-radius:999px; padding:6px 20px; cursor:pointer; }
     /* Buy-now sessions: the checkout button is THE call to action, so it spans the full width, much bigger. */
-    .buynow-screen .pwa-hero { grid-template-columns:1fr; }
-    .buynow-screen #heroBasketBtn, .buynow-screen #heroBackBtn { grid-column:1 / -1; }
-    .buynow-screen #heroBasketBtn { justify-self:stretch; border-radius:16px; padding:22px 20px; gap:6px; }
-    .buynow-screen .hero-basket-svg { width:40px; height:40px; }
-    .buynow-screen .hero-basket-total-text { font-size:36px; }
-    .buynow-screen .hero-basket-caption { font-size:16px; }
+    .list-screen .pwa-hero { grid-template-columns:1fr; }
+    .list-screen #heroBasketBtn, .list-screen #heroBackBtn { grid-column:1 / -1; }
+    .list-screen #heroBasketBtn { justify-self:stretch; border-radius:16px; padding:22px 20px; gap:6px; }
+    .list-screen .hero-basket-svg { width:40px; height:40px; }
+    .list-screen .hero-basket-total-text { font-size:36px; }
+    .list-screen .hero-basket-caption { font-size:16px; }
     /* ...and the item cards are double size, laid out as a grid so nothing runs off the edge:
        column 1 = image (spans both rows); column 2 = name on row 1, then price (left) and the
        minus button (right) on row 2. */
@@ -419,10 +419,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.28"></script>
-<script src="../shared/firebase-config.js?v=1.1.28"></script>
-<script src="../shared/a2hs.js?v=1.1.28"></script>
-<script src="order.js?v=1.1.28"></script>
+<script src="../shared/version.js?v=1.1.29"></script>
+<script src="../shared/firebase-config.js?v=1.1.29"></script>
+<script src="../shared/a2hs.js?v=1.1.29"></script>
+<script src="order.js?v=1.1.29"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
