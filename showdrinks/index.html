@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowDrinks</title>
-  <link rel="manifest" href="manifest.json?v=1.1.18">
-  <link rel="stylesheet" href="style.css?v=1.1.18">
+  <link rel="manifest" href="manifest.json?v=1.1.19">
+  <link rel="stylesheet" href="style.css?v=1.1.19">
   <style>
     .pwa-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--primary); }
     .pwa-content { flex: 1; background: var(--bg); border-radius: 24px 24px 0 0; margin-top: 8px; padding: 24px 20px 40px; overflow-y: auto; }
@@ -273,7 +273,6 @@
       <path class="pph-5" d="M96.816,41.153c.173,3.383-2.22,6.255-5.344,6.414-3.123.159-5.794-2.455-5.967-5.838-.173-3.384,2.22-6.255,5.344-6.414,3.123-.159,5.794,2.455,5.967,5.838Z"/>
     </svg>
     <h1 id="heroShowName">ShowDrinks</h1>
-    <p>Pre-order your drinks</p>
     <p style="font-size:11px;opacity:.4;margin-top:4px" id="heroVersion"></p>
     <button type="button" id="heroBasketBtn" onclick="goToListBasket()" title="View basket">
       <span class="hero-basket-row">
@@ -351,6 +350,8 @@
         <div class="status-sub" id="statusSub">We're getting your drinks ready.</div>
 
         <div class="pay-at-bar-banner" id="payAtBarBanner" style="display:none">💵 Please pay at the bar</div>
+        <!-- Replaces the banner when the order wasn't sent (online-only show, payment failed) — a Home button up here instead of the one below the order details. -->
+        <button class="btn btn-full" style="display:none;height:52px;border-radius:12px;margin-bottom:16px;background:var(--danger-light);color:var(--danger);font-weight:700;font-size:16px" id="notSentHomeBtn">Home (please pay at the bar)</button>
         <!-- Only for an unpaid order whose paymentMode is 'sumup' — see showOrderStatus in
              order.js, which also wires up its onclick per-order (retrySumupPayment) and toggles
              retrySumupLinks below alongside this button (same condition, kept as two elements
@@ -401,10 +402,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.18"></script>
-<script src="../shared/firebase-config.js?v=1.1.18"></script>
-<script src="../shared/a2hs.js?v=1.1.18"></script>
-<script src="order.js?v=1.1.18"></script>
+<script src="../shared/version.js?v=1.1.19"></script>
+<script src="../shared/firebase-config.js?v=1.1.19"></script>
+<script src="../shared/a2hs.js?v=1.1.19"></script>
+<script src="order.js?v=1.1.19"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

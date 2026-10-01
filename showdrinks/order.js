@@ -1188,8 +1188,9 @@ function showOrderStatus(order) {
   // method was originally chosen) — separate from the ready/collected messaging above since
   // payment and prep are independent (an order can be made and even ready before it's paid).
   const banner = document.getElementById('payAtBarBanner');
-  banner.textContent = notSent ? '💵 Please order at the bar' : '💵 Please pay at the bar';
-  banner.style.display = stage === 'unpaid' ? '' : 'none';
+  banner.style.display = stage === 'unpaid' && !notSent ? '' : 'none';
+  document.getElementById('notSentHomeBtn').style.display = notSent ? '' : 'none';
+  document.getElementById('newOrderBtn').style.display = notSent ? 'none' : '';
 
   // A SumUp order that comes back unpaid (backed out, failed, or the 30-minute checkout session
   // just expired) isn't a dead end — retrySumupPayment (above) creates a fresh checkout for the
@@ -1292,6 +1293,7 @@ function goHomeFromStatus() {
 }
 
 document.getElementById('newOrderBtn').addEventListener('click', goHomeFromStatus);
+document.getElementById('notSentHomeBtn').addEventListener('click', goHomeFromStatus);
 
 // ── Service Worker update banner ───────────────────────────────────────────
 
