@@ -138,6 +138,7 @@ function goTo(step) {
   body.classList.toggle('sub-screen', step !== 0);
   body.classList.toggle('pos-screen', step === 1 && isPosMode());
   body.classList.toggle('list-screen', step === 1 && !isPosMode());
+  body.classList.toggle('buynow-screen', step === 1 && !isPosMode() && state.sessionBuyNow);
   updateBottomBar();
   window.scrollTo(0, 0);
 }
