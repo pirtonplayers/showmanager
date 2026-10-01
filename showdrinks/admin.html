@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.22"></script>
+  <script src="../shared/embed.js?v=1.1.23"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.22">
+  <link rel="stylesheet" href="style.css?v=1.1.23">
 </head>
 <body>
 
@@ -660,6 +660,12 @@
         <label for="editPrice">Price (£)</label>
         <input type="number" id="editPrice" class="form-control" min="0" step="0.50">
       </div>
+      <div class="form-group" id="editImageGroup" style="display:none">
+        <label>Image (Buy Now items)</label>
+        <img id="editImagePreview" alt="" style="display:none;max-width:160px;max-height:120px;border-radius:8px;margin-bottom:6px;display:none">
+        <input type="file" id="editImageFile" accept="image/*" class="form-control">
+        <button type="button" class="btn btn-secondary btn-sm" id="editImageClear" style="margin-top:6px;display:none">Remove image</button>
+      </div>
       <div class="form-group" id="editOnSaleGroup" style="display:none">
         <label style="display:flex;align-items:center;gap:8px;font-size:14px">
           <input type="checkbox" id="editOnSale" checked> On sale (shows up for ordering)
@@ -821,11 +827,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.22"></script>
-<script src="../shared/firebase-config.js?v=1.1.22"></script>
-<script src="../shared/auth.js?v=1.1.22"></script>
-<script src="../shared/suite-nav.js?v=1.1.22"></script>
-<script src="admin.js?v=1.1.22"></script>
+<script src="../shared/version.js?v=1.1.23"></script>
+<script src="../shared/firebase-config.js?v=1.1.23"></script>
+<script src="../shared/auth.js?v=1.1.23"></script>
+<script src="../shared/suite-nav.js?v=1.1.23"></script>
+<script src="admin.js?v=1.1.23"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

@@ -823,7 +823,7 @@ function renderListMenu() {
     return;
   }
   el.innerHTML = selected
-    ? `<div class="section-label">${escHtml(selected)}</div>
+    ? `<div class="section-label">${state.sessionBuyNow ? 'Tap on an item below to add it, then tap on the total above to pay.' : escHtml(selected)}</div>
        <div class="menu-grid">${groups[selected].map(listMenuItemHtml).join('')}</div>`
     : '<p style="color:var(--text-muted);font-size:13px;padding:12px">Choose a category above.</p>';
 }
@@ -885,8 +885,10 @@ window.selectListCat = function(encodedCat) {
 // stepping down one at a time — there's no separate +/− pair.
 function listMenuItemHtml(item) {
   const qty = state.basket[item.name]?.quantity || 0;
+  const img = item.image && isBuyNowItem(item)
+    ? `<img src="${item.image}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex:none">` : '';
   return `<div class="menu-item-card${qty > 0 ? ' has-qty' : ''}" onclick="listIncItem('${item.id}')">
-    <span class="mic-name">${escHtml(item.name)}</span>
+    ${img}<span class="mic-name">${escHtml(item.name)}</span>
     <span class="mic-price">${fmtCurrency(item.price)}</span>
     ${qty > 0 ? `<div class="qty-control">
       <span class="qty-num">${qty}×</span>

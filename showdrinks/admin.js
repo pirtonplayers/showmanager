@@ -483,13 +483,13 @@ function promptNewCategory(selectEl, afterCb) {
 }
 
 window.openAddMenuItemModal = function() {
-  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true });
+  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true, image: '' });
 };
 
 window.openEditMenuItemModal = function(id) {
   const item = _allMenuItems.find(i => i.id === id);
   if (!item) return;
-  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false, showOnTab: itemShowsOnTab(item), showOnPos: itemShowsOnPos(item) });
+  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false, showOnTab: itemShowsOnTab(item), showOnPos: itemShowsOnPos(item), image: item.image || '' });
 };
 
 document.getElementById('clearAllMenuBtn').addEventListener('click', async () => {
@@ -555,6 +555,40 @@ window.editLocation = function(id, name) {
 // ── Edit Modal ─────────────────────────────────────────────────────────────
 
 let _modalCtx = null;
+let _modalImage = ''; // resized data-URL for the item being edited (Buy Now items only)
+
+// Photo is shrunk to a small JPEG and stored right on the item doc — no Storage upload needed, and
+// the customer page already loads every menu item up front.
+function resizeImageToDataUrl(file, maxDim = 400) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      resolve(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => reject(new Error('Could not read that image'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+function refreshModalImage() {
+  const prev = document.getElementById('editImagePreview');
+  prev.src = _modalImage || '';
+  prev.style.display = _modalImage ? 'block' : 'none';
+  document.getElementById('editImageClear').style.display = _modalImage ? '' : 'none';
+}
+function isBuyNowCategoryName(c) { return (c || '').trim().toLowerCase() === 'buy now'; }
+document.getElementById('editImageFile').addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try { _modalImage = await resizeImageToDataUrl(f); refreshModalImage(); }
+  catch(err) { toast(err.message, 'error'); }
+  e.target.value = '';
+});
+document.getElementById('editImageClear').addEventListener('click', () => { _modalImage = ''; refreshModalImage(); });
 
 function openModal(title, ctx) {
   _modalCtx = ctx;
@@ -577,7 +611,13 @@ function openModal(title, ctx) {
       _menuCategories.map(c => `<option value="${escHtml(c)}"${c === ctx.category ? ' selected' : ''}>${escHtml(c)}</option>`).join('') +
       `<option value="__new__">+ Add new category…</option>`;
     catSelect.value = ctx.category || '';
-    catSelect.onchange = () => { if (catSelect.value === '__new__') promptNewCategory(catSelect, null); };
+    const imageGroup = document.getElementById('editImageGroup');
+    const syncImageGroup = () => { imageGroup.style.display = isBuyNowCategoryName(catSelect.value) ? '' : 'none'; };
+    _modalImage = ctx.image || ''; refreshModalImage(); syncImageGroup();
+    catSelect.onchange = () => {
+      if (catSelect.value === '__new__') promptNewCategory(catSelect, null);
+      syncImageGroup();
+    };
 
     onSaleGroup.style.display = '';
     document.getElementById('editOnSale').checked = ctx.onSale !== false;
@@ -590,6 +630,7 @@ function openModal(title, ctx) {
   } else {
     priceGroup.style.display = 'none';
     catGroup.style.display = 'none';
+    document.getElementById('editImageGroup').style.display = 'none';
     onSaleGroup.style.display = 'none';
     visibilityGroup.style.display = 'none';
     deleteBtn.style.display = 'none';
@@ -624,11 +665,12 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
       const onSale     = document.getElementById('editOnSale').checked;
       const showOnTab  = document.getElementById('editShowOnTab').checked;
       const showOnPos  = document.getElementById('editShowOnPos').checked;
+      const image      = isBuyNowCategoryName(category) ? _modalImage : '';
       if (_modalCtx.id) {
-        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale, showOnTab, showOnPos });
+        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale, showOnTab, showOnPos, image });
       } else {
         await db.collection('showdrinks_menuItems').add({
-          name, category, price, onSale, showOnTab, showOnPos, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          name, category, price, onSale, showOnTab, showOnPos, image, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
       }
       await loadMenuItems();
