@@ -75,6 +75,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if hasAccess('showdrinksAdmin');
     }
+    // SumUp merchant code/API key (system default in 'system', per-show overrides in 'show_<id>') —
+    // kept out of showdrinks_config/showdrinks_shows because those are publicly readable. Only the
+    // admin UI and Cloud Functions (admin SDK, bypasses rules) ever touch this.
+    match /showdrinks_secrets/{doc} {
+      allow read, write: if hasAccess('showdrinksAdmin');
+    }
     match /showdrinks_menuItems/{id} {
       allow read: if true;
       allow write: if hasAccess('showdrinksAdmin');

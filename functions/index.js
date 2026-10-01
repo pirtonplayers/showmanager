@@ -571,15 +571,22 @@ exports.sendMemberEmail = onCall({ region: 'europe-west1', secrets: SMTP_SECRETS
 // the system defaults"), and the same "currently active show" (isCurrent==true) every other
 // payment-settings read in this app keys off, not the order's own showDate.
 async function sumupCredentials() {
-  const [showSnap, settingsDoc] = await Promise.all([
+  const [showSnap, settingsDoc, systemSecretDoc] = await Promise.all([
     db.collection('showdrinks_shows').where('isCurrent', '==', true).limit(1).get(),
     db.collection('showdrinks_config').doc('settings').get(),
+    db.collection('showdrinks_secrets').doc('system').get(),
   ]);
-  const currentShow = showSnap.empty ? {} : showSnap.docs[0].data();
+  const currentShowDoc = showSnap.empty ? null : showSnap.docs[0];
+  const currentShow = currentShowDoc ? currentShowDoc.data() : {};
+  const showSecretDoc = currentShowDoc ? await db.collection('showdrinks_secrets').doc('show_' + currentShowDoc.id).get() : null;
+  // Credentials live in showdrinks_secrets (not publicly readable); the old fields on the show/
+  // settings docs are still read as a fallback until the admin UI has migrated them across.
+  const showSecret = showSecretDoc && showSecretDoc.exists ? showSecretDoc.data() : {};
+  const systemSecret = systemSecretDoc.exists ? systemSecretDoc.data() : {};
   const settings = settingsDoc.exists ? settingsDoc.data() : {};
   return {
-    merchantCode: currentShow.sumupMerchantCode || settings.sumupMerchantCode,
-    apiKey: currentShow.sumupApiKey || settings.sumupApiKey,
+    merchantCode: showSecret.sumupMerchantCode || currentShow.sumupMerchantCode || systemSecret.sumupMerchantCode || settings.sumupMerchantCode,
+    apiKey: showSecret.sumupApiKey || currentShow.sumupApiKey || systemSecret.sumupApiKey || settings.sumupApiKey,
   };
 }
 

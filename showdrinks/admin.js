@@ -103,11 +103,37 @@ let _selectedShowId = null;
 // need a real doc) stay hidden until then.
 let _creatingNewShow = false;
 
+// SumUp credentials live in showdrinks_secrets (admin-only), NOT on the publicly readable show doc.
+// This fills each show's sumupMerchantCode/sumupApiKey from there for the editor, and one-time
+// migrates any still sitting on the show doc itself (written before secrets existed) across.
+async function attachShowSecrets(shows) {
+  for (const show of shows) {
+    try {
+      const ref = db.collection('showdrinks_secrets').doc('show_' + show.id);
+      if (show.sumupMerchantCode !== undefined || show.sumupApiKey !== undefined) {
+        const legacy = { sumupMerchantCode: show.sumupMerchantCode || '', sumupApiKey: show.sumupApiKey || '' };
+        if (legacy.sumupMerchantCode || legacy.sumupApiKey) await ref.set(legacy, { merge: true });
+        await db.collection('showdrinks_shows').doc(show.id).update({
+          sumupMerchantCode: firebase.firestore.FieldValue.delete(),
+          sumupApiKey: firebase.firestore.FieldValue.delete(),
+        });
+        Object.assign(show, legacy);
+      } else {
+        const snap = await ref.get();
+        const d = snap.exists ? snap.data() : {};
+        show.sumupMerchantCode = d.sumupMerchantCode || '';
+        show.sumupApiKey = d.sumupApiKey || '';
+      }
+    } catch(e) { console.error('show secrets', e); }
+  }
+}
+
 async function loadShows() {
   try {
     const snap = await db.collection('showdrinks_shows').get();
     _shows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.name || '').toLowerCase() < (b.name || '').toLowerCase() ? -1 : 1);
+    await attachShowSecrets(_shows);
 
     if (!_shows.find(s => s.id === _selectedShowId)) {
       const current = _shows.find(s => s.isCurrent);
@@ -181,6 +207,7 @@ window.deleteShow = async function(id) {
   if (!confirm(`Delete show "${show?.name || 'this show'}"? This cannot be undone.`)) return;
   try {
     await db.collection('showdrinks_shows').doc(id).delete();
+    db.collection('showdrinks_secrets').doc('show_' + id).delete().catch(() => {});
     _shows = _shows.filter(s => s.id !== id);
     if (_selectedShowId === id) _selectedShowId = (_shows[0] || {}).id || null;
     updateHeaderShowName();
@@ -268,13 +295,15 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
   const orderingMode      = document.getElementById('showOrderingMode').value;
   const tabOrderingMode   = document.getElementById('showTabOrderingMode').value;
   const defaultLocationId = document.getElementById('showDefaultLocation').value;
-  const fields = { name, sessions, paymentMode, sumupMerchantCode, sumupApiKey, orderingMode, tabOrderingMode, defaultLocationId };
+  const fields = { name, sessions, paymentMode, orderingMode, tabOrderingMode, defaultLocationId };
+  const secrets = { sumupMerchantCode, sumupApiKey };
 
   try {
     if (_creatingNewShow) {
       const doc = { ...fields, isCurrent: _shows.length === 0, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
       const ref = await db.collection('showdrinks_shows').add(doc);
-      _shows.push({ id: ref.id, ...doc });
+      await db.collection('showdrinks_secrets').doc('show_' + ref.id).set(secrets);
+      _shows.push({ id: ref.id, ...doc, ...secrets });
       _selectedShowId = ref.id;
       _creatingNewShow = false;
       renderShowEditor(); // now shows Set as Current/Delete, since it's a real saved show
@@ -282,8 +311,9 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
     } else {
       if (!_selectedShowId) { toast('Add or select a show first', 'error'); return; }
       await db.collection('showdrinks_shows').doc(_selectedShowId).update(fields);
+      await db.collection('showdrinks_secrets').doc('show_' + _selectedShowId).set(secrets);
       const show = _shows.find(s => s.id === _selectedShowId);
-      if (show) Object.assign(show, fields);
+      if (show) Object.assign(show, fields, secrets);
       toast('Show & sessions saved', 'success');
     }
     renderShowsList();
@@ -982,7 +1012,19 @@ async function loadSettings() {
   try {
     const doc = await db.collection('showdrinks_config').doc('settings').get();
     _systemSettings = doc.exists ? doc.data() : {};
-    const d = _systemSettings;
+    // Credentials come from showdrinks_secrets; migrate any still on the public settings doc.
+    const secretRef = db.collection('showdrinks_secrets').doc('system');
+    if (_systemSettings.sumupMerchantCode !== undefined || _systemSettings.sumupApiKey !== undefined) {
+      const legacy = { sumupMerchantCode: _systemSettings.sumupMerchantCode || '', sumupApiKey: _systemSettings.sumupApiKey || '' };
+      if (legacy.sumupMerchantCode || legacy.sumupApiKey) await secretRef.set(legacy, { merge: true });
+      await db.collection('showdrinks_config').doc('settings').update({
+        sumupMerchantCode: firebase.firestore.FieldValue.delete(),
+        sumupApiKey: firebase.firestore.FieldValue.delete(),
+      });
+      delete _systemSettings.sumupMerchantCode; delete _systemSettings.sumupApiKey;
+    }
+    const secretSnap = await secretRef.get();
+    const d = { ..._systemSettings, ...(secretSnap.exists ? secretSnap.data() : {}) };
     document.getElementById('sumupMerchantCode').value = d.sumupMerchantCode || '';
     document.getElementById('sumupApiKey').value = d.sumupApiKey || '';
     document.getElementById('paymentMode').value = d.paymentMode || 'bar';
@@ -1022,8 +1064,6 @@ function posToggleStartGridRows() {
 
 document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
   const settings = {
-    sumupMerchantCode: document.getElementById('sumupMerchantCode').value.trim(),
-    sumupApiKey: document.getElementById('sumupApiKey').value.trim(),
     paymentMode: document.getElementById('paymentMode').value,
     orderingMode: document.getElementById('orderingMode').value,
     tabOrderingMode: document.getElementById('tabOrderingMode').value,
@@ -1035,6 +1075,10 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
     qrValidUntil: document.getElementById('qrValidUntil').value || '',
   };
   try {
+    await db.collection('showdrinks_secrets').doc('system').set({
+      sumupMerchantCode: document.getElementById('sumupMerchantCode').value.trim(),
+      sumupApiKey: document.getElementById('sumupApiKey').value.trim(),
+    });
     await db.collection('showdrinks_config').doc('settings').set(settings);
     _systemSettings = settings;
     toast('Settings saved', 'success');
