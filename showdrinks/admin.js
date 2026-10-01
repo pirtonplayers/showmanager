@@ -242,6 +242,7 @@ function renderShowEditor() {
     document.getElementById(`${id}Enabled`).value = d.enabled !== false ? 'true' : 'false';
     document.getElementById(`${id}Cutoff`).value = d.cutoffTime || '';
     document.getElementById(`${id}BuyNow`).checked = d.buyNow === true;
+    document.getElementById(`${id}ConfirmMsg`).value = d.confirmationMessage || '';
   });
 }
 
@@ -257,6 +258,7 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
       // Blank = no cutoff — order.js's sessionCutoffPassed() treats a falsy cutoffTime that way.
       cutoffTime: document.getElementById(`${id}Cutoff`).value || '',
       buyNow: document.getElementById(`${id}BuyNow`).checked,
+      confirmationMessage: document.getElementById(`${id}ConfirmMsg`).value.trim(),
     };
   });
 

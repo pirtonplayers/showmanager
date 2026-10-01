@@ -1171,10 +1171,10 @@ function showOrderStatus(order) {
   // hasn't really been "sent" — nothing's been paid and there's no bar payment to fall back on —
   // so say that instead of "Order received", and drop the order number.
   const notSent = stage === 'unpaid' && !canPayAtBar(order.buyNow === true);
-  document.getElementById('statusTitle').textContent = isCollected ? ''
+  document.getElementById('statusTitle').textContent = isCollected ? ((state.sessions || {})[order.sessionId]?.confirmationMessage || '')
     : isReady ? 'Your drinks are ready!' : notSent ? 'Payment not completed' : 'Order received!';
   document.getElementById('statusSub').textContent = isCollected
-    ? 'Your order has been collected.'
+    ? ''
     : isReady ? 'Head to the collection point below.'
     : notSent ? 'Your order has not been sent. Please try paying online again, or order at the bar.'
     : 'We\'re preparing your drinks. Check back soon!';

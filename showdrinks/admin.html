@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.21"></script>
+  <script src="../shared/embed.js?v=1.1.22"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.21">
+  <link rel="stylesheet" href="style.css?v=1.1.22">
 </head>
 <body>
 
@@ -237,6 +237,13 @@
               <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items in the "Buy Now" category, pay online, and the order is marked collected once paid.</p>
             </div>
           </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="beforeConfirmMsg">Confirmation message (optional)</label>
+              <input type="text" id="beforeConfirmMsg" class="form-control" placeholder="e.g. Enjoy your drinks!">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Shown on the confirmation screen once an order in this session is collected.</p>
+            </div>
+          </div>
         </div>
 
         <div class="session-card" id="sessionInterval">
@@ -267,6 +274,13 @@
               <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items in the "Buy Now" category, pay online, and the order is marked collected once paid.</p>
             </div>
           </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="intervalConfirmMsg">Confirmation message (optional)</label>
+              <input type="text" id="intervalConfirmMsg" class="form-control" placeholder="e.g. Enjoy your drinks!">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Shown on the confirmation screen once an order in this session is collected.</p>
+            </div>
+          </div>
         </div>
 
         <div class="session-card" id="sessionAfter">
@@ -295,6 +309,13 @@
                 <input type="checkbox" id="afterBuyNow"> Buy now
               </label>
               <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items in the "Buy Now" category, pay online, and the order is marked collected once paid.</p>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="afterConfirmMsg">Confirmation message (optional)</label>
+              <input type="text" id="afterConfirmMsg" class="form-control" placeholder="e.g. Enjoy your drinks!">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Shown on the confirmation screen once an order in this session is collected.</p>
             </div>
           </div>
         </div>
@@ -800,11 +821,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.21"></script>
-<script src="../shared/firebase-config.js?v=1.1.21"></script>
-<script src="../shared/auth.js?v=1.1.21"></script>
-<script src="../shared/suite-nav.js?v=1.1.21"></script>
-<script src="admin.js?v=1.1.21"></script>
+<script src="../shared/version.js?v=1.1.22"></script>
+<script src="../shared/firebase-config.js?v=1.1.22"></script>
+<script src="../shared/auth.js?v=1.1.22"></script>
+<script src="../shared/suite-nav.js?v=1.1.22"></script>
+<script src="admin.js?v=1.1.22"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
