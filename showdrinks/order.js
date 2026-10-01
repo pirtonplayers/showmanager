@@ -749,7 +749,7 @@ function updateHeroBasket() {
   const exitMode = basketCount() === 0;
   if (btn) btn.disabled = basketCount() === 0 && !exitMode;
   const cap = btn && btn.querySelector('.hero-basket-caption');
-  if (cap) cap.textContent = exitMode ? 'Tap to exit' : 'Tap to checkout';
+  if (cap) cap.textContent = exitMode ? 'Tap to exit' : 'Tap to pay';
 }
 
 window.goToListBasket = function() {
