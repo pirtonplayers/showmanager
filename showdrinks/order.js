@@ -842,10 +842,8 @@ function basketListHtml() {
       <span class="mic-name">${escHtml(i.name)}</span>
       <span class="mic-price">${fmtCurrency(i.price * i.quantity)}</span>
       <div class="qty-control">
+        <span class="qty-num">${i.quantity}×</span>
         <button onclick="listDecBasketItem('${encodeURIComponent(key)}')" title="Remove one">−</button>
-        <span class="qty-num">${i.quantity}</span>
-        <button onclick="listIncBasketItem('${encodeURIComponent(key)}')" title="Add one">+</button>
-        <button class="qty-danger" onclick="removeFromBasket('${encodeURIComponent(key)}')" title="Delete">🗑</button>
       </div>
     </div>`).join('');
   return `<div class="section-label">Order</div>
