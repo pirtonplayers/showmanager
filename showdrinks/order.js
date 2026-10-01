@@ -722,7 +722,7 @@ function renderOrderGrid() {
       const enc = encodeURIComponent(key);
       const sel = key === state.selectedBasketKey;
       return `<div class="og-row ${sel ? 'selected' : ''}" onclick="selectBasketItem('${enc}')">
-        <span class="og-qty">${i.quantity}×</span>
+        <span class="og-qty">×${i.quantity}</span>
         <span>${escHtml(i.name)}</span>
         <span class="og-price">${fmtCurrency(i.price * i.quantity)}</span>
         <button class="og-trash" onclick="event.stopPropagation();removeFromBasket('${enc}')" title="Remove">🗑</button>
@@ -842,7 +842,7 @@ function basketListHtml() {
       <span class="mic-name">${escHtml(i.name)}</span>
       <span class="mic-price">${fmtCurrency(i.price * i.quantity)}</span>
       <div class="qty-control">
-        <span class="qty-num">${i.quantity}×</span>
+        <span class="qty-num">×${i.quantity}</span>
         <button onclick="listDecBasketItem('${encodeURIComponent(key)}')" title="Remove one">−</button>
       </div>
     </div>`).join('');
@@ -886,7 +886,7 @@ function listMenuItemHtml(item) {
     ${img}<span class="mic-name">${escHtml(item.name)}</span>
     <span class="mic-price">${fmtCurrency(item.price)}</span>
     ${qty > 0 ? `<div class="qty-control">
-      <span class="qty-num">${qty}×</span>
+      <span class="qty-num">×${qty}</span>
       <button onclick="event.stopPropagation();listDecBasketItem('${encodeURIComponent(item.name)}')" title="Remove one">−</button>
     </div>` : ''}
   </div>`;
@@ -946,7 +946,7 @@ function renderReview() {
   const items = Object.values(state.basket);
   document.getElementById('reviewItems').innerHTML = items.map(i => `
     <div class="order-summary-row">
-      <span class="osq">${i.quantity}×</span>
+      <span class="osq">×${i.quantity}</span>
       <span class="osn">${escHtml(i.name)}</span>
       <span class="osp">${fmtCurrency(i.price * i.quantity)}</span>
     </div>`).join('');

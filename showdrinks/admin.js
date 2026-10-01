@@ -842,7 +842,7 @@ function renderOrders(orders) {
         <div class="order-items">
           ${(o.items || []).map(item => `
             <div class="order-item-row">
-              <span class="qty">${item.quantity}×</span>
+              <span class="qty">×${item.quantity}</span>
               <span class="iname">${escHtml(item.name)}</span>
               <span class="iprice">${fmtCurrency(item.price * item.quantity)}</span>
             </div>`).join('')}
@@ -1513,7 +1513,7 @@ function posRenderTestBasket() {
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
   el.innerHTML = items.map(i =>
     `<div style="display:flex;justify-content:space-between">
-       <span>${i.qty}× ${escHtml(i.name)}</span>
+       <span>×${i.qty} ${escHtml(i.name)}</span>
        <span>${fmtCurrency(i.price * i.qty)}</span>
      </div>`).join('') +
     `<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:4px;font-weight:700;display:flex;justify-content:space-between">
@@ -2032,7 +2032,7 @@ function tabListItemHtml(item) {
     <span class="mic-name">${escHtml(item.name)}</span>
     <span class="mic-price">${fmtCurrency(item.price)}</span>
     ${qty > 0 ? `<div class="qty-control">
-      <span class="qty-num">${qty}×</span>
+      <span class="qty-num">×${qty}</span>
       <button onclick="event.stopPropagation();tabListRemoveItem('${item.id}')" title="Remove">🗑</button>
     </div>` : ''}
   </div>`;
@@ -2104,7 +2104,7 @@ function renderTabBasket() {
   const itemsHtml = items.length
     ? `<div class="tab-basket-items">${items.map(i =>
         `<div class="tab-basket-item-row">
-           <span>${i.qty}× ${escHtml(i.name)}</span>
+           <span>×${i.qty} ${escHtml(i.name)}</span>
            <span>${fmtCurrency(i.price * i.qty)}</span>
          </div>`).join('')}</div>`
     : '';
@@ -2289,7 +2289,7 @@ function renderTabMembersList() {
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--border);font-size:13px">
         <div>
           <div style="font-size:11px;color:var(--text-muted)">${fmtDateTime(o.createdAt)}</div>
-          ${(o.items || []).map(i => `${i.quantity}× ${escHtml(i.name)}`).join(', ')}
+          ${(o.items || []).map(i => `×${i.quantity} ${escHtml(i.name)}`).join(', ')}
           <span style="color:var(--text-muted)">${o.paid ? '· paid' : '· unpaid'}</span>
         </div>
         <div style="font-weight:700">${fmtCurrency(o.totalAmount || 0)}</div>
