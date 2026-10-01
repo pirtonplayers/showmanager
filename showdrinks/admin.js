@@ -761,7 +761,10 @@ function renderOrders(orders) {
     // can't be marked Collected until staff have actually taken payment and flagged it here —
     // SumUp orders normally flip to paid on their own (the redirect-back handler), but the same
     // Mark Paid button covers one that's stuck (e.g. the browser closed before returning).
-    const markPaidBtn = `<button class="btn btn-primary btn-sm" onclick="markOrderPaid('${o.id}')">💰 Mark Paid</button>`;
+    // Cancel sits next to Mark Paid — for an unpaid order whose customer never came back (e.g.
+    // abandoned SumUp checkout) and so never got to cancel it themselves.
+    const markPaidBtn = `<button class="btn btn-primary btn-sm" onclick="markOrderPaid('${o.id}')">💰 Mark Paid</button>
+      <button class="btn btn-danger btn-sm" onclick="cancelUnpaidOrder('${o.id}')">✕ Cancel Order</button>`;
     // A cancelled order (see order.js's cancelOrderBtn — the customer's own doing, from their
     // payment page) has nothing left to action: not paid, not prepared, not served.
     const actionBtns = o.cancelled ? '' : isCollected
@@ -855,6 +858,20 @@ window.markOrderPaid = async function(id) {
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     toast('Order marked as paid', 'success');
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+  }
+};
+
+window.cancelUnpaidOrder = async function(id) {
+  if (!confirm('Cancel this unpaid order?')) return;
+  try {
+    await db.collection('showdrinks_orders').doc(id).update({
+      cancelled: true,
+      cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('Order cancelled', 'info');
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
   }
