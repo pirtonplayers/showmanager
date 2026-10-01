@@ -569,7 +569,8 @@ function posIsLight(hex) {
 function itemShowsOnPos(item) {
   // A "buy-now" session (set per session in Admin → Show & Sessions) only offers items in the
   // "Buy Now" category — see also renderPosGrid, which blanks the cell.
-  if (state.sessionBuyNow && !isBuyNowItem(item)) return false;
+  // ...and in every other session the Buy Now category is hidden.
+  if (state.sessionBuyNow !== isBuyNowItem(item)) return false;
   if (!item) return true;
   if (item.showOnPos !== undefined) return item.showOnPos !== false;
   if (item.visibility) return item.visibility !== 'bar';
@@ -600,8 +601,8 @@ function renderPosGrid() {
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
     const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
     const menuItem = cell.type === 'item' ? state.menuItems.find(mi => mi.id === cell.menuItemId) : null;
-    // Buy-now session: items that aren't buy-now aren't just dimmed, they're not shown at all.
-    if (state.sessionBuyNow && cell.type === 'item' && !isBuyNowItem(menuItem)) {
+    // Items from the wrong side of the buy-now split aren't just dimmed, they're not shown at all.
+    if (cell.type === 'item' && menuItem && state.sessionBuyNow !== isBuyNowItem(menuItem) || (state.sessionBuyNow && cell.type === 'item' && !menuItem)) {
       return `<button class="pos-btn empty" disabled></button>`;
     }
     // Off-sale (or, same treatment, bar-only): dimmed and untappable, but still shown (a
