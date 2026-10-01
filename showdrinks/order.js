@@ -887,7 +887,7 @@ window.selectListCat = function(encodedCat) {
 function listMenuItemHtml(item) {
   const qty = state.basket[item.name]?.quantity || 0;
   const img = item.image && isBuyNowItem(item)
-    ? `<img src="${item.image}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex:none">` : '';
+    ? `<img class="mic-img" src="${item.image}" alt="" style="object-fit:cover;flex:none">` : '';
   return `<div class="menu-item-card${qty > 0 ? ' has-qty' : ''}" onclick="listIncItem('${item.id}')">
     ${img}<span class="mic-name">${escHtml(item.name)}</span>
     <span class="mic-price">${fmtCurrency(item.price)}</span>

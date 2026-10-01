@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowDrinks</title>
-  <link rel="manifest" href="manifest.json?v=1.1.24">
-  <link rel="stylesheet" href="style.css?v=1.1.24">
+  <link rel="manifest" href="manifest.json?v=1.1.25">
+  <link rel="stylesheet" href="style.css?v=1.1.25">
   <style>
     .pwa-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--primary); }
     .pwa-content { flex: 1; background: var(--bg); border-radius: 24px 24px 0 0; margin-top: 8px; padding: 24px 20px 40px; overflow-y: auto; }
@@ -172,6 +172,13 @@
     .buynow-screen .hero-basket-svg { width:40px; height:40px; }
     .buynow-screen .hero-basket-total-text { font-size:36px; }
     .buynow-screen .hero-basket-caption { font-size:16px; }
+    /* ...and the item cards are double size. */
+    .buynow-screen .menu-item-card { padding:28px 32px; gap:24px; }
+    .buynow-screen .menu-item-card .mic-name, .buynow-screen .menu-item-card .mic-price { font-size:30px; }
+    .buynow-screen .menu-item-card .qty-num { font-size:30px; }
+    .buynow-screen .menu-item-card .qty-control button { width:64px; height:64px; font-size:36px; }
+    .menu-item-card .mic-img { width:56px; height:56px; border-radius:8px; }
+    .buynow-screen .menu-item-card .mic-img { width:112px; height:112px; border-radius:16px; }
     .list-screen #heroBasketBtn:disabled { opacity:.5; cursor:not-allowed; }
     .hero-basket-row { display:flex; align-items:center; gap:8px; }
     .hero-basket-svg { width:26px; height:26px; display:block; }
@@ -409,10 +416,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.24"></script>
-<script src="../shared/firebase-config.js?v=1.1.24"></script>
-<script src="../shared/a2hs.js?v=1.1.24"></script>
-<script src="order.js?v=1.1.24"></script>
+<script src="../shared/version.js?v=1.1.25"></script>
+<script src="../shared/firebase-config.js?v=1.1.25"></script>
+<script src="../shared/a2hs.js?v=1.1.25"></script>
+<script src="order.js?v=1.1.25"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
