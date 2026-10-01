@@ -502,6 +502,13 @@ window.startSessionOrder = function(id, name) {
   state.sessionBuyNow = !!(state.sessions || {})[id]?.buyNow;
   state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
   state.selectedCategory = null;
+  // Buy-now: the first item is already in the basket, as if it had been tapped.
+  if (state.sessionBuyNow) {
+    const special = n => !/^[a-z0-9]/i.test(n || '');
+    const first = state.menuItems.filter(i => isBuyNowItem(i) && i.onSale !== false)
+      .sort((a, b) => (special(a.name) - special(b.name)) || (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()))[0];
+    if (first) state.basket[first.name] = { name: first.name, price: first.price, quantity: 1 };
+  }
   goTo(1); renderMenu();
 };
 
@@ -824,7 +831,7 @@ function renderListMenu() {
     return;
   }
   el.innerHTML = selected
-    ? `<div class="section-label">${state.sessionBuyNow ? 'Tap on an item below to add it, then tap on the total above to pay.' : escHtml(selected)}</div>
+    ? `<div class="section-label">${state.sessionBuyNow ? 'Tap on an item below to add another, then tap on the total above to pay.' : escHtml(selected)}</div>
        <div class="menu-grid">${groups[selected].map(listMenuItemHtml).join('')}</div>`
     : '<p style="color:var(--text-muted);font-size:13px;padding:12px">Choose a category above.</p>';
 }
