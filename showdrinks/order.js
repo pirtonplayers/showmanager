@@ -1189,7 +1189,9 @@ function showOrderStatus(order) {
   // payment and prep are independent (an order can be made and even ready before it's paid).
   const banner = document.getElementById('payAtBarBanner');
   banner.style.display = stage === 'unpaid' && !notSent ? '' : 'none';
-  document.getElementById('notSentHomeBtn').style.display = notSent ? '' : 'none';
+  const notSentBtn = document.getElementById('notSentHomeBtn');
+  notSentBtn.textContent = order.buyNow ? 'Home (please pay at the bar)' : 'Home (please order at the bar)';
+  notSentBtn.style.display = notSent ? '' : 'none';
   document.getElementById('newOrderBtn').style.display = notSent ? 'none' : '';
 
   // A SumUp order that comes back unpaid (backed out, failed, or the 30-minute checkout session
