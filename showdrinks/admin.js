@@ -986,6 +986,8 @@ async function loadSettings() {
     document.getElementById('sumupMerchantCode').value = d.sumupMerchantCode || '';
     document.getElementById('sumupApiKey').value = d.sumupApiKey || '';
     document.getElementById('paymentMode').value = d.paymentMode || 'bar';
+    document.getElementById('qrAccessCode').value = d.qrAccessCode || '';
+    document.getElementById('qrValidUntil').value = d.qrValidUntil || '';
     document.getElementById('orderingMode').value = d.orderingMode || 'pos';
     document.getElementById('tabOrderingMode').value = d.tabOrderingMode || 'pos';
     document.getElementById('emailTemplateSubject').value = d.emailTemplateSubject || DEFAULT_EMAIL_TEMPLATE_SUBJECT;
@@ -1029,6 +1031,8 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
     tabPosStartGridId: document.getElementById('tabOrderingModeStartGrid').value || 'root',
     emailTemplateSubject: document.getElementById('emailTemplateSubject').value.trim(),
     emailTemplateBody: document.getElementById('emailTemplateBody').value,
+    qrAccessCode: document.getElementById('qrAccessCode').value.trim(),
+    qrValidUntil: document.getElementById('qrValidUntil').value || '',
   };
   try {
     await db.collection('showdrinks_config').doc('settings').set(settings);
@@ -1037,6 +1041,13 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
   }
+});
+
+document.getElementById('newQrCodeBtn').addEventListener('click', () => {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  document.getElementById('qrAccessCode').value = Array.from(bytes, b => chars[b % chars.length]).join('');
+  toast('New code made — Save Settings, then Generate QR Code', 'info');
 });
 
 let _qrInstance = null;
@@ -1067,7 +1078,8 @@ document.getElementById('generateQrBtn').addEventListener('click', async () => {
     return;
   }
   const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', '');
-  const orderUrl = baseUrl.replace(/\/$/, '') + '/index.html';
+  const code = document.getElementById('qrAccessCode').value.trim();
+  const orderUrl = baseUrl.replace(/\/$/, '') + '/index.html' + (code ? '?k=' + encodeURIComponent(code) : '');
   document.getElementById('qrUrl').textContent = orderUrl;
 
   const container = document.getElementById('qrcode');

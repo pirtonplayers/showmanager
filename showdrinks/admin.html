@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.34"></script>
+  <script src="../shared/embed.js?v=1.1.35"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.34">
+  <link rel="stylesheet" href="style.css?v=1.1.35">
 </head>
 <body>
 
@@ -601,6 +601,24 @@
     <div class="card">
       <div class="card-header"><h2>Customer QR Code</h2></div>
       <div class="card-body" style="text-align:center">
+        <div style="text-align:left;margin-bottom:16px">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+            Optional. The code is added to the QR link (<code>?k=…</code>) and has to match, so a link or
+            QR that's shared around stops working once you change the code or the time below passes.
+            Save Settings, then Generate QR Code again.
+          </p>
+          <div class="form-group">
+            <label for="qrAccessCode">Access code</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="qrAccessCode" class="form-control" placeholder="Blank = no code needed" autocomplete="off">
+              <button type="button" class="btn btn-secondary" id="newQrCodeBtn">New code</button>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label for="qrValidUntil">Valid until (optional)</label>
+            <input type="datetime-local" id="qrValidUntil" class="form-control">
+          </div>
+        </div>
         <div id="qrcode" style="display:inline-block;margin:0 auto 16px"></div>
         <div>
           <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:8px">
@@ -827,11 +845,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.34"></script>
-<script src="../shared/firebase-config.js?v=1.1.34"></script>
-<script src="../shared/auth.js?v=1.1.34"></script>
-<script src="../shared/suite-nav.js?v=1.1.34"></script>
-<script src="admin.js?v=1.1.34"></script>
+<script src="../shared/version.js?v=1.1.35"></script>
+<script src="../shared/firebase-config.js?v=1.1.35"></script>
+<script src="../shared/auth.js?v=1.1.35"></script>
+<script src="../shared/suite-nav.js?v=1.1.35"></script>
+<script src="admin.js?v=1.1.35"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

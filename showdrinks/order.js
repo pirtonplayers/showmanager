@@ -1355,6 +1355,8 @@ async function init() {
       paymentMode: currentShow?.paymentMode || systemSettings.paymentMode,
       orderingMode: currentShow?.orderingMode || systemSettings.orderingMode,
       posStartGridId: systemSettings.posStartGridId,
+      qrAccessCode: systemSettings.qrAccessCode || '',
+      qrValidUntil: systemSettings.qrValidUntil || '',
     };
     state.posGrids   = {};
     posSnap.docs.forEach(d => { state.posGrids[d.id] = { id: d.id, ...d.data() }; });
@@ -1399,6 +1401,22 @@ async function init() {
         }
       } catch(e) { console.error(e); }
     }
+
+    // QR link check (Admin → Settings & QR → Customer QR Code): the link's ?k= has to match the
+    // access code, and the optional "valid until" time must not have passed. The last good code is
+    // remembered so the installed/home-screen copy (which loses the ?k=) keeps working until the
+    // code is changed or expires. A soft gate — it stops a stale or shared QR, not a determined user.
+    const code = state.settings.qrAccessCode, until = state.settings.qrValidUntil;
+    const expired = until && new Date(until) < new Date();
+    let given = params.get('k') || '';
+    if (!given) { try { given = localStorage.getItem('showdrinks_k') || ''; } catch {} }
+    if (expired || (code && given !== code)) {
+      document.getElementById('homeContent').innerHTML =
+        '<div style="text-align:center;padding:32px 8px"><div class="pwa-section-title">This QR code is no longer valid</div>' +
+        '<p style="color:var(--text-muted);font-size:14px;margin-top:8px">Please scan the current QR code to order.</p></div>';
+      return;
+    }
+    if (code && given === code) { try { localStorage.setItem('showdrinks_k', code); } catch {} }
 
   } catch(e) {
     console.error(e);
