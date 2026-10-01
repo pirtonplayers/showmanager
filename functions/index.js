@@ -633,7 +633,10 @@ exports.createSumupCheckout = onCall({ region: 'europe-west1' }, async (request)
       amount: Number(Number(order.totalAmount || 0).toFixed(2)),
       currency: 'GBP',
       merchant_code: merchantCode,
-      description: `ShowDrinks order${order.orderNumber ? ' #' + order.orderNumber : ''}`,
+      // A buy-now order shows up on SumUp's sales screen under its session's name.
+      description: order.buyNow && order.sessionName
+        ? order.sessionName
+        : `ShowDrinks order${order.orderNumber ? ' #' + order.orderNumber : ''}`,
       redirect_url: redirectUrl,
       hosted_checkout: { enabled: true },
     }),
@@ -681,7 +684,10 @@ exports.verifySumupPayment = onCall({ region: 'europe-west1' }, async (request) 
   }
 
   if (data.status === 'PAID') {
-    await orderRef.update({ paymentStatus: 'paid', updatedAt: FieldValue.serverTimestamp() });
+    // A buy-now order is handed over on the spot, so paying for it is also collecting it.
+    const paidUpdate = { paymentStatus: 'paid', updatedAt: FieldValue.serverTimestamp() };
+    if (order.buyNow) Object.assign(paidUpdate, { prepStatus: 'collected', collectedAt: FieldValue.serverTimestamp() });
+    await orderRef.update(paidUpdate);
     return { paid: true };
   }
   return { paid: false, status: data.status };

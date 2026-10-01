@@ -44,6 +44,7 @@ const state = {
   homeOrderUnsubscribes: [],
   posGrids: {}, posGridStack: [],
   selectedBasketKey: null,
+  sessionBuyNow: false,
 };
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -84,6 +85,17 @@ function orderStage(o) {
 }
 const ORDER_STAGE_LABEL = { unpaid: 'Unpaid', paid: 'Paid', ready: 'Ready', collected: 'Collected' };
 const ORDER_STAGE_BADGE = { unpaid: 'badge-danger', paid: 'badge-warning', ready: 'badge-success', collected: 'badge-primary' };
+
+// Payment methods on offer: the show's own setting (default pay-at-bar), except a buy-now order
+// which is always online-only — it's paid for on the spot and handed over, so there's no "pay at
+// the bar" for it. Used for both the Review screen and the Status screen's failed-payment wording.
+function effectivePaymentMode(buyNow) {
+  return buyNow ? 'sumup' : (state.settings?.paymentMode || 'bar');
+}
+function canPayAtBar(buyNow) {
+  const m = effectivePaymentMode(buyNow);
+  return m === 'bar' || m === 'both';
+}
 
 // Shared by renderReview() (shows the payment section/Cancel Order option) and updateBottomBar()
 // (swaps "Order Status →" for a guaranteed-clickable "Cancel Order" button there instead — see
@@ -482,6 +494,7 @@ window.startSessionOrder = function(id, name) {
   // pill either way (matches the other "shouldn't be reachable" guards in this file).
   if (sessionCutoffPassed((state.sessions || {})[id])) return;
   state.showDate = today(); state.sessionId = id; state.sessionName = name; state.basket = {};
+  state.sessionBuyNow = !!(state.sessions || {})[id]?.buyNow;
   state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
   state.selectedCategory = null;
   goTo(1); renderMenu();
@@ -502,6 +515,7 @@ window.viewOrder = async function(orderId) {
     state.showDate    = order.showDate;
     state.sessionId   = order.sessionId;
     state.sessionName = order.sessionName;
+    state.sessionBuyNow = order.buyNow === true;
     // Build basket from saved items (key = item name)
     state.basket = {};
     (order.items || []).forEach(item => {
@@ -549,6 +563,9 @@ function posIsLight(hex) {
 // bar/customer-only under that short-lived scheme keep their setting. admin.js's Bar Tabs
 // POS/List has its own mirror-image itemShowsOnTab() (order.js is a separate script).
 function itemShowsOnPos(item) {
+  // A "buy-now" session (set per session in Admin → Show & Sessions) only offers items flagged
+  // buy-now (Admin → Price List → edit item) — see also renderPosGrid, which blanks the cell.
+  if (state.sessionBuyNow && !(item && item.buyNow === true)) return false;
   if (!item) return true;
   if (item.showOnPos !== undefined) return item.showOnPos !== false;
   if (item.visibility) return item.visibility !== 'bar';
@@ -579,6 +596,10 @@ function renderPosGrid() {
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
     const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
     const menuItem = cell.type === 'item' ? state.menuItems.find(mi => mi.id === cell.menuItemId) : null;
+    // Buy-now session: items that aren't buy-now aren't just dimmed, they're not shown at all.
+    if (state.sessionBuyNow && cell.type === 'item' && !(menuItem && menuItem.buyNow === true)) {
+      return `<button class="pos-btn empty" disabled></button>`;
+    }
     // Off-sale (or, same treatment, bar-only): dimmed and untappable, but still shown (a
     // staff-placed grid button shouldn't just vanish — the layout itself is meaningful/memorised,
     // and this same layout is shared with the admin's Bar Tabs POS grid).
@@ -947,7 +968,7 @@ function renderReview() {
     statusEl.style.display = 'none';
   }
   if (!viewing || viewingUnpaid) {
-    const mode = state.settings?.paymentMode || 'bar';
+    const mode = effectivePaymentMode(state.sessionBuyNow);
     const showBar   = mode === 'bar'   || mode === 'both';
     const showSumup = mode === 'sumup' || mode === 'both';
     document.getElementById('payAtBarSection').style.display   = showBar ? '' : 'none';
@@ -1022,6 +1043,7 @@ async function placeOrder(paymentMode) {
     items: Object.values(state.basket).map(i => ({ name: i.name, price: i.price, quantity: i.quantity })),
     totalAmount:  basketTotal(),
     paymentMode,
+    buyNow:       state.sessionBuyNow,
     paymentStatus: paymentMode === 'bar' ? 'pending' : 'awaiting',
     prepStatus:   'pending',
     locationId: '', locationName: '',
@@ -1131,22 +1153,29 @@ function showOrderStatus(order) {
   const iconClass = isCollected ? 'collected' : isReady ? 'ready' : 'pending';
   document.getElementById('statusIcon').className   = `status-icon-wrap ${iconClass}`;
   document.getElementById('statusIcon').textContent = isCollected ? '🎉' : isReady ? '✅' : '';
+  // An unpaid order where the show doesn't take pay-at-bar (online-only, or any buy-now order)
+  // hasn't really been "sent" — nothing's been paid and there's no bar payment to fall back on —
+  // so say that instead of "Order received", and drop the order number.
+  const notSent = stage === 'unpaid' && !canPayAtBar(order.buyNow === true);
   document.getElementById('statusTitle').textContent = isCollected ? 'Enjoy your drinks!'
-    : isReady ? 'Your drinks are ready!' : 'Order received!';
+    : isReady ? 'Your drinks are ready!' : notSent ? 'Payment not completed' : 'Order received!';
   document.getElementById('statusSub').textContent = isCollected
     ? 'Your order has been collected.'
     : isReady ? 'Head to the collection point below.'
+    : notSent ? 'Your order has not been sent. Please try paying online again, or order at the bar.'
     : 'We\'re preparing your drinks. Check back soon!';
 
   const numEl = document.getElementById('confOrderNum');
-  if (numEl) numEl.textContent = order.orderNumber ? '#' + order.orderNumber : '';
+  if (numEl) numEl.textContent = (order.orderNumber && !notSent) ? '#' + order.orderNumber : '';
 
   // Persistent reminder for any unpaid order, not just pay-at-bar ones — a SumUp order can end up
   // here too if the customer backed out of checkout or it failed/expired, and "go pay at the bar"
   // is the honest fallback for that too (staff can always take payment there regardless of which
   // method was originally chosen) — separate from the ready/collected messaging above since
   // payment and prep are independent (an order can be made and even ready before it's paid).
-  document.getElementById('payAtBarBanner').style.display = stage === 'unpaid' ? '' : 'none';
+  const banner = document.getElementById('payAtBarBanner');
+  banner.textContent = notSent ? '💵 Please order at the bar' : '💵 Please pay at the bar';
+  banner.style.display = stage === 'unpaid' ? '' : 'none';
 
   // A SumUp order that comes back unpaid (backed out, failed, or the 30-minute checkout session
   // just expired) isn't a dead end — retrySumupPayment (above) creates a fresh checkout for the

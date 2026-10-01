@@ -241,6 +241,7 @@ function renderShowEditor() {
     document.getElementById(`${id}Name`).value = d.name || '';
     document.getElementById(`${id}Enabled`).value = d.enabled !== false ? 'true' : 'false';
     document.getElementById(`${id}Cutoff`).value = d.cutoffTime || '';
+    document.getElementById(`${id}BuyNow`).checked = d.buyNow === true;
   });
 }
 
@@ -255,6 +256,7 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
       enabled: document.getElementById(`${id}Enabled`).value === 'true',
       // Blank = no cutoff — order.js's sessionCutoffPassed() treats a falsy cutoffTime that way.
       cutoffTime: document.getElementById(`${id}Cutoff`).value || '',
+      buyNow: document.getElementById(`${id}BuyNow`).checked,
     };
   });
 
@@ -479,13 +481,13 @@ function promptNewCategory(selectEl, afterCb) {
 }
 
 window.openAddMenuItemModal = function() {
-  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true });
+  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true, buyNow: false });
 };
 
 window.openEditMenuItemModal = function(id) {
   const item = _allMenuItems.find(i => i.id === id);
   if (!item) return;
-  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false, showOnTab: itemShowsOnTab(item), showOnPos: itemShowsOnPos(item) });
+  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false, showOnTab: itemShowsOnTab(item), showOnPos: itemShowsOnPos(item), buyNow: item.buyNow === true });
 };
 
 document.getElementById('clearAllMenuBtn').addEventListener('click', async () => {
@@ -561,6 +563,7 @@ function openModal(title, ctx) {
   const catGroup        = document.getElementById('editCategoryGroup');
   const onSaleGroup     = document.getElementById('editOnSaleGroup');
   const visibilityGroup = document.getElementById('editVisibilityGroup');
+  const buyNowGroup     = document.getElementById('editBuyNowGroup');
   const deleteBtn       = document.getElementById('editDeleteBtn');
 
   if (ctx.type === 'menuItem') {
@@ -579,6 +582,8 @@ function openModal(title, ctx) {
     document.getElementById('editOnSale').checked = ctx.onSale !== false;
 
     visibilityGroup.style.display = '';
+    buyNowGroup.style.display = '';
+    document.getElementById('editBuyNow').checked = ctx.buyNow === true;
     document.getElementById('editShowOnTab').checked = ctx.showOnTab !== false;
     document.getElementById('editShowOnPos').checked = ctx.showOnPos !== false;
 
@@ -588,6 +593,7 @@ function openModal(title, ctx) {
     catGroup.style.display = 'none';
     onSaleGroup.style.display = 'none';
     visibilityGroup.style.display = 'none';
+    buyNowGroup.style.display = 'none';
     deleteBtn.style.display = 'none';
   }
   const modal = document.getElementById('editModal');
@@ -620,11 +626,12 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
       const onSale     = document.getElementById('editOnSale').checked;
       const showOnTab  = document.getElementById('editShowOnTab').checked;
       const showOnPos  = document.getElementById('editShowOnPos').checked;
+      const buyNow     = document.getElementById('editBuyNow').checked;
       if (_modalCtx.id) {
-        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale, showOnTab, showOnPos });
+        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale, showOnTab, showOnPos, buyNow });
       } else {
         await db.collection('showdrinks_menuItems').add({
-          name, category, price, onSale, showOnTab, showOnPos, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          name, category, price, onSale, showOnTab, showOnPos, buyNow, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
       }
       await loadMenuItems();
