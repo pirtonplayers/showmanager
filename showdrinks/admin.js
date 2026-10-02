@@ -595,7 +595,10 @@ function loadJsPdf() {
 window.savePriceListPdf = async function() {
   const sections = priceListSections();
   if (!sections) return;
-  try { await loadJsPdf(); } catch(e) { toast(e.message, 'error'); return; }
+  // Open the tab straight away (inside the click, so it isn't popup-blocked) and point it at the
+  // PDF once it's built — the browser's own viewer shows it, with its own Save/Print buttons.
+  const win = window.open('', '_blank');
+  try { await loadJsPdf(); } catch(e) { if (win) win.close(); toast(e.message, 'error'); return; }
   const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
   const W = 595.28, H = 841.89, M = 45, GAP = 28;
   const colW = (W - 2 * M - GAP) / 2;
@@ -650,7 +653,12 @@ window.savePriceListPdf = async function() {
     });
     y += 12;
   });
-  doc.save(`price-list-${new Date().toISOString().slice(0, 10)}.pdf`);
+  const fileName = `price-list-${new Date().toISOString().slice(0, 10)}.pdf`;
+  if (win) {
+    win.location.href = URL.createObjectURL(doc.output('blob'));
+  } else {
+    doc.save(fileName); // popups blocked — fall back to a plain download
+  }
   closePrintMenuModal();
 };
 
