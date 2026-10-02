@@ -554,10 +554,12 @@ function priceListSections() {
   const onlySale = document.getElementById('printOnSale').checked;
   const onlyTab  = document.getElementById('printOnTab').checked;
   const onlyPos  = document.getElementById('printOnPos').checked;
+  const onlyBuyNow = document.getElementById('printBuyNow').checked;
   const layout   = document.querySelector('input[name="printLayout"]:checked').value;
 
   const items = _allMenuItems.filter(i =>
-    (!onlySale || i.onSale !== false) && (!onlyTab || itemShowsOnTab(i)) && (!onlyPos || itemShowsOnPos(i)));
+    (!onlySale || i.onSale !== false) && (!onlyTab || itemShowsOnTab(i)) && (!onlyPos || itemShowsOnPos(i)) &&
+    (!onlyBuyNow || isBuyNowCategoryName(i.category)));
   if (!items.length) { toast('No items match those filters', 'error'); return null; }
 
   const byName = (a, b) => {
