@@ -548,7 +548,9 @@ window.exportMenuCsv = function() {
 // Builds a standalone, print-styled page in a hidden iframe (no popup to get blocked) and prints
 // it — A4, large clean type, items with dotted leaders to the price, so it can go straight up
 // behind the bar.
-window.printPriceList = function() {
+// The filtered/ordered content shared by Print and Save as PDF: [{ title, items }] sections (a
+// single untitled one for the alphabetical layout), or null (with a toast) if nothing matches.
+function priceListSections() {
   const onlySale = document.getElementById('printOnSale').checked;
   const onlyTab  = document.getElementById('printOnTab').checked;
   const onlyPos  = document.getElementById('printOnPos').checked;
@@ -556,26 +558,102 @@ window.printPriceList = function() {
 
   const items = _allMenuItems.filter(i =>
     (!onlySale || i.onSale !== false) && (!onlyTab || itemShowsOnTab(i)) && (!onlyPos || itemShowsOnPos(i)));
-  if (!items.length) { toast('No items match those filters', 'error'); return; }
+  if (!items.length) { toast('No items match those filters', 'error'); return null; }
 
   const byName = (a, b) => {
     const as = startsWithSpecialChar(a.name), bs = startsWithSpecialChar(b.name);
     if (as !== bs) return as ? 1 : -1;
     return (a.name || '').toLowerCase() < (b.name || '').toLowerCase() ? -1 : 1;
   };
-  const row = i => `<div class="item"><span class="n">${escHtml(i.name || '')}</span><span class="dots"></span><span class="p">${fmtCurrency(i.price || 0)}</span></div>`;
+  if (layout === 'alpha') return [{ title: '', items: [...items].sort(byName) }];
+  const groups = {};
+  items.forEach(i => { (groups[i.category || 'Other'] = groups[i.category || 'Other'] || []).push(i); });
+  return Object.keys(groups).sort((a, b) => {
+    if (a === 'Other') return 1; if (b === 'Other') return -1;
+    return a.toLowerCase() < b.toLowerCase() ? -1 : 1;
+  }).map(cat => ({ title: cat, items: groups[cat].sort(byName) }));
+}
 
-  let body;
-  if (layout === 'alpha') {
-    body = `<div class="group">${[...items].sort(byName).map(row).join('')}</div>`;
-  } else {
-    const groups = {};
-    items.forEach(i => { (groups[i.category || 'Other'] = groups[i.category || 'Other'] || []).push(i); });
-    body = Object.keys(groups).sort((a, b) => {
-      if (a === 'Other') return 1; if (b === 'Other') return -1;
-      return a.toLowerCase() < b.toLowerCase() ? -1 : 1;
-    }).map(cat => `<div class="group"><h2>${escHtml(cat)}</h2>${groups[cat].sort(byName).map(row).join('')}</div>`).join('');
-  }
+let _jsPdfPromise = null;
+function loadJsPdf() {
+  if (window.jspdf) return Promise.resolve();
+  if (_jsPdfPromise) return _jsPdfPromise;
+  _jsPdfPromise = new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    sc.onload = resolve;
+    sc.onerror = () => { _jsPdfPromise = null; reject(new Error('Could not load the PDF library')); };
+    document.head.appendChild(sc);
+  });
+  return _jsPdfPromise;
+}
+
+// Same look as the print version, drawn directly into a real PDF file (A4, two columns, dotted
+// leaders) so it downloads straight away — no print dialog involved.
+window.savePriceListPdf = async function() {
+  const sections = priceListSections();
+  if (!sections) return;
+  try { await loadJsPdf(); } catch(e) { toast(e.message, 'error'); return; }
+  const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
+  const W = 595.28, H = 841.89, M = 45, GAP = 28;
+  const colW = (W - 2 * M - GAP) / 2;
+  const showName = document.getElementById('headerShowName').textContent || 'Price List';
+
+  doc.setFont('times', 'bold'); doc.setFontSize(26);
+  doc.text(showName.toUpperCase(), W / 2, M + 24, { align: 'center' });
+  doc.setFont('times', 'normal'); doc.setFontSize(11); doc.setTextColor(90);
+  doc.text('BAR PRICE LIST', W / 2, M + 42, { align: 'center', charSpace: 2 });
+  doc.setTextColor(26);
+  doc.setLineWidth(1.2); doc.line(M, M + 52, W - M, M + 52);
+  doc.setLineWidth(0.5); doc.line(M, M + 56, W - M, M + 56);
+
+  const TOP1 = M + 80, TOP = M, BOTTOM = H - M, LINE = 21, HEAD = 30;
+  let col = 0, y = TOP1;
+  const x = () => M + col * (colW + GAP);
+  const ensure = (h) => {
+    if (y + h <= BOTTOM) return;
+    col++;
+    if (col > 1) { doc.addPage(); col = 0; y = TOP; } else { y = TOP1 > TOP && doc.getNumberOfPages() === 1 ? TOP1 : TOP; }
+  };
+  sections.forEach(sec => {
+    if (sec.title) {
+      ensure(HEAD + LINE * 2);
+      doc.setFont('times', 'bold'); doc.setFontSize(14);
+      doc.text(sec.title.toUpperCase(), x(), y + 14, { charSpace: 1 });
+      doc.setLineWidth(0.7); doc.line(x(), y + 19, x() + colW, y + 19);
+      y += HEAD;
+    }
+    sec.items.forEach(i => {
+      ensure(LINE);
+      const price = fmtCurrency(i.price || 0);
+      doc.setFont('times', 'bold'); doc.setFontSize(13);
+      const pw = doc.getTextWidth(price);
+      doc.setFont('times', 'normal');
+      let name = i.name || '';
+      const maxName = colW - pw - 14;
+      while (name.length > 1 && doc.getTextWidth(name) > maxName) name = name.slice(0, -1);
+      if (name !== (i.name || '')) name = name.trimEnd() + '...';
+      doc.text(name, x(), y + 12);
+      doc.setFont('times', 'bold');
+      doc.text(price, x() + colW, y + 12, { align: 'right' });
+      const nw = doc.getTextWidth(name);
+      doc.setLineDashPattern([1, 2.5], 0); doc.setLineWidth(0.5); doc.setDrawColor(130);
+      doc.line(x() + nw + 4, y + 11, x() + colW - pw - 4, y + 11);
+      doc.setLineDashPattern([], 0); doc.setDrawColor(0);
+      y += LINE;
+    });
+    y += 12;
+  });
+  doc.save(`price-list-${new Date().toISOString().slice(0, 10)}.pdf`);
+  closePrintMenuModal();
+};
+
+window.printPriceList = function() {
+  const sections = priceListSections();
+  if (!sections) return;
+  const row = i => `<div class="item"><span class="n">${escHtml(i.name || '')}</span><span class="dots"></span><span class="p">${fmtCurrency(i.price || 0)}</span></div>`;
+  const body = sections.map(sec =>
+    `<div class="group">${sec.title ? `<h2>${escHtml(sec.title)}</h2>` : ''}${sec.items.map(row).join('')}</div>`).join('');
 
   const showName = document.getElementById('headerShowName').textContent || 'Price List';
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Price List</title><style>
