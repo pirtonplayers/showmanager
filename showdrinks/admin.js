@@ -554,12 +554,12 @@ function priceListSections() {
   const onlySale = document.getElementById('printOnSale').checked;
   const onlyTab  = document.getElementById('printOnTab').checked;
   const onlyPos  = document.getElementById('printOnPos').checked;
-  const onlyBuyNow = document.getElementById('printBuyNow').checked;
+  const includeBuyNow = document.getElementById('printBuyNow').checked;
   const layout   = document.querySelector('input[name="printLayout"]:checked').value;
 
   const items = _allMenuItems.filter(i =>
     (!onlySale || i.onSale !== false) && (!onlyTab || itemShowsOnTab(i)) && (!onlyPos || itemShowsOnPos(i)) &&
-    (!onlyBuyNow || isBuyNowCategoryName(i.category)));
+    (includeBuyNow || !isBuyNowCategoryName(i.category)));
   if (!items.length) { toast('No items match those filters', 'error'); return null; }
 
   const byName = (a, b) => {
@@ -612,12 +612,16 @@ window.savePriceListPdf = async function() {
   const TOP1 = M + 80, TOP = M, BOTTOM = H - M, LINE = 21, HEAD = 30;
   let col = 0, y = TOP1;
   const x = () => M + col * (colW + GAP);
-  const ensure = (h) => {
-    if (y + h <= BOTTOM) return;
+  const advance = () => {
     col++;
-    if (col > 1) { doc.addPage(); col = 0; y = TOP; } else { y = TOP1 > TOP && doc.getNumberOfPages() === 1 ? TOP1 : TOP; }
+    if (col > 1) { doc.addPage(); col = 0; y = TOP; } else { y = doc.getNumberOfPages() === 1 ? TOP1 : TOP; }
   };
+  const ensure = (h) => { if (y + h > BOTTOM) advance(); };
   sections.forEach(sec => {
+    // Keep a whole category in one column when it can fit in one at all; only a category taller
+    // than a column gets split across columns/pages.
+    const secH = (sec.title ? HEAD : 0) + sec.items.length * LINE;
+    if (secH <= BOTTOM - TOP1 && y + secH > BOTTOM) advance();
     if (sec.title) {
       ensure(HEAD + LINE * 2);
       doc.setFont('times', 'bold'); doc.setFontSize(14);
