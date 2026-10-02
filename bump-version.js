@@ -94,7 +94,7 @@ bumpApp({
   dir: 'showdrinks', swCache: 'showdrinks',
   assets: [
     'style.css', 'admin.js', 'order.js',
-    '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js', '../shared/a2hs.js',
+    '../shared/version.js', '../shared/firebase-config.js', '../shared/auth.js', '../shared/suite-nav.js', '../shared/embed.js',
     'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png',
   ],
   html: ['index.html', 'admin.html', 'terms.html', 'privacy.html', 'manifest.json'],
