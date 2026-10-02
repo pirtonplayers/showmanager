@@ -713,9 +713,9 @@ window.printPriceList = function() {
       // Printable height of A4 less the 16mm @page margins, at 96dpi — shrink the list's text a
       // step at a time until the whole sheet fits on one page.
       const pageH = (297 - 32) / 25.4 * 96;
-      const root = frame.contentDocument.documentElement;
+      const root = frame.contentDocument.body; // body (not documentElement) so the iframe's own height doesn't count
       let k = 1;
-      while (k > 0.3 && root.scrollHeight > pageH) { k -= 0.03; frame.contentDocument.body.style.setProperty('--s', k); }
+      while (k > 0.3 && root.offsetHeight > pageH) { k -= 0.03; frame.contentDocument.body.style.setProperty('--s', k); }
     }
     frame.contentWindow.focus();
     frame.contentWindow.print();
