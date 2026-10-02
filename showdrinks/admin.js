@@ -590,19 +590,12 @@ function loadJsPdf() {
   return _jsPdfPromise;
 }
 
-// Same look as the print version, drawn directly into a real PDF file (A4, two columns, dotted
-// leaders) so it downloads straight away — no print dialog involved.
-window.savePriceListPdf = async function() {
-  const sections = priceListSections();
-  if (!sections) return;
-  // Open the tab straight away (inside the click, so it isn't popup-blocked) and point it at the
-  // PDF once it's built — the browser's own viewer shows it, with its own Save/Print buttons.
-  const win = window.open('', '_blank');
-  try { await loadJsPdf(); } catch(e) { if (win) win.close(); toast(e.message, 'error'); return; }
-  const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
+// Draws the price list into `doc` (A4, two columns, dotted leaders) at text scale `sc` (1 = normal)
+// and returns how many pages it took. Run once on a throwaway doc per candidate scale when "fit to
+// one page" is on, then for real at the first scale that comes out as a single page.
+function drawPriceListPdf(doc, sections, showName, sc) {
   const W = 595.28, H = 841.89, M = 45, GAP = 28;
   const colW = (W - 2 * M - GAP) / 2;
-  const showName = document.getElementById('headerShowName').textContent || 'Price List';
 
   doc.setFont('times', 'bold'); doc.setFontSize(26);
   doc.text(showName.toUpperCase(), W / 2, M + 24, { align: 'center' });
@@ -612,7 +605,7 @@ window.savePriceListPdf = async function() {
   doc.setLineWidth(1.2); doc.line(M, M + 52, W - M, M + 52);
   doc.setLineWidth(0.5); doc.line(M, M + 56, W - M, M + 56);
 
-  const TOP1 = M + 80, TOP = M, BOTTOM = H - M, LINE = 21, HEAD = 30;
+  const TOP1 = M + 80, TOP = M, BOTTOM = H - M, LINE = 21 * sc, HEAD = 30 * sc;
   let col = 0, y = TOP1;
   const x = () => M + col * (colW + GAP);
   const advance = () => {
@@ -627,32 +620,53 @@ window.savePriceListPdf = async function() {
     if (secH <= BOTTOM - TOP1 && y + secH > BOTTOM) advance();
     if (sec.title) {
       ensure(HEAD + LINE * 2);
-      doc.setFont('times', 'bold'); doc.setFontSize(14);
-      doc.text(sec.title.toUpperCase(), x(), y + 14, { charSpace: 1 });
-      doc.setLineWidth(0.7); doc.line(x(), y + 19, x() + colW, y + 19);
+      doc.setFont('times', 'bold'); doc.setFontSize(14 * sc);
+      doc.text(sec.title.toUpperCase(), x(), y + 14 * sc, { charSpace: sc });
+      doc.setLineWidth(0.7); doc.line(x(), y + 19 * sc, x() + colW, y + 19 * sc);
       y += HEAD;
     }
     sec.items.forEach(i => {
       ensure(LINE);
       const price = fmtCurrency(i.price || 0);
-      doc.setFont('times', 'bold'); doc.setFontSize(13);
+      doc.setFont('times', 'bold'); doc.setFontSize(13 * sc);
       const pw = doc.getTextWidth(price);
       doc.setFont('times', 'normal');
       let name = i.name || '';
       const maxName = colW - pw - 14;
       while (name.length > 1 && doc.getTextWidth(name) > maxName) name = name.slice(0, -1);
       if (name !== (i.name || '')) name = name.trimEnd() + '...';
-      doc.text(name, x(), y + 12);
+      doc.text(name, x(), y + 12 * sc);
       doc.setFont('times', 'bold');
-      doc.text(price, x() + colW, y + 12, { align: 'right' });
+      doc.text(price, x() + colW, y + 12 * sc, { align: 'right' });
       const nw = doc.getTextWidth(name);
       doc.setLineDashPattern([1, 2.5], 0); doc.setLineWidth(0.5); doc.setDrawColor(130);
-      doc.line(x() + nw + 4, y + 11, x() + colW - pw - 4, y + 11);
+      doc.line(x() + nw + 4, y + 11 * sc, x() + colW - pw - 4, y + 11 * sc);
       doc.setLineDashPattern([], 0); doc.setDrawColor(0);
       y += LINE;
     });
-    y += 12;
+    y += 12 * sc;
   });
+  return doc.getNumberOfPages();
+}
+
+window.savePriceListPdf = async function() {
+  const sections = priceListSections();
+  if (!sections) return;
+  // Open the tab straight away (inside the click, so it isn't popup-blocked) and point it at the
+  // PDF once it's built — the browser's own viewer shows it, with its own Save/Print buttons.
+  const win = window.open('', '_blank');
+  try { await loadJsPdf(); } catch(e) { if (win) win.close(); toast(e.message, 'error'); return; }
+  const { jsPDF } = window.jspdf;
+  const showName = document.getElementById('headerShowName').textContent || 'Price List';
+
+  let sc = 1;
+  if (document.getElementById('printFitOnePage').checked) {
+    // Shrink the text a step at a time until the whole list lands on a single page.
+    while (sc > 0.3 && drawPriceListPdf(new jsPDF({ unit: 'pt', format: 'a4' }), sections, showName, sc) > 1) sc -= 0.02;
+  }
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  drawPriceListPdf(doc, sections, showName, sc);
+
   const fileName = `price-list-${new Date().toISOString().slice(0, 10)}.pdf`;
   if (win) {
     win.location.href = URL.createObjectURL(doc.output('blob'));
@@ -679,8 +693,8 @@ window.printPriceList = function() {
     header p { margin: 4px 0 0; font-size: 14px; letter-spacing: .2em; text-transform: uppercase; color: #555; }
     .cols { column-count: 2; column-gap: 14mm; }
     .group { break-inside: avoid; margin-bottom: 16px; }
-    .group h2 { font-size: 18px; text-transform: uppercase; letter-spacing: .12em; border-bottom: 1px solid #1a1a1a; padding-bottom: 3px; margin: 0 0 6px; }
-    .item { display: flex; align-items: baseline; gap: 6px; font-size: 16px; padding: 3px 0; break-inside: avoid; }
+    .group h2 { font-size: calc(18px * var(--s, 1)); text-transform: uppercase; letter-spacing: .12em; border-bottom: 1px solid #1a1a1a; padding-bottom: 3px; margin: 0 0 calc(6px * var(--s, 1)); }
+    .item { display: flex; align-items: baseline; gap: 6px; font-size: calc(16px * var(--s, 1)); padding: calc(3px * var(--s, 1)) 0; break-inside: avoid; }
     .item .dots { flex: 1; border-bottom: 1px dotted #888; transform: translateY(-3px); }
     .item .p { font-weight: bold; white-space: nowrap; }
   </style></head><body>
@@ -690,9 +704,19 @@ window.printPriceList = function() {
 
   closePrintMenuModal();
   const frame = document.createElement('iframe');
-  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  // Laid out off-screen at the printable A4 width (178mm) so the fit-to-page measuring below is real.
+  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:673px;height:1200px;border:0';
   document.body.appendChild(frame);
+  const fit = document.getElementById('printFitOnePage').checked;
   frame.onload = () => {
+    if (fit) {
+      // Printable height of A4 less the 16mm @page margins, at 96dpi — shrink the list's text a
+      // step at a time until the whole sheet fits on one page.
+      const pageH = (297 - 32) / 25.4 * 96;
+      const root = frame.contentDocument.documentElement;
+      let k = 1;
+      while (k > 0.3 && root.scrollHeight > pageH) { k -= 0.03; frame.contentDocument.body.style.setProperty('--s', k); }
+    }
     frame.contentWindow.focus();
     frame.contentWindow.print();
     setTimeout(() => frame.remove(), 60000);
