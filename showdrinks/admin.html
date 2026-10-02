@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.37"></script>
+  <script src="../shared/embed.js?v=1.1.38"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.37">
+  <link rel="stylesheet" href="style.css?v=1.1.38">
 </head>
 <body>
 
@@ -330,7 +330,14 @@
     <div class="menu-sticky-header">
       <div class="section-header" style="margin-bottom:0">
         <h2>Price List</h2>
-        <button class="btn btn-primary btn-sm" onclick="openAddMenuItemModal()">+ Add Item</button>
+        <div style="position:relative">
+          <button class="btn btn-secondary btn-sm" onclick="toggleMenuActions(event)" aria-label="Price list actions" title="Price list actions">⋯</button>
+          <div id="menuActionsDropdown" class="dropdown-menu">
+            <button class="btn btn-secondary btn-sm" onclick="openAddMenuItemModal()">+ Add Item</button>
+            <button class="btn btn-secondary btn-sm" onclick="openPrintMenuModal()">🖨 Print Price List</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportMenuCsv()">⬇ Extract to CSV</button>
+          </div>
+        </div>
       </div>
       <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0">
         The whole Price List can be cleared in bulk from Settings &amp; QR → Danger Zone.
@@ -661,6 +668,33 @@
 
 <!-- Edit modal — shared by Locations and Menu Items (openModal); which extra fields show
      depends on ctx.type (see openModal in admin.js). -->
+<!-- Print Price List options -->
+<div id="printMenuModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:400px;margin:20px">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+      <h2>Print Price List</h2>
+      <button onclick="closePrintMenuModal()" style="background:none;border:none;font-size:20px;cursor:pointer">×</button>
+    </div>
+    <div class="card-body">
+      <div class="form-group">
+        <label>Include only items that are…</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400"><input type="checkbox" id="printOnSale" checked> On sale</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400"><input type="checkbox" id="printOnTab"> On Bar Tabs</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400"><input type="checkbox" id="printOnPos"> On Customer POS</label>
+      </div>
+      <div class="form-group">
+        <label>Layout</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400"><input type="radio" name="printLayout" value="category" checked> Grouped by category</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400"><input type="radio" name="printLayout" value="alpha"> One list, alphabetical</label>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="closePrintMenuModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="printPriceList()">Print</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px;margin:20px">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -847,11 +881,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.37"></script>
-<script src="../shared/firebase-config.js?v=1.1.37"></script>
-<script src="../shared/auth.js?v=1.1.37"></script>
-<script src="../shared/suite-nav.js?v=1.1.37"></script>
-<script src="admin.js?v=1.1.37"></script>
+<script src="../shared/version.js?v=1.1.38"></script>
+<script src="../shared/firebase-config.js?v=1.1.38"></script>
+<script src="../shared/auth.js?v=1.1.38"></script>
+<script src="../shared/suite-nav.js?v=1.1.38"></script>
+<script src="admin.js?v=1.1.38"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

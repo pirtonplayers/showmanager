@@ -512,6 +512,102 @@ function promptNewCategory(selectEl, afterCb) {
   if (afterCb) afterCb(cat);
 }
 
+// ── Price List ⋯ menu: print / CSV ───────────────────────────────────────────
+
+window.toggleMenuActions = function(e) {
+  e.stopPropagation();
+  document.getElementById('menuActionsDropdown').classList.toggle('open');
+};
+document.addEventListener('click', () => {
+  document.getElementById('menuActionsDropdown')?.classList.remove('open');
+});
+
+window.openPrintMenuModal = function() {
+  document.getElementById('printMenuModal').style.display = 'flex';
+};
+window.closePrintMenuModal = function() {
+  document.getElementById('printMenuModal').style.display = 'none';
+};
+
+window.exportMenuCsv = function() {
+  if (!_allMenuItems.length) { toast('No items to export', 'error'); return; }
+  const header = ['Category', 'Name', 'Price', 'On Sale', 'Bar Tabs', 'Customer POS'];
+  const rows = _allMenuItems.map(i => [
+    i.category || '', i.name || '', Number(i.price || 0).toFixed(2),
+    i.onSale !== false ? 'Yes' : 'No', itemShowsOnTab(i) ? 'Yes' : 'No', itemShowsOnPos(i) ? 'Yes' : 'No',
+  ]);
+  const csv = [header, ...rows].map(r => r.map(csvField).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `showdrinks-price-list-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+};
+
+// Builds a standalone, print-styled page in a hidden iframe (no popup to get blocked) and prints
+// it — A4, large clean type, items with dotted leaders to the price, so it can go straight up
+// behind the bar.
+window.printPriceList = function() {
+  const onlySale = document.getElementById('printOnSale').checked;
+  const onlyTab  = document.getElementById('printOnTab').checked;
+  const onlyPos  = document.getElementById('printOnPos').checked;
+  const layout   = document.querySelector('input[name="printLayout"]:checked').value;
+
+  const items = _allMenuItems.filter(i =>
+    (!onlySale || i.onSale !== false) && (!onlyTab || itemShowsOnTab(i)) && (!onlyPos || itemShowsOnPos(i)));
+  if (!items.length) { toast('No items match those filters', 'error'); return; }
+
+  const byName = (a, b) => {
+    const as = startsWithSpecialChar(a.name), bs = startsWithSpecialChar(b.name);
+    if (as !== bs) return as ? 1 : -1;
+    return (a.name || '').toLowerCase() < (b.name || '').toLowerCase() ? -1 : 1;
+  };
+  const row = i => `<div class="item"><span class="n">${escHtml(i.name || '')}</span><span class="dots"></span><span class="p">${fmtCurrency(i.price || 0)}</span></div>`;
+
+  let body;
+  if (layout === 'alpha') {
+    body = `<div class="group">${[...items].sort(byName).map(row).join('')}</div>`;
+  } else {
+    const groups = {};
+    items.forEach(i => { (groups[i.category || 'Other'] = groups[i.category || 'Other'] || []).push(i); });
+    body = Object.keys(groups).sort((a, b) => {
+      if (a === 'Other') return 1; if (b === 'Other') return -1;
+      return a.toLowerCase() < b.toLowerCase() ? -1 : 1;
+    }).map(cat => `<div class="group"><h2>${escHtml(cat)}</h2>${groups[cat].sort(byName).map(row).join('')}</div>`).join('');
+  }
+
+  const showName = document.getElementById('headerShowName').textContent || 'Price List';
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Price List</title><style>
+    @page { size: A4; margin: 16mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Georgia, 'Times New Roman', serif; color: #1a1a1a; margin: 0; }
+    header { text-align: center; border-bottom: 3px double #1a1a1a; padding-bottom: 10px; margin-bottom: 18px; }
+    header h1 { font-size: 34px; margin: 0; letter-spacing: .04em; text-transform: uppercase; }
+    header p { margin: 4px 0 0; font-size: 14px; letter-spacing: .2em; text-transform: uppercase; color: #555; }
+    .cols { column-count: 2; column-gap: 14mm; }
+    .group { break-inside: avoid; margin-bottom: 16px; }
+    .group h2 { font-size: 18px; text-transform: uppercase; letter-spacing: .12em; border-bottom: 1px solid #1a1a1a; padding-bottom: 3px; margin: 0 0 6px; }
+    .item { display: flex; align-items: baseline; gap: 6px; font-size: 16px; padding: 3px 0; break-inside: avoid; }
+    .item .dots { flex: 1; border-bottom: 1px dotted #888; transform: translateY(-3px); }
+    .item .p { font-weight: bold; white-space: nowrap; }
+  </style></head><body>
+    <header><h1>${escHtml(showName)}</h1><p>Bar Price List</p></header>
+    <div class="cols">${body}</div>
+  </body></html>`;
+
+  closePrintMenuModal();
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(frame);
+  frame.onload = () => {
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+    setTimeout(() => frame.remove(), 60000);
+  };
+  frame.srcdoc = html;
+};
+
 window.openAddMenuItemModal = function() {
   openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true, image: '' });
 };
