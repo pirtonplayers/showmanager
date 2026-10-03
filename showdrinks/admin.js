@@ -1139,10 +1139,11 @@ window.markPending = async function(id) {
 
 window.markOrderPaid = async function(id) {
   try {
-    await db.collection('showdrinks_orders').doc(id).update({
-      paymentStatus: 'paid',
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    const ref = db.collection('showdrinks_orders').doc(id);
+    const upd = { paymentStatus: 'paid', updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+    // A buy-now order is handed over on the spot, so paying for it is also collecting it.
+    if ((await ref.get()).data()?.buyNow) Object.assign(upd, { prepStatus: 'collected', collectedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    await ref.update(upd);
     toast('Order marked as paid', 'success');
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
