@@ -2955,6 +2955,13 @@ function stockOnHand(s) {
   return s && typeof s.base === 'number' ? s.base + (s.added || 0) : null;
 }
 
+// No previous count yet → no on-hand figure, but still show anything added so a tap gives feedback.
+function stockOnHandLabel(s) {
+  const oh = stockOnHand(s);
+  if (oh !== null) return oh;
+  return s && s.added ? (s.added > 0 ? '+' : '') + s.added : '—';
+}
+
 function renderStockTab() {
   document.getElementById('stockViewCount').classList.toggle('active', _stockView === 'count');
   document.getElementById('stockViewReports').classList.toggle('active', _stockView === 'reports');
@@ -2978,14 +2985,16 @@ function renderStockCount() {
   const items = _allMenuItems.filter(i => _stockCat === 'all' || (i.category || '') === _stockCat);
   document.getElementById('stockTableBody').innerHTML = items.length ? items.map(i => {
     const s = _stock[i.id] || {};
-    const oh = stockOnHand(s);
     const cnt = _stockCounts[i.id];
     return `<tr>
       <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
       <td><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
       <td><input type="number" min="0" step="1" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
-      <td style="text-align:center">${oh === null ? '—' : oh}</td>
-      <td style="text-align:center"><button type="button" class="btn btn-secondary btn-sm" onclick="addStock('${i.id}')">+ Add</button></td>
+      <td style="text-align:center" id="stockOh-${i.id}" onclick="adjustStockBy('${i.id}')" title="Tap to add or remove several at once">${stockOnHandLabel(s)}</td>
+      <td style="text-align:center;white-space:nowrap">
+        <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="adjustStock('${i.id}',-1)" aria-label="Remove one">−</button>
+        <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="adjustStock('${i.id}',1)" aria-label="Add one">+</button>
+      </td>
       <td><input type="number" min="0" step="1" class="stock-input" value="${cnt ?? ''}" oninput="setStockCount('${i.id}',this.value)" aria-label="Counted"></td>
     </tr>`;
   }).join('') : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
@@ -3006,19 +3015,24 @@ window.setStockCount = function(id, raw) {
   updateStockCountSummary();
 };
 
-// Deliveries/top-ups at any time — goes in `added`, which the usage sum subtracts back out.
-window.addStock = async function(id) {
+// Deliveries/top-ups (+) or write-offs (−) at any time — goes in `added`, which the usage sum
+// subtracts back out, so neither counts as sales.
+window.adjustStock = async function(id, delta) {
+  try {
+    await db.collection('showdrinks_stock').doc(id).set({ added: firebase.firestore.FieldValue.increment(delta) }, { merge: true });
+    _stock[id] = { ..._stock[id], added: ((_stock[id] || {}).added || 0) + delta };
+    const cell = document.getElementById('stockOh-' + id);
+    if (cell) cell.textContent = stockOnHandLabel(_stock[id]);
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+
+window.adjustStockBy = function(id) {
   const item = _allMenuItems.find(i => i.id === id);
-  const raw = prompt(`Add stock received for "${item?.name || ''}" — how many?`);
+  const raw = prompt(`"${item?.name || ''}": how many received? (use a minus number to remove stock)`);
   if (raw === null) return;
   const qty = Number(raw);
-  if (!isFinite(qty) || qty <= 0) { toast('Enter a quantity above 0', 'error'); return; }
-  try {
-    await db.collection('showdrinks_stock').doc(id).set({ added: firebase.firestore.FieldValue.increment(qty) }, { merge: true });
-    _stock[id] = { ..._stock[id], added: ((_stock[id] || {}).added || 0) + qty };
-    renderStockCount();
-    toast(`Added ${qty}`, 'success');
-  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+  if (!isFinite(qty) || qty === 0) { toast('Enter a number other than 0', 'error'); return; }
+  adjustStock(id, qty);
 };
 
 window.clearStockCounts = function() {
