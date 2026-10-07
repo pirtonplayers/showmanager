@@ -32,6 +32,7 @@ const APP_SUBNAV = {
   // tab before any tab's actually been picked), not just the menu's visual order.
   showdrinksAdmin: [
     { id: 'menu', label: 'Price List', selector: '[data-tab="menu"]' },
+    { id: 'stock', label: 'Stock Take', selector: '[data-tab="stock"]' },
     { id: 'orders', label: 'Orders', selector: '[data-tab="orders"]' },
     { id: 'tabmembers', label: 'Bar Tabs', selector: '[data-tab="tabmembers"]' },
     { id: 'show', label: 'Show & Sessions', selector: '[data-tab="show"]' },
