@@ -92,6 +92,13 @@ service cloud.firestore {
       allow read: if true;
       allow write: if hasAccess('showdrinksAdmin');
     }
+    // Stock take (Bar Manager): cost prices + counts, kept off the publicly-readable menuItems.
+    match /showdrinks_stock/{id} {
+      allow read, write: if hasAccess('showdrinksAdmin');
+    }
+    match /showdrinks_stockTakes/{id} {
+      allow read, write: if hasAccess('showdrinksAdmin');
+    }
     match /showdrinks_counters/{id} {
       allow read, write: if true; // anonymous customers increment these when placing an order
     }

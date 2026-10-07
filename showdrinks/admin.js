@@ -67,6 +67,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'tabs') loadShowTabs();
     if (btn.dataset.tab === 'tabmembers') loadTabMembersData();
     if (btn.dataset.tab === 'pos') loadPosGrids();
+    if (btn.dataset.tab === 'stock') loadStockTab();
     if (btn.dataset.tab === 'show') renderShowsList();
     // .menu-sticky-header is display:none (0 height) whenever this isn't the active tab, so
     // whatever updateMenuTheadStickyTop() computed while loadMenuItems() ran at app init is
@@ -2908,6 +2909,225 @@ sidebarToggleBtn.addEventListener('click', () => {
 // Admin accounts are now provisioned from the showmanager portal's Users screen (grants the
 // showdrinksAdmin access flag on the shared users/{uid} doc) — not here. See admin.html's
 // Settings & QR tab.
+
+// ── Stock Take ───────────────────────────────────────────────────────────────
+// Stock figures live in showdrinks_stock/{menuItemId} (NOT on the menu item itself —
+// showdrinks_menuItems is publicly readable, and cost prices shouldn't be): { costPrice, minStock,
+// base, added }. `base` is the figure counted at the last stock take, `added` is everything
+// received since. Usage at the next take = base + added − counted, so topping up mid-event never
+// inflates (or hides) what was sold: 5 in stock, +10 delivered, 8 counted → 5 + 10 − 8 = 7 used.
+// Finishing a take stores a snapshot in showdrinks_stockTakes (usage/cost/restock report) and
+// rolls every counted item forward: base = counted, added = 0. Items left uncounted keep their
+// old base/added, so their usage simply spans two takes.
+let _stock       = {};
+let _stockTakes  = [];
+let _stockCat    = null;
+let _stockCounts = {};   // itemId -> number — the in-progress count, kept in localStorage too
+let _stockView   = 'count';
+let _stockReportId = null;
+const STOCK_DRAFT_KEY = 'showdrinks_stock_draft';
+
+try { _stockCounts = JSON.parse(localStorage.getItem(STOCK_DRAFT_KEY) || '{}') || {}; } catch (e) { _stockCounts = {}; }
+function saveStockDraft() {
+  try { localStorage.setItem(STOCK_DRAFT_KEY, JSON.stringify(_stockCounts)); } catch (e) {}
+}
+
+async function loadStockTab() {
+  try {
+    const [stockSnap, takesSnap] = await Promise.all([
+      db.collection('showdrinks_stock').get(),
+      db.collection('showdrinks_stockTakes').orderBy('createdAt', 'desc').limit(30).get(),
+    ]);
+    _stock = {};
+    stockSnap.docs.forEach(d => { _stock[d.id] = d.data(); });
+    _stockTakes = takesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    toast('Could not load stock: ' + e.message, 'error');
+  }
+  if (!_stockReportId && _stockTakes.length) _stockReportId = _stockTakes[0].id;
+  renderStockTab();
+}
+
+window.setStockView = function(v) { _stockView = v; renderStockTab(); };
+window.setStockCat  = function(c) { _stockCat = c; renderStockTab(); };
+
+function stockOnHand(s) {
+  return s && typeof s.base === 'number' ? s.base + (s.added || 0) : null;
+}
+
+function renderStockTab() {
+  document.getElementById('stockViewCount').classList.toggle('active', _stockView === 'count');
+  document.getElementById('stockViewReports').classList.toggle('active', _stockView === 'reports');
+  document.getElementById('stockCountView').style.display   = _stockView === 'count' ? '' : 'none';
+  document.getElementById('stockReportsView').style.display = _stockView === 'reports' ? '' : 'none';
+  if (_stockView === 'count') renderStockCount(); else renderStockReports();
+}
+
+function updateStockCountSummary() {
+  const n = Object.keys(_stockCounts).length;
+  document.getElementById('stockCountSummary').textContent =
+    n ? `${n} item${n === 1 ? '' : 's'} counted so far (all categories)` : 'Nothing counted yet.';
+}
+
+function renderStockCount() {
+  const cats = _menuCategories.length ? _menuCategories : [''];
+  if (_stockCat === null || (_stockCat !== 'all' && !cats.includes(_stockCat))) _stockCat = cats[0];
+  document.getElementById('stockCategoryBar').innerHTML = ['all', ...cats].map(c => `
+    <button type="button" class="cat-btn ${c === _stockCat ? 'active' : ''}" onclick="setStockCat('${escHtml(c)}')">${c === 'all' ? 'All' : escHtml(c || 'Uncategorised')}</button>`).join('');
+
+  const items = _allMenuItems.filter(i => _stockCat === 'all' || (i.category || '') === _stockCat);
+  document.getElementById('stockTableBody').innerHTML = items.length ? items.map(i => {
+    const s = _stock[i.id] || {};
+    const oh = stockOnHand(s);
+    const cnt = _stockCounts[i.id];
+    return `<tr>
+      <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
+      <td><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
+      <td><input type="number" min="0" step="1" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
+      <td style="text-align:center">${oh === null ? '—' : oh}</td>
+      <td style="text-align:center"><button type="button" class="btn btn-secondary btn-sm" onclick="addStock('${i.id}')">+ Add</button></td>
+      <td><input type="number" min="0" step="1" class="stock-input" value="${cnt ?? ''}" oninput="setStockCount('${i.id}',this.value)" aria-label="Counted"></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
+  updateStockCountSummary();
+}
+
+window.saveStockField = async function(id, field, raw) {
+  const v = raw === '' ? null : Number(raw);
+  if (v !== null && (!isFinite(v) || v < 0)) { toast('Enter a number, 0 or more', 'error'); return; }
+  _stock[id] = { ..._stock[id], [field]: v };
+  try { await db.collection('showdrinks_stock').doc(id).set({ [field]: v }, { merge: true }); }
+  catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+
+window.setStockCount = function(id, raw) {
+  if (raw === '') delete _stockCounts[id]; else _stockCounts[id] = Number(raw);
+  saveStockDraft();
+  updateStockCountSummary();
+};
+
+// Deliveries/top-ups at any time — goes in `added`, which the usage sum subtracts back out.
+window.addStock = async function(id) {
+  const item = _allMenuItems.find(i => i.id === id);
+  const raw = prompt(`Add stock received for "${item?.name || ''}" — how many?`);
+  if (raw === null) return;
+  const qty = Number(raw);
+  if (!isFinite(qty) || qty <= 0) { toast('Enter a quantity above 0', 'error'); return; }
+  try {
+    await db.collection('showdrinks_stock').doc(id).set({ added: firebase.firestore.FieldValue.increment(qty) }, { merge: true });
+    _stock[id] = { ..._stock[id], added: ((_stock[id] || {}).added || 0) + qty };
+    renderStockCount();
+    toast(`Added ${qty}`, 'success');
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+
+window.clearStockCounts = function() {
+  if (!Object.keys(_stockCounts).length || !confirm('Discard the counts entered so far?')) return;
+  _stockCounts = {}; saveStockDraft(); renderStockCount();
+};
+
+window.finishStockTake = async function() {
+  const ids = Object.keys(_stockCounts).filter(id => _allMenuItems.some(i => i.id === id));
+  if (!ids.length) { toast('Enter at least one count first', 'error'); return; }
+  const uncounted = _allMenuItems.length - ids.length;
+  if (!confirm(`Finish this stock take with ${ids.length} item(s) counted?` +
+      (uncounted ? `\n${uncounted} item(s) not counted will keep their previous figures.` : '') +
+      '\nCounted figures become the starting point for the next stock take.')) return;
+
+  const lines = ids.map(id => {
+    const item = _allMenuItems.find(i => i.id === id);
+    const s = _stock[id] || {};
+    const counted = _stockCounts[id];
+    const hasBase = typeof s.base === 'number';
+    const opening = hasBase ? s.base : null;
+    const added = s.added || 0;
+    const used = hasBase ? opening + added - counted : null;
+    const cost = typeof s.costPrice === 'number' ? s.costPrice : null;
+    const min = typeof s.minStock === 'number' ? s.minStock : null;
+    return {
+      itemId: id, name: item.name || '', category: item.category || '',
+      opening, added, counted, used, costPrice: cost,
+      usedCost: used !== null && cost !== null ? Math.round(used * cost * 100) / 100 : null,
+      minStock: min,
+      reorder: min !== null && counted < min ? min - counted : 0,
+    };
+  });
+
+  try {
+    const batch = db.batch();
+    const takeRef = db.collection('showdrinks_stockTakes').doc();
+    batch.set(takeRef, { createdAt: firebase.firestore.FieldValue.serverTimestamp(), lines });
+    ids.forEach(id => batch.set(db.collection('showdrinks_stock').doc(id), { base: _stockCounts[id], added: 0 }, { merge: true }));
+    await batch.commit();
+    _stockCounts = {}; saveStockDraft();
+    _stockReportId = takeRef.id;
+    _stockView = 'reports';
+    await loadStockTab();
+    toast('Stock take saved', 'success');
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+
+function stockTakeDate(t) {
+  const d = t.createdAt?.toDate ? t.createdAt.toDate() : new Date();
+  return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function currentStockTake() { return _stockTakes.find(t => t.id === _stockReportId) || null; }
+
+function stockReportHtml(t) {
+  const lines = (t.lines || []).slice().sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || ''));
+  const dash = v => v === null || v === undefined ? '—' : v;
+  const total = lines.reduce((s, l) => s + (l.usedCost || 0), 0);
+  const noBase = lines.some(l => l.used === null);
+  const restock = lines.filter(l => l.reorder > 0);
+  const th = 'style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc;font-size:12px"';
+  const td = 'style="padding:4px 8px;border-bottom:1px solid #eee;font-size:13px"';
+  return `
+    <h3 style="margin:0 0 6px">Usage since previous stock take</h3>
+    <table style="border-collapse:collapse;width:100%">
+      <tr><th ${th}>Category</th><th ${th}>Item</th><th ${th}>Opening</th><th ${th}>Added</th><th ${th}>Counted</th><th ${th}>Used</th><th ${th}>Cost each</th><th ${th}>Cost used</th></tr>
+      ${lines.map(l => `<tr><td ${td}>${escHtml(l.category)}</td><td ${td}>${escHtml(l.name)}</td><td ${td}>${dash(l.opening)}</td><td ${td}>${l.added || 0}</td><td ${td}>${l.counted}</td><td ${td}><b>${dash(l.used)}</b></td><td ${td}>${l.costPrice === null ? '—' : fmtCurrency(l.costPrice)}</td><td ${td}>${l.usedCost === null ? '—' : fmtCurrency(l.usedCost)}</td></tr>`).join('')}
+      <tr><td ${td} colspan="7"><b>Total cost of stock used</b></td><td ${td}><b>${fmtCurrency(total)}</b></td></tr>
+    </table>
+    ${noBase ? '<p style="font-size:12px;color:#777">— = no previous count recorded for that item, so this take sets its starting figure.</p>' : ''}
+    <h3 style="margin:20px 0 6px">Restocking list</h3>
+    ${restock.length ? `<table style="border-collapse:collapse;width:100%">
+      <tr><th ${th}>Category</th><th ${th}>Item</th><th ${th}>In stock</th><th ${th}>Minimum</th><th ${th}>Order at least</th></tr>
+      ${restock.map(l => `<tr><td ${td}>${escHtml(l.category)}</td><td ${td}>${escHtml(l.name)}</td><td ${td}>${l.counted}</td><td ${td}>${l.minStock}</td><td ${td}><b>${l.reorder}</b></td></tr>`).join('')}
+    </table>` : '<p style="font-size:13px;color:#777">Nothing below its minimum level.</p>'}`;
+}
+
+function renderStockReports() {
+  const sel = document.getElementById('stockReportSelect');
+  sel.innerHTML = _stockTakes.map(t => `<option value="${t.id}" ${t.id === _stockReportId ? 'selected' : ''}>${escHtml(stockTakeDate(t))}</option>`).join('');
+  const t = currentStockTake();
+  document.getElementById('stockReportActions').style.display = t ? '' : 'none';
+  document.getElementById('stockReportBody').innerHTML = t ? stockReportHtml(t)
+    : '<p style="color:var(--text-muted)">No stock takes yet — count some items and press Finish stock take.</p>';
+}
+
+window.selectStockReport = function(id) { _stockReportId = id; renderStockReports(); };
+
+window.printStockReport = function() {
+  const t = currentStockTake(); if (!t) return;
+  const w = window.open('', '_blank');
+  if (!w) { toast('Allow pop-ups to print', 'error'); return; }
+  w.document.write(`<!doctype html><title>Stock take ${escHtml(stockTakeDate(t))}</title><body style="font-family:sans-serif;padding:16px"><h2>Stock take — ${escHtml(stockTakeDate(t))}</h2>${stockReportHtml(t)}</body>`);
+  w.document.close(); w.focus(); w.print();
+};
+
+window.exportStockCsv = function() {
+  const t = currentStockTake(); if (!t) return;
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const rows = [['Category', 'Item', 'Opening', 'Added', 'Counted', 'Used', 'Cost each', 'Cost used', 'Minimum', 'Order at least']];
+  (t.lines || []).forEach(l => rows.push([l.category, l.name, l.opening, l.added, l.counted, l.used, l.costPrice, l.usedCost, l.minStock, l.reorder]));
+  const blob = new Blob([rows.map(r => r.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'stock-take.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 

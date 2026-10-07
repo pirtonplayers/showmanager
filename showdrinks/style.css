@@ -518,3 +518,6 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
   .order-card-header { flex-wrap: wrap; }
   .tab-pos-split { flex-direction: column; }
 }
+
+.stock-input { width:100%; padding:4px 6px; font-size:14px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:inherit; }
+#stockViewCount.active, #stockViewReports.active { background:var(--primary); color:#fff; border-color:var(--primary); }
