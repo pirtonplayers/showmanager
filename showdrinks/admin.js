@@ -3032,12 +3032,31 @@ function renderStockCount() {
   updateStockCountSummary();
 }
 
+// Event name comes from a dropdown of all shows (current one preselected), or "Other" to type one.
 window.startStockTake = function() {
+  const sel = document.getElementById('stockEventSelect');
   const current = _shows.find(s => s.isCurrent);
-  const name = prompt('Name this stock take (the event — used to find it later for billing):', current?.name || '');
-  if (name === null) return;   // cancelled
-  if (!name.trim()) { toast('A stock take needs an event name', 'error'); return; }
-  _stockTaking = name.trim();
+  sel.innerHTML = _shows.map(s => `<option value="${escHtml(s.name || '')}" ${s === current ? 'selected' : ''}>${escHtml(s.name || 'Unnamed show')}${s === current ? ' (current)' : ''}</option>`).join('')
+    + '<option value="__other__">Other…</option>';
+  if (!_shows.length) sel.value = '__other__';
+  document.getElementById('stockEventOther').value = '';
+  stockEventSelectChanged();
+  document.getElementById('stockEventModal').style.display = 'flex';
+};
+
+window.stockEventSelectChanged = function() {
+  const other = document.getElementById('stockEventSelect').value === '__other__';
+  document.getElementById('stockEventOtherWrap').style.display = other ? '' : 'none';
+};
+
+window.closeStockEvent = function() { document.getElementById('stockEventModal').style.display = 'none'; };
+
+window.confirmStockEvent = function() {
+  const v = document.getElementById('stockEventSelect').value;
+  const name = (v === '__other__' ? document.getElementById('stockEventOther').value : v).trim();
+  if (!name) { toast('A stock take needs an event name', 'error'); return; }
+  closeStockEvent();
+  _stockTaking = name;
   saveStockSession();
   renderStockCount();
 };
