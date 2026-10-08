@@ -414,8 +414,7 @@ function renderMenuTable() {
   const filterTab = document.getElementById('menuFilterTab').checked;
   const items = _allMenuItems
     .filter(i => _selectedMenuCat === 'all' || i.category === _selectedMenuCat)
-    .filter(i => (filterTab && itemShowsOnTab(i)) || itemShowsOnPos(i)
-      || (i.stk !== false && !itemShowsOnTab(i) && !itemShowsOnPos(i)));   // stock-take-only items (on neither Tab nor POS) still belong in the list
+    .filter(i => filterTab || !itemShowsOnTab(i));   // every item is listed; unticking Tab only hides the ones shown on Bar Tabs
 
   const emptyMsg = _allMenuItems.length
     ? 'No items match this filter.'
