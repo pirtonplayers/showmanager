@@ -2958,6 +2958,13 @@ async function loadStockTab() {
 window.setStockView = function(v) { _stockView = v; if (v === 'restock') _restockIds = null; renderStockTab(); };
 window.setStockCat  = function(c) { _stockCat = c; renderStockTab(); };
 
+// Level a restock tops an item up to: restockTo if set, never below minStock.
+function stockRestockLevel(s) {
+  const min = typeof s.minStock === 'number' ? s.minStock : null;
+  if (min === null) return null;
+  return Math.max(min, typeof s.restockTo === 'number' ? s.restockTo : 0);
+}
+
 function stockOnHand(s) {
   return s && typeof s.base === 'number' ? s.base + (s.added || 0) : null;
 }
@@ -3001,19 +3008,34 @@ function renderStockCount() {
       <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
       <td><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
       <td><input type="number" min="0" step="1" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
+      <td><input type="number" min="0" step="1" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>
       <td style="text-align:center" id="stockOh-${i.id}">${stockOnHandLabel(s)}</td>
       <td style="text-align:center"><button type="button" class="btn btn-secondary btn-sm" onclick="openStockAdjust('${i.id}')">Add</button></td>
       <td><input type="number" min="0" step="1" class="stock-input" value="${cnt ?? ''}" oninput="setStockCount('${i.id}',this.value)" aria-label="Counted"></td>
     </tr>`;
-  }).join('') : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
+  }).join('') : '<tr><td colspan="7" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
   updateStockCountSummary();
 }
 
+// Restock level (`restockTo`) is what a restock tops an item up to: it starts out equal to Min
+// (blank = follow Min) and may be set higher, never lower. Raising Min past it drags it up too.
 window.saveStockField = async function(id, field, raw) {
-  const v = raw === '' ? null : Number(raw);
+  let v = raw === '' ? null : Number(raw);
   if (v !== null && (!isFinite(v) || v < 0)) { toast('Enter a number, 0 or more', 'error'); return; }
-  _stock[id] = { ..._stock[id], [field]: v };
-  try { await db.collection('showdrinks_stock').doc(id).set({ [field]: v }, { merge: true }); }
+  const patch = {};
+  const cur = _stock[id] || {};
+  if (field === 'restockTo' && v !== null && v < (cur.minStock || 0)) {
+    v = cur.minStock;
+    toast('Restock level can’t be lower than the minimum', 'error');
+  }
+  patch[field] = v;
+  if (field === 'minStock' && typeof cur.restockTo === 'number' && (v || 0) > cur.restockTo) patch.restockTo = v;
+  _stock[id] = { ...cur, ...patch };
+  if (field === 'restockTo' || patch.restockTo !== undefined) {
+    const el = document.getElementById('stockRestockTo-' + id);
+    if (el) { el.value = _stock[id].restockTo ?? ''; el.placeholder = _stock[id].minStock ?? ''; }
+  }
+  try { await db.collection('showdrinks_stock').doc(id).set(patch, { merge: true }); }
   catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
@@ -3093,7 +3115,8 @@ window.finishStockTake = async function() {
       opening, added, counted, used, costPrice: cost,
       usedCost: used !== null && cost !== null ? Math.round(used * cost * 100) / 100 : null,
       minStock: min,
-      reorder: min !== null && counted < min ? min - counted : 0,
+      restockTo: stockRestockLevel(s),
+      reorder: min !== null && counted < min ? stockRestockLevel(s) - counted : 0,
     };
   });
 
@@ -3156,8 +3179,8 @@ function stockReportHtml(t) {
     ${noBase ? '<p style="font-size:12px;color:#777">— = no previous count recorded for that item, so this take sets its starting figure.</p>' : ''}
     <h3 style="margin:20px 0 6px">Restocking list</h3>
     ${restock.length ? `<table style="border-collapse:collapse;width:100%">
-      <tr><th ${th}>Category</th><th ${th}>Item</th><th ${th}>In stock</th><th ${th}>Minimum</th><th ${th}>Order at least</th></tr>
-      ${restock.map(l => `<tr><td ${td}>${escHtml(l.category)}</td><td ${td}>${escHtml(l.name)}</td><td ${td}>${l.counted}</td><td ${td}>${l.minStock}</td><td ${td}><b>${l.reorder}</b></td></tr>`).join('')}
+      <tr><th ${th}>Category</th><th ${th}>Item</th><th ${th}>In stock</th><th ${th}>Minimum</th><th ${th}>Restock to</th><th ${th}>Order</th></tr>
+      ${restock.map(l => `<tr><td ${td}>${escHtml(l.category)}</td><td ${td}>${escHtml(l.name)}</td><td ${td}>${l.counted}</td><td ${td}>${l.minStock}</td><td ${td}>${l.restockTo ?? l.minStock}</td><td ${td}><b>${l.reorder}</b></td></tr>`).join('')}
     </table>` : '<p style="font-size:13px;color:#777">Nothing below its minimum level.</p>'}`;
 }
 
