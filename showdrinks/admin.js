@@ -3065,7 +3065,7 @@ function renderStockCount() {
   const counting = !!_stockTaking;
   document.getElementById('stockNonZeroLabel').style.display = counting ? 'none' : 'flex';
   document.getElementById('stockHeader').classList.toggle('stock-taking', counting);
-  document.getElementById('stockTitle').textContent = counting ? 'Stock (stock take in progress)' : 'Stock';
+  document.getElementById('stockTitle').textContent = counting ? 'Stock take in progress' : 'Stock';
   document.getElementById('stockTable').classList.toggle('counting', counting);
   document.getElementById('stockStartBtn').style.display = counting ? 'none' : '';
   document.getElementById('stockOpeningBtn').style.display = counting ? 'none' : '';
