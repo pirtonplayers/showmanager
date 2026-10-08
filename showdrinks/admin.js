@@ -2933,11 +2933,13 @@ let _stockReportId = null;
 let _restockIds  = null;   // item ids shown on the Restock page (null = recompute on next render)
 const STOCK_DRAFT_KEY = 'showdrinks_stock_draft';
 const STOCK_SESSION_KEY = 'showdrinks_stock_session';
+let _stockOpening = false;   // true while the take in progress is an opening-stock entry (no usage)
 let _stockTaking = null;   // event name while a stock take is in progress, else null
-try { _stockTaking = localStorage.getItem(STOCK_SESSION_KEY) || null; } catch (e) { _stockTaking = null; }
+try { _stockTaking = localStorage.getItem(STOCK_SESSION_KEY) || null; _stockOpening = localStorage.getItem(STOCK_SESSION_KEY + '_opening') === '1'; } catch (e) { _stockTaking = null; }
 function saveStockSession() {
   try {
     if (_stockTaking) localStorage.setItem(STOCK_SESSION_KEY, _stockTaking); else localStorage.removeItem(STOCK_SESSION_KEY);
+    if (_stockTaking && _stockOpening) localStorage.setItem(STOCK_SESSION_KEY + '_opening', '1'); else localStorage.removeItem(STOCK_SESSION_KEY + '_opening');
   } catch (e) {}
 }
 
@@ -3025,6 +3027,7 @@ function renderStockCount() {
   const counting = !!_stockTaking;
   document.getElementById('stockTable').classList.toggle('counting', counting);
   document.getElementById('stockStartBtn').style.display = counting ? 'none' : '';
+  document.getElementById('stockOpeningBtn').style.display = counting ? 'none' : '';
   document.getElementById('stockFinishBtn').style.display = counting ? '' : 'none';
   document.getElementById('stockCancelBtn').style.display = counting ? '' : 'none';
   updateStockCountSummary();
@@ -3042,6 +3045,15 @@ window.startStockTake = function() {
   document.getElementById('stockEventModal').style.display = 'flex';
 };
 
+// Opening stock: the same count screen, saved as a stock take called "Opening stock" that sets
+// every counted item's starting figure but records no usage (nothing to compare against).
+window.startOpeningStock = function() {
+  _stockOpening = true;
+  _stockTaking = 'Opening stock';
+  saveStockSession();
+  renderStockCount();
+};
+
 window.stockEventSelectChanged = function() {
   const other = document.getElementById('stockEventSelect').value === '__other__';
   document.getElementById('stockEventOtherWrap').style.display = other ? '' : 'none';
@@ -3054,6 +3066,7 @@ window.confirmStockEvent = function() {
   const name = (v === '__other__' ? document.getElementById('stockEventOther').value : v).trim();
   if (!name) { toast('A stock take needs an event name', 'error'); return; }
   closeStockEvent();
+  _stockOpening = false;
   _stockTaking = name;
   saveStockSession();
   renderStockCount();
@@ -3146,6 +3159,7 @@ window.clearAllStock = async function() {
       await batch.commit();
     }
     _stockCounts = {}; saveStockDraft();
+    _stockOpening = false;
     _stockTaking = null; saveStockSession();
     await loadStockTab();
     toast('All stock reset to 0', 'success');
@@ -3181,6 +3195,7 @@ window.printStockList = function() {
 window.cancelStockTake = function() {
   if (!confirm('Cancel this stock take? Counts entered so far will be discarded.')) return;
   _stockCounts = {}; saveStockDraft();
+  _stockOpening = false;
   _stockTaking = null; saveStockSession();
   renderStockCount();
 };
@@ -3203,7 +3218,7 @@ window.finishStockTake = async function() {
     const hasBase = typeof s.base === 'number';
     const opening = hasBase ? s.base : null;
     const added = s.added || 0;
-    const used = hasBase ? opening + added - counted : null;
+    const used = hasBase && !_stockOpening ? opening + added - counted : null;
     const cost = typeof s.costPrice === 'number' ? s.costPrice : null;
     const min = typeof s.minStock === 'number' ? s.minStock : null;
     return {
@@ -3219,7 +3234,7 @@ window.finishStockTake = async function() {
   try {
     const batch = db.batch();
     const takeRef = db.collection('showdrinks_stockTakes').doc();
-    batch.set(takeRef, { createdAt: firebase.firestore.FieldValue.serverTimestamp(), eventName, lines });
+    batch.set(takeRef, { createdAt: firebase.firestore.FieldValue.serverTimestamp(), eventName, ...(_stockOpening ? { opening: true } : {}), lines });
     // Items counted below their minimum go straight onto the Restock list (quantity to reach the minimum).
     ids.forEach(id => {
       const reorder = lines.find(l => l.itemId === id).reorder;
@@ -3228,6 +3243,7 @@ window.finishStockTake = async function() {
     });
     await batch.commit();
     _stockCounts = {}; saveStockDraft();
+    _stockOpening = false;
     _stockTaking = null; saveStockSession();
     _stockReportId = takeRef.id;
     _stockView = 'reports';
