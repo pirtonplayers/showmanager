@@ -408,27 +408,24 @@ window.setMenuCat = function(cat) {
 // than falling back to unfiltered, since that's the more literal/predictable reading of two
 // independent checkboxes.
 document.getElementById('menuFilterTab').addEventListener('change', renderMenuTable);
-document.getElementById('menuFilterPos').addEventListener('change', renderMenuTable);
 
 function renderMenuTable() {
   const tbody = document.getElementById('menuTableBody');
   const filterTab = document.getElementById('menuFilterTab').checked;
-  const filterPos = document.getElementById('menuFilterPos').checked;
   const items = _allMenuItems
     .filter(i => _selectedMenuCat === 'all' || i.category === _selectedMenuCat)
-    .filter(i => (filterTab && itemShowsOnTab(i)) || (filterPos && itemShowsOnPos(i)));
+    .filter(i => (filterTab && itemShowsOnTab(i)) || itemShowsOnPos(i));
 
   const emptyMsg = _allMenuItems.length
     ? 'No items match this filter.'
     : 'No items yet — + Add Item to get started.';
   tbody.innerHTML = items.length ? items.map(i => menuItemRow(i.id, i)).join('')
-    : `<tr><td colspan="7" style="color:var(--text-muted);padding:20px;text-align:center">${emptyMsg}</td></tr>`;
+    : `<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">${emptyMsg}</td></tr>`;
 }
 
 function menuItemRow(id, item) {
   const onSale = item.onSale !== false;
   const showOnTab = itemShowsOnTab(item);
-  const showOnPos = itemShowsOnPos(item);
   return `<tr id="mrow-${id}">
     <td>${escHtml(item.category || '—')}</td>
     <td>${escHtml(item.name || '')}</td>
@@ -438,9 +435,6 @@ function menuItemRow(id, item) {
     </td>
     <td style="text-align:center">
       <input type="checkbox" ${showOnTab ? 'checked' : ''} onchange="toggleMenuItemShowOn('${id}', 'showOnTab', this)" title="Show on Bar Tabs" aria-label="Show on Bar Tabs">
-    </td>
-    <td style="text-align:center">
-      <input type="checkbox" ${showOnPos ? 'checked' : ''} onchange="toggleMenuItemShowOn('${id}', 'showOnPos', this)" title="Show on Customer POS" aria-label="Show on Customer POS">
     </td>
     <td style="text-align:center">
       <button type="button" class="icon-btn" onclick="openEditMenuItemModal('${id}')" title="Edit" aria-label="Edit">${ICON_EDIT}</button>
@@ -731,13 +725,13 @@ window.printPriceList = function() {
 };
 
 window.openAddMenuItemModal = function() {
-  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true, image: '' });
+  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true, stk: true, image: '' });
 };
 
 window.openEditMenuItemModal = function(id) {
   const item = _allMenuItems.find(i => i.id === id);
   if (!item) return;
-  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false, showOnTab: itemShowsOnTab(item), showOnPos: itemShowsOnPos(item), image: item.image || '' });
+  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false, showOnTab: itemShowsOnTab(item), showOnPos: itemShowsOnPos(item), stk: item.stk !== false, image: item.image || '' });
 };
 
 document.getElementById('clearAllMenuBtn').addEventListener('click', async () => {
@@ -873,6 +867,7 @@ function openModal(title, ctx) {
     visibilityGroup.style.display = '';
     document.getElementById('editShowOnTab').checked = ctx.showOnTab !== false;
     document.getElementById('editShowOnPos').checked = ctx.showOnPos !== false;
+    document.getElementById('editStk').checked = ctx.stk !== false;
 
     deleteBtn.style.display = ctx.id ? '' : 'none';
   } else {
@@ -913,12 +908,13 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
       const onSale     = document.getElementById('editOnSale').checked;
       const showOnTab  = document.getElementById('editShowOnTab').checked;
       const showOnPos  = document.getElementById('editShowOnPos').checked;
+      const stk        = document.getElementById('editStk').checked;
       const image      = isBuyNowCategoryName(category) ? _modalImage : '';
       if (_modalCtx.id) {
-        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale, showOnTab, showOnPos, image });
+        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale, showOnTab, showOnPos, stk, image });
       } else {
         await db.collection('showdrinks_menuItems').add({
-          name, category, price, onSale, showOnTab, showOnPos, image, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          name, category, price, onSale, showOnTab, showOnPos, stk, image, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
       }
       await loadMenuItems();
@@ -3009,17 +3005,9 @@ function stockPassesNonZero(i) {
   return (stockOnHand(_stock[i.id] || {}) || 0) !== 0;
 }
 
-// "Stk" flag (showdrinks_stock/{id}.stk): only flagged items are part of stock takes, the printed
-// stock list and the restock picker. Defaults to true, so unflagged-yet items are included.
-function stockIsTracked(id) { return (_stock[id] || {}).stk !== false; }
-
-window.saveStockTracked = async function(id, checked, el) {
-  _stock[id] = { ..._stock[id], stk: checked };
-  const tr = el.closest('tr');
-  if (tr) tr.style.opacity = checked ? '' : '.5';
-  try { await db.collection('showdrinks_stock').doc(id).set({ stk: checked }, { merge: true }); }
-  catch (e) { toast('Failed: ' + e.message, 'error'); }
-};
+// "Stk" flag (menu item `stk`, set on the Price List item edit screen): only flagged items are part
+// of stock takes, the printed stock list and the restock picker. Defaults to true.
+function stockIsTracked(id) { return _allMenuItems.find(i => i.id === id)?.stk !== false; }
 
 function renderStockCount() {
   const cats = _menuCategories.length ? _menuCategories : [''];
@@ -3031,9 +3019,8 @@ function renderStockCount() {
     .filter(i => !_stockTaking || stockIsTracked(i.id));
   document.getElementById('stockTableBody').innerHTML = items.length ? items.map(i => {
     const s = _stock[i.id] || {};
-    const tracked = s.stk !== false;
-    return `<tr${tracked ? '' : ' style="opacity:.5"'}>
-      <td><input type="checkbox" class="col-edit" ${tracked ? 'checked' : ''} onchange="saveStockTracked('${i.id}',this.checked,this)" title="Stock take item" aria-label="Stock take item"> ${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
+    return `<tr${i.stk === false ? ' style="opacity:.5"' : ''}>
+      <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
       <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
       <td class="col-edit"><input type="number" min="0" step="1" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
       <td class="col-edit"><input type="number" min="0" step="1" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>

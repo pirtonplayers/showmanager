@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.86"></script>
+  <script src="../shared/embed.js?v=1.1.87"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.86">
+  <link rel="stylesheet" href="style.css?v=1.1.87">
 </head>
 <body>
 
@@ -359,10 +359,6 @@
                 Tab<br>
                 <input type="checkbox" id="menuFilterTab" checked title="Show items on Bar Tabs" aria-label="Show items on Bar Tabs">
               </th>
-              <th style="width:70px;text-align:center">
-                POS<br>
-                <input type="checkbox" id="menuFilterPos" checked title="Show items on Customer POS" aria-label="Show items on Customer POS">
-              </th>
               <th style="width:44px"></th>
             </tr>
           </thead>
@@ -405,7 +401,7 @@
         <div class="card-body menu-table-scroll" style="padding:0">
           <table class="menu-grid-table stock-table" id="stockTable">
             <thead><tr>
-              <th style="min-width:110px"><span class="col-edit">Stk · </span>Item</th>
+              <th style="min-width:110px">Item</th>
               <th class="col-edit" style="width:60px">Cost £</th>
               <th class="col-edit" style="width:48px">Min</th>
               <th class="col-edit" style="width:48px">Restock to</th>
@@ -816,6 +812,9 @@
             <input type="checkbox" id="editShowOnPos" checked> POS
           </label>
         </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:400;margin-top:10px">
+          <input type="checkbox" id="editStk" checked> Stock take item (Stk)
+        </label>
       </div>
       <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
         <button class="btn btn-danger" id="editDeleteBtn" style="display:none;margin-right:auto">Delete</button>
@@ -1048,11 +1047,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.86"></script>
-<script src="../shared/firebase-config.js?v=1.1.86"></script>
-<script src="../shared/auth.js?v=1.1.86"></script>
-<script src="../shared/suite-nav.js?v=1.1.86"></script>
-<script src="admin.js?v=1.1.86"></script>
+<script src="../shared/version.js?v=1.1.87"></script>
+<script src="../shared/firebase-config.js?v=1.1.87"></script>
+<script src="../shared/auth.js?v=1.1.87"></script>
+<script src="../shared/suite-nav.js?v=1.1.87"></script>
+<script src="admin.js?v=1.1.87"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
