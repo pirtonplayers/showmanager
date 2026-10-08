@@ -3009,17 +3009,31 @@ function stockPassesNonZero(i) {
   return (stockOnHand(_stock[i.id] || {}) || 0) !== 0;
 }
 
+// "Stk" flag (showdrinks_stock/{id}.stk): only flagged items are part of stock takes, the printed
+// stock list and the restock picker. Defaults to true, so unflagged-yet items are included.
+function stockIsTracked(id) { return (_stock[id] || {}).stk !== false; }
+
+window.saveStockTracked = async function(id, checked, el) {
+  _stock[id] = { ..._stock[id], stk: checked };
+  const tr = el.closest('tr');
+  if (tr) tr.style.opacity = checked ? '' : '.5';
+  try { await db.collection('showdrinks_stock').doc(id).set({ stk: checked }, { merge: true }); }
+  catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+
 function renderStockCount() {
   const cats = _menuCategories.length ? _menuCategories : [''];
   if (_stockCat === null || (_stockCat !== 'all' && !cats.includes(_stockCat))) _stockCat = cats[0];
   document.getElementById('stockCategoryBar').innerHTML = ['all', ...cats].map(c => `
     <button type="button" class="cat-btn ${c === _stockCat ? 'active' : ''}" onclick="setStockCat('${escHtml(c)}')">${c === 'all' ? 'All' : escHtml(c || 'Uncategorised')}</button>`).join('');
 
-  const items = _allMenuItems.filter(i => _stockCat === 'all' || (i.category || '') === _stockCat).filter(stockPassesNonZero);
+  const items = _allMenuItems.filter(i => _stockCat === 'all' || (i.category || '') === _stockCat).filter(stockPassesNonZero)
+    .filter(i => !_stockTaking || stockIsTracked(i.id));
   document.getElementById('stockTableBody').innerHTML = items.length ? items.map(i => {
     const s = _stock[i.id] || {};
-    return `<tr>
-      <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
+    const tracked = s.stk !== false;
+    return `<tr${tracked ? '' : ' style="opacity:.5"'}>
+      <td><input type="checkbox" class="col-edit" ${tracked ? 'checked' : ''} onchange="saveStockTracked('${i.id}',this.checked,this)" title="Stock take item" aria-label="Stock take item"> ${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
       <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
       <td class="col-edit"><input type="number" min="0" step="1" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
       <td class="col-edit"><input type="number" min="0" step="1" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>
@@ -3208,7 +3222,7 @@ window.printStockList = function() {
   const td = 'style="padding:5px 6px;border-bottom:1px solid #ddd;font-size:13px"';
   const dash = v => v === null || v === undefined ? '—' : v;
   let total = 0, lastCat = null;
-  const rows = _allMenuItems.filter(stockPassesNonZero).map(i => {
+  const rows = _allMenuItems.filter(stockPassesNonZero).filter(i => stockIsTracked(i.id)).map(i => {
     const s = _stock[i.id] || {};
     const oh = stockOnHand(s);
     const lvl = stockRestockLevel(s);
@@ -3250,7 +3264,7 @@ window.setStockUsedOnly = function(on) {
 };
 
 window.finishStockTake = async function() {
-  const ids = _allMenuItems.map(i => i.id);   // every item is counted; one left empty counts as 0
+  const ids = _allMenuItems.filter(i => stockIsTracked(i.id)).map(i => i.id);   // every item is counted; one left empty counts as 0
   const uncounted = 0;
 
   const eventName = _stockTaking;
@@ -3458,7 +3472,7 @@ window.stepRestock = function(id, d) { setRestock(id, restockQty(id) + d); };
 
 window.openRestockAdd = function() {
   const byCat = {};
-  _allMenuItems.forEach(i => { (byCat[i.category || 'Uncategorised'] ||= []).push(i); });
+  _allMenuItems.filter(i => stockIsTracked(i.id)).forEach(i => { (byCat[i.category || 'Uncategorised'] ||= []).push(i); });
   document.getElementById('restockAddItem').innerHTML = Object.keys(byCat).map(c =>
     `<optgroup label="${escHtml(c)}">${byCat[c].map(i => `<option value="${i.id}">${escHtml(i.name || '')}</option>`).join('')}</optgroup>`).join('');
   document.getElementById('restockAddQty').value = 1;
