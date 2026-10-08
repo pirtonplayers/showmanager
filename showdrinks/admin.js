@@ -3027,7 +3027,6 @@ function renderStockCount() {
   document.getElementById('stockStartBtn').style.display = counting ? 'none' : '';
   document.getElementById('stockFinishBtn').style.display = counting ? '' : 'none';
   document.getElementById('stockCancelBtn').style.display = counting ? '' : 'none';
-  document.getElementById('stockEditHelp').style.display = counting ? 'none' : '';
   updateStockCountSummary();
 }
 
