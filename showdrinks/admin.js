@@ -2989,6 +2989,7 @@ function renderStockTab() {
   document.getElementById('stockViewReports').classList.toggle('active', _stockView === 'reports');
   document.getElementById('stockCountView').style.display   = _stockView === 'count' ? '' : 'none';
   document.getElementById('stockViewRestock').classList.toggle('active', _stockView === 'restock');
+  document.getElementById('stockActionsWrap').style.display = _stockView === 'count' ? '' : 'none';
   document.getElementById('stockReportsView').style.display = _stockView === 'reports' ? '' : 'none';
   document.getElementById('stockRestockView').style.display = _stockView === 'restock' ? '' : 'none';
   if (_stockView === 'count') renderStockCount();
@@ -3124,6 +3125,33 @@ window.confirmStockAdjust = async function() {
     if (cell) cell.textContent = stockOnHandLabel(_stock[id]);
     closeStockAdjust();
     toast(`Stock ${delta > 0 ? 'added' : 'removed'}: ${Math.abs(delta)}`, 'success');
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+
+window.toggleStockActions = function(e) {
+  e.stopPropagation();
+  document.getElementById('stockActionsDropdown').classList.toggle('open');
+};
+document.addEventListener('click', () => {
+  document.getElementById('stockActionsDropdown')?.classList.remove('open');
+});
+
+// Zeroes every item's stock figures (counted base, deliveries since, restock quantity) and drops
+// any in-progress count. Cost, Min and Restock-to are item settings and stay; old stock takes
+// (showdrinks_stockTakes) are never touched.
+window.clearAllStock = async function() {
+  const msg = 'Reset all stock to 0? This zeroes every item stock, deliveries and restock quantity, and cancels any stock take in progress. Cost, Min and Restock-to settings and previous stock takes are kept.';
+  if (!confirm(msg)) return;
+  try {
+    for (let i = 0; i < _allMenuItems.length; i += 400) {
+      const batch = db.batch();
+      _allMenuItems.slice(i, i + 400).forEach(it => batch.set(db.collection('showdrinks_stock').doc(it.id), { base: 0, added: 0, restock: 0 }, { merge: true }));
+      await batch.commit();
+    }
+    _stockCounts = {}; saveStockDraft();
+    _stockTaking = null; saveStockSession();
+    await loadStockTab();
+    toast('All stock reset to 0', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
