@@ -54,9 +54,18 @@ function today() { return new Date().toISOString().slice(0, 10); }
 function toast(msg, type = 'info') {
   const el = document.createElement('div');
   el.className = `toast-msg ${type}`;
-  el.textContent = msg;
+  const text = document.createElement('span');
+  text.textContent = msg;
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'toast-close';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.textContent = '×';
+  close.addEventListener('click', () => el.remove());
+  el.append(text, close);
   document.getElementById('toast').appendChild(el);
-  setTimeout(() => el.remove(), 4000);
+  // Every toast (errors too) clears itself after 3s; × dismisses it sooner.
+  setTimeout(() => el.remove(), 3000);
 }
 
 function fmtDate(iso) {

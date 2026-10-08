@@ -20,13 +20,18 @@ window.togglePasswordVisibility = function(inputId, btn) {
 function toast(msg, type = 'info') {
   const el = document.createElement('div');
   el.className = `toast-msg ${type}`;
-  el.style.cursor = 'pointer';
-  el.title = 'Click to dismiss';
-  el.textContent = msg;
-  el.addEventListener('click', () => el.remove());
+  const text = document.createElement('span');
+  text.textContent = msg;
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'toast-close';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.textContent = '×';
+  close.addEventListener('click', () => el.remove());
+  el.append(text, close);
   document.getElementById('toast').appendChild(el);
-  // Errors stay until clicked; info/success auto-dismiss after 4s
-  if (type !== 'error') setTimeout(() => el.remove(), 4000);
+  // Every toast (errors too) clears itself after 3s; × dismisses it sooner.
+  setTimeout(() => el.remove(), 3000);
 }
 
 function fmtDate(iso) {
