@@ -728,13 +728,13 @@ window.printPriceList = function() {
 };
 
 window.openAddMenuItemModal = function() {
-  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true, stk: true, image: '' });
+  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true, stk: true, frac: false, image: '' });
 };
 
 window.openEditMenuItemModal = function(id) {
   const item = _allMenuItems.find(i => i.id === id);
   if (!item) return;
-  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false, showOnTab: itemShowsOnTab(item), showOnPos: itemShowsOnPos(item), stk: item.stk !== false, image: item.image || '' });
+  openModal('Edit Item', { type: 'menuItem', id, name: item.name, category: item.category || '', price: item.price || 0, onSale: item.onSale !== false, showOnTab: itemShowsOnTab(item), showOnPos: itemShowsOnPos(item), stk: item.stk !== false, frac: item.frac === true, image: item.image || '' });
 };
 
 document.getElementById('clearAllMenuBtn').addEventListener('click', async () => {
@@ -871,6 +871,7 @@ function openModal(title, ctx) {
     document.getElementById('editShowOnTab').checked = ctx.showOnTab !== false;
     document.getElementById('editShowOnPos').checked = ctx.showOnPos !== false;
     document.getElementById('editStk').checked = ctx.stk !== false;
+    document.getElementById('editFrac').checked = ctx.frac === true;
     // Cost / Min stock / Restock level live in showdrinks_stock/{id} (not on the public menu item).
     const fillStock = st => {
       document.getElementById('editCost').value = st.costPrice ?? '';
@@ -924,6 +925,7 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
       const showOnTab  = document.getElementById('editShowOnTab').checked;
       const showOnPos  = document.getElementById('editShowOnPos').checked;
       const stk        = document.getElementById('editStk').checked;
+      const frac       = document.getElementById('editFrac').checked;
       const image      = isBuyNowCategoryName(category) ? _modalImage : '';
       const numOrNull = id => { const v = document.getElementById(id).value; return v === '' ? null : Math.max(0, Number(v) || 0); };
       const costPrice = numOrNull('editCost');
@@ -932,10 +934,10 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
       if (restockTo !== null && minStock !== null && restockTo < minStock) restockTo = minStock;   // reorder level is never below Min
       let itemId = _modalCtx.id;
       if (itemId) {
-        await db.collection('showdrinks_menuItems').doc(itemId).update({ name, category, price, onSale, showOnTab, showOnPos, stk, image });
+        await db.collection('showdrinks_menuItems').doc(itemId).update({ name, category, price, onSale, showOnTab, showOnPos, stk, frac, image });
       } else {
         const ref = await db.collection('showdrinks_menuItems').add({
-          name, category, price, onSale, showOnTab, showOnPos, stk, image, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          name, category, price, onSale, showOnTab, showOnPos, stk, frac, image, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
         itemId = ref.id;
       }
@@ -3014,11 +3016,24 @@ function stockOnHand(s) {
   return s && typeof s.base === 'number' ? s.base + (s.added || 0) : null;
 }
 
+// Quantities as whole units plus ¼ ½ ¾ (bottles are counted in quarters): 2.5 → "2½", 0.25 → "¼".
+function fmtQty(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  const sign = n < 0 ? '-' : '';
+  const a = Math.abs(n);
+  let whole = Math.floor(a + 1e-9);
+  let f = Math.round((a - whole) * 4) / 4;
+  if (f >= 1) { whole += 1; f = 0; }
+  if (Math.abs(a - whole - f) > 0.001) return sign + String(Math.round(a * 100) / 100);
+  const glyph = { 0.25: '¼', 0.5: '½', 0.75: '¾' }[f] || '';
+  return sign + ((whole || !glyph) ? whole : '') + glyph;
+}
+
 // No previous count yet → no on-hand figure, but still show anything added so a tap gives feedback.
 function stockOnHandLabel(s) {
   const oh = stockOnHand(s);
-  if (oh !== null) return oh;
-  return s && s.added ? (s.added > 0 ? '+' : '') + s.added : '—';
+  if (oh !== null) return fmtQty(oh);
+  return s && s.added ? (s.added > 0 ? '+' : '') + fmtQty(s.added) : '—';
 }
 
 function renderStockTab() {
@@ -3062,15 +3077,11 @@ function renderStockCount() {
     return `<tr>
       <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
       <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
-      <td class="col-edit"><input type="number" min="0" step="1" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
-      <td class="col-edit"><input type="number" min="0" step="1" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>
+      <td class="col-edit"><input type="number" min="0" step="any" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
+      <td class="col-edit"><input type="number" min="0" step="any" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>
       <td class="col-edit" style="text-align:center" id="stockOh-${i.id}">${stockOnHandLabel(s)}</td>
       <td class="col-edit" style="text-align:center"><button type="button" class="btn btn-secondary btn-sm" onclick="openStockAdjust('${i.id}')">Add</button></td>
-      <td class="col-count" style="white-space:nowrap">
-        <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepStockCount('${i.id}',-1)" aria-label="Minus one">−</button>
-        <input type="number" min="0" step="1" class="stock-input" id="stockCount-${i.id}" value="${stockCountFor(i.id)}" oninput="setStockCount('${i.id}',this.value)" style="width:56px" aria-label="Counted">
-        <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepStockCount('${i.id}',1)" aria-label="Plus one">+</button>
-      </td>
+      ${stockCountCell(i)}
     </tr>`;
   }).join('') : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
   const counting = !!_stockTaking;
@@ -3155,6 +3166,28 @@ function stockCountFor(id) {
   return stockOnHand(_stock[id] || {}) ?? 0;
 }
 
+// Count box(es) for one item. Fraction items (`frac` on the menu item) get whole units plus a
+// ¼ ½ ¾ selector; the stored count is simply whole + fraction (e.g. 2.5).
+function stockCountCell(i) {
+  const id = i.id, v = stockCountFor(id);
+  const minus = `<button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepStockCount('${id}',-1)" aria-label="Minus one">−</button>`;
+  const plus = `<button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepStockCount('${id}',1)" aria-label="Plus one">+</button>`;
+  if (i.frac) {
+    let whole = Math.floor(v + 1e-9), f = Math.round((v - whole) * 4) / 4;
+    if (f >= 1) { whole += 1; f = 0; }
+    const opts = [0, 0.25, 0.5, 0.75].map(x => `<option value="${x}" ${x === f ? 'selected' : ''}>${x === 0 ? '0' : fmtQty(x)}</option>`).join('');
+    return `<td class="col-count" style="white-space:nowrap">${minus}<input type="number" min="0" step="1" class="stock-input" id="stockCount-${id}" value="${whole}" oninput="setStockCountFrac('${id}')" style="width:46px" aria-label="Whole units">${plus}<select class="stock-input" id="stockFrac-${id}" onchange="setStockCountFrac('${id}')" style="width:56px" aria-label="Fraction">${opts}</select></td>`;
+  }
+  return `<td class="col-count" style="white-space:nowrap">${minus}<input type="number" min="0" step="1" class="stock-input" id="stockCount-${id}" value="${v}" oninput="setStockCount('${id}',this.value)" style="width:56px" aria-label="Counted">${plus}</td>`;
+}
+
+window.setStockCountFrac = function(id) {
+  const whole = Math.max(0, parseInt(document.getElementById('stockCount-' + id).value, 10) || 0);
+  const f = parseFloat(document.getElementById('stockFrac-' + id).value) || 0;
+  _stockCounts[id] = whole + f;
+  saveStockDraft();
+};
+
 window.setStockCount = function(id, raw) {
   _stockCounts[id] = raw === '' ? 0 : Math.max(0, Number(raw) || 0);
   saveStockDraft();
@@ -3165,17 +3198,24 @@ window.stepStockCount = function(id, d) {
   _stockCounts[id] = v;
   saveStockDraft();
   const el = document.getElementById('stockCount-' + id);
-  if (el) el.value = v;
+  const fr = document.getElementById('stockFrac-' + id);
+  if (fr) {
+    const whole = Math.floor(v + 1e-9);
+    if (el) el.value = whole;
+    fr.value = String(Math.round((v - whole) * 4) / 4);
+  } else if (el) el.value = v;
 };
 
 // Deliveries/top-ups (+) or write-offs (−) at any time — goes in `added`, which the usage sum
 // subtracts back out, so neither counts as sales. Done in a modal (− [n] +, OK / Cancel) so a
 // whole delivery is one entry and nothing is written until OK.
 let _stockAdjustId = null;
+let _stockAdjustStep = 1;
 
 window.openStockAdjust = function(id) {
   const item = _allMenuItems.find(i => i.id === id);
   _stockAdjustId = id;
+  _stockAdjustStep = item?.frac ? 0.25 : 1;
   document.getElementById('stockAdjustName').textContent = item?.name || '';
   document.getElementById('stockAdjustQty').value = 0;
   document.getElementById('stockAdjustModal').style.display = 'flex';
@@ -3183,7 +3223,7 @@ window.openStockAdjust = function(id) {
 
 window.stepStockAdjust = function(d) {
   const el = document.getElementById('stockAdjustQty');
-  el.value = (parseInt(el.value, 10) || 0) + d;
+  el.value = (parseFloat(el.value) || 0) + d * _stockAdjustStep;
 };
 
 window.closeStockAdjust = function() {
@@ -3193,7 +3233,7 @@ window.closeStockAdjust = function() {
 
 window.confirmStockAdjust = async function() {
   const id = _stockAdjustId;
-  const delta = parseInt(document.getElementById('stockAdjustQty').value, 10);
+  const delta = Math.round((parseFloat(document.getElementById('stockAdjustQty').value) || 0) * 4) / 4;
   if (!id) return;
   if (!delta) { toast('Use + or − to enter a quantity first', 'error'); return; }
   try {
@@ -3202,7 +3242,7 @@ window.confirmStockAdjust = async function() {
     const cell = document.getElementById('stockOh-' + id);
     if (cell) cell.textContent = stockOnHandLabel(_stock[id]);
     closeStockAdjust();
-    toast(`Stock ${delta > 0 ? 'added' : 'removed'}: ${Math.abs(delta)}`, 'success');
+    toast(`Stock ${delta > 0 ? 'added' : 'removed'}: ${fmtQty(Math.abs(delta))}`, 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
@@ -3273,7 +3313,7 @@ window.printStockList = function() {
     const head = (i.category || '') !== lastCat
       ? `<tr><td colspan="7" style="padding:10px 6px 3px;font-weight:700;font-size:13px;background:#f3f3f3">${escHtml(i.category || 'Uncategorised')}</td></tr>` : '';
     lastCat = i.category || '';
-    return head + `<tr><td ${td}>${escHtml(i.name || '')}</td><td ${td}>${typeof s.costPrice === 'number' ? fmtCurrency(s.costPrice) : '—'}</td><td ${td}>${dash(s.minStock)}</td><td ${td}>${dash(lvl)}</td><td ${td}>${dash(oh)}</td><td ${td}>${(s.restock || 0) || ''}</td><td ${td} style="width:70px;border:1px solid #999"></td></tr>`;
+    return head + `<tr><td ${td}>${escHtml(i.name || '')}</td><td ${td}>${typeof s.costPrice === 'number' ? fmtCurrency(s.costPrice) : '—'}</td><td ${td}>${dash(s.minStock)}</td><td ${td}>${dash(lvl)}</td><td ${td}>${fmtQty(oh)}</td><td ${td}>${(s.restock || 0) || ''}</td><td ${td} style="width:70px;border:1px solid #999"></td></tr>`;
   }).join('');
   printHtml(`<!doctype html><title>Stock list</title><body style="font-family:sans-serif;padding:16px"><h2>Stock list — ${new Date().toLocaleDateString('en-GB')}</h2>
     <table style="border-collapse:collapse;width:100%"><tr><th ${th}>Item</th><th ${th}>Cost</th><th ${th}>Min</th><th ${th}>Restock level</th><th ${th}>On hand</th><th ${th}>To order</th><th ${th}>Counted</th></tr>${rows}</table>
@@ -3403,7 +3443,7 @@ function stockReportHtml(t) {
     <h3 style="margin:0 0 6px">Usage since previous stock take</h3>
     <table style="border-collapse:collapse;width:100%">
       <tr><th ${th}>Category</th><th ${th}>Item</th><th ${th}>Opening</th><th ${th}>Added</th><th ${th}>Counted</th><th ${th}>Used</th><th ${th}>Cost each</th><th ${th}>Cost used</th></tr>
-      ${shown.map(l => `<tr><td ${td}>${escHtml(l.category)}</td><td ${td}>${escHtml(l.name)}</td><td ${td}>${dash(l.opening)}</td><td ${td}>${l.added || 0}</td><td ${td}>${l.counted}</td><td ${td}><b>${dash(l.used)}</b></td><td ${td}>${l.costPrice === null ? '—' : fmtCurrency(l.costPrice)}</td><td ${td}>${l.usedCost === null ? '—' : fmtCurrency(l.usedCost)}</td></tr>`).join('')}
+      ${shown.map(l => `<tr><td ${td}>${escHtml(l.category)}</td><td ${td}>${escHtml(l.name)}</td><td ${td}>${fmtQty(l.opening)}</td><td ${td}>${fmtQty(l.added || 0)}</td><td ${td}>${fmtQty(l.counted)}</td><td ${td}><b>${fmtQty(l.used)}</b></td><td ${td}>${l.costPrice === null ? '—' : fmtCurrency(l.costPrice)}</td><td ${td}>${l.usedCost === null ? '—' : fmtCurrency(l.usedCost)}</td></tr>`).join('')}
       <tr><td ${td} colspan="7"><b>Total cost of stock used</b></td><td ${td}><b>${fmtCurrency(total)}</b></td></tr>
     </table>
     ${noBase ? '<p style="font-size:12px;color:#777">— = no previous count recorded for that item, so this take sets its starting figure.</p>' : ''}`;
@@ -3490,7 +3530,7 @@ function suggestedRestock(id) {
   const s = _stock[id] || {};
   if (typeof s.minStock !== 'number') return 0;
   const now = stockOnHand(s) ?? 0;
-  return now < s.minStock ? Math.max(0, stockRestockLevel(s) - now) : 0;
+  return now < s.minStock ? Math.max(0, Math.ceil(stockRestockLevel(s) - now)) : 0;   // ordered in whole units
 }
 
 function restockQty(id) {
@@ -3506,7 +3546,7 @@ function renderStockRestock() {
     const cost = st.costPrice;
     const nowQty = stockOnHand(st);
     return `<tr>
-      <td>${escHtml(i.name || '')}<br><span style="color:var(--text-muted);font-size:11px">Now ${nowQty ?? '—'} · Min ${st.minStock ?? '—'}<br>Restock level ${stockRestockLevel(st) ?? '—'}</span><br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}${typeof cost === 'number' ? ' · ' + fmtCurrency(cost) + ' each' : ''}</span></td>
+      <td>${escHtml(i.name || '')}<br><span style="color:var(--text-muted);font-size:11px">Now ${fmtQty(nowQty)} · Min ${st.minStock ?? '—'}<br>Restock level ${stockRestockLevel(st) ?? '—'}</span><br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}${typeof cost === 'number' ? ' · ' + fmtCurrency(cost) + ' each' : ''}</span></td>
       <td style="white-space:nowrap;text-align:right">
         <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepRestock('${i.id}',-1)" aria-label="Minus one">−</button>
         <input type="number" min="0" step="1" class="stock-input" id="restockQty-${i.id}" value="${restockQty(i.id)}" onchange="setRestock('${i.id}',this.value)" style="width:64px;text-align:center" aria-label="Quantity to order">
