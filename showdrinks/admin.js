@@ -2998,10 +2998,7 @@ function renderStockTab() {
 }
 
 function updateStockCountSummary() {
-  const el = document.getElementById('stockCountSummary');
-  if (!_stockTaking) { el.textContent = ''; return; }
-  const n = Object.keys(_stockCounts).length;
-  el.textContent = `${_stockTaking}: ` + (n ? `${n} item${n === 1 ? '' : 's'} counted so far (all categories)` : 'nothing counted yet');
+  document.getElementById('stockCountSummary').textContent = _stockTaking ? _stockTaking : '';
 }
 
 // "Non-zero only" checkbox on the Stock view: hides items with nothing on hand. Never applied
@@ -3020,7 +3017,6 @@ function renderStockCount() {
   const items = _allMenuItems.filter(i => _stockCat === 'all' || (i.category || '') === _stockCat).filter(stockPassesNonZero);
   document.getElementById('stockTableBody').innerHTML = items.length ? items.map(i => {
     const s = _stock[i.id] || {};
-    const cnt = _stockCounts[i.id];
     return `<tr>
       <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
       <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
@@ -3028,7 +3024,11 @@ function renderStockCount() {
       <td class="col-edit"><input type="number" min="0" step="1" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>
       <td class="col-edit" style="text-align:center" id="stockOh-${i.id}">${stockOnHandLabel(s)}</td>
       <td class="col-edit" style="text-align:center"><button type="button" class="btn btn-secondary btn-sm" onclick="openStockAdjust('${i.id}')">Add</button></td>
-      <td class="col-count"><input type="number" min="0" step="1" class="stock-input" value="${cnt ?? ''}" oninput="setStockCount('${i.id}',this.value)" aria-label="Counted"></td>
+      <td class="col-count" style="white-space:nowrap">
+        <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepStockCount('${i.id}',-1)" aria-label="Minus one">−</button>
+        <input type="number" min="0" step="1" class="stock-input" id="stockCount-${i.id}" value="${stockCountFor(i.id)}" oninput="setStockCount('${i.id}',this.value)" style="width:56px" aria-label="Counted">
+        <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepStockCount('${i.id}',1)" aria-label="Plus one">+</button>
+      </td>
     </tr>`;
   }).join('') : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
   const counting = !!_stockTaking;
@@ -3103,10 +3103,24 @@ window.saveStockField = async function(id, field, raw) {
   catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
+// A count starts at what should be on the shelf (last count + deliveries since, 0 if never
+// counted). An empty box counts as 0, so whatever was there is treated as used.
+function stockCountFor(id) {
+  if (id in _stockCounts) return _stockCounts[id];
+  return stockOnHand(_stock[id] || {}) ?? 0;
+}
+
 window.setStockCount = function(id, raw) {
-  if (raw === '') delete _stockCounts[id]; else _stockCounts[id] = Number(raw);
+  _stockCounts[id] = raw === '' ? 0 : Math.max(0, Number(raw) || 0);
   saveStockDraft();
-  updateStockCountSummary();
+};
+
+window.stepStockCount = function(id, d) {
+  const v = Math.max(0, stockCountFor(id) + d);
+  _stockCounts[id] = v;
+  saveStockDraft();
+  const el = document.getElementById('stockCount-' + id);
+  if (el) el.value = v;
 };
 
 // Deliveries/top-ups (+) or write-offs (−) at any time — goes in `added`, which the usage sum
@@ -3215,9 +3229,8 @@ window.cancelStockTake = function() {
 };
 
 window.finishStockTake = async function() {
-  const ids = Object.keys(_stockCounts).filter(id => _allMenuItems.some(i => i.id === id));
-  if (!ids.length) { toast('Enter at least one count first', 'error'); return; }
-  const uncounted = _allMenuItems.length - ids.length;
+  const ids = _allMenuItems.map(i => i.id);   // every item is counted; one left empty counts as 0
+  const uncounted = 0;
 
   const eventName = _stockTaking;
   if (!eventName) { toast('Start a stock take first', 'error'); return; }
@@ -3225,7 +3238,7 @@ window.finishStockTake = async function() {
   const lines = ids.map(id => {
     const item = _allMenuItems.find(i => i.id === id);
     const s = _stock[id] || {};
-    const counted = _stockCounts[id];
+    const counted = stockCountFor(id);
     const hasBase = typeof s.base === 'number';
     const opening = hasBase ? s.base : null;
     const added = s.added || 0;
@@ -3268,7 +3281,7 @@ window.confirmStockFinish = async function() {
     ids.forEach(id => {
       const reorder = lines.find(l => l.itemId === id).reorder;
       batch.set(db.collection('showdrinks_stock').doc(id),
-        { base: _stockCounts[id], added: 0, ...(reorder > 0 ? { restock: reorder } : {}) }, { merge: true });
+        { base: lines.find(l => l.itemId === id).counted, added: 0, ...(reorder > 0 ? { restock: reorder } : {}) }, { merge: true });
     });
     await batch.commit();
     closeStockFinish();
