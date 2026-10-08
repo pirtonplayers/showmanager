@@ -2949,8 +2949,8 @@ function saveStockDraft() {
 async function loadStockTab() {
   try {
     const [stockSnap, takesSnap] = await Promise.all([
-      db.collection('showdrinks_stock').get(),
-      db.collection('showdrinks_stockTakes').orderBy('createdAt', 'desc').limit(200).get(),
+      db.collection('showdrinks_stock').get({ source: 'server' }),
+      db.collection('showdrinks_stockTakes').orderBy('createdAt', 'desc').limit(200).get({ source: 'server' }),
     ]);
     _stock = {};
     stockSnap.docs.forEach(d => { _stock[d.id] = d.data(); });
@@ -3330,8 +3330,12 @@ Item figures go back to how they were before it was finished.`)) return;
         added: FV.increment(l.added || 0),
       }, { merge: true });
     });
-    batch.delete(db.collection('showdrinks_stockTakes').doc(t.id));
+    const takeRef = db.collection('showdrinks_stockTakes').doc(t.id);
+    batch.delete(takeRef);
     await batch.commit();
+    // Read it back from the server so a delete that didn't really happen is reported, not hidden.
+    const still = await takeRef.get({ source: 'server' });
+    if (still.exists) { toast('Delete did not go through — the stock take is still on the server', 'error'); return; }
     _stockReportId = null;
     closeStockReport();
     await loadStockTab();
