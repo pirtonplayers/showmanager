@@ -2936,7 +2936,7 @@ async function loadStockTab() {
   try {
     const [stockSnap, takesSnap] = await Promise.all([
       db.collection('showdrinks_stock').get(),
-      db.collection('showdrinks_stockTakes').orderBy('createdAt', 'desc').limit(30).get(),
+      db.collection('showdrinks_stockTakes').orderBy('createdAt', 'desc').limit(200).get(),
     ]);
     _stock = {};
     stockSnap.docs.forEach(d => { _stock[d.id] = d.data(); });
@@ -3048,6 +3048,10 @@ window.finishStockTake = async function() {
       (uncounted ? `\n${uncounted} item(s) not counted will keep their previous figures.` : '') +
       '\nCounted figures become the starting point for the next stock take.')) return;
 
+  const current = _shows.find(s => s.isCurrent);
+  const eventName = (prompt('Name this stock take (the event — used to find it later for billing):', current?.name || '') || '').trim();
+  if (!eventName) { toast('Not saved — a stock take needs an event name', 'error'); return; }
+
   const lines = ids.map(id => {
     const item = _allMenuItems.find(i => i.id === id);
     const s = _stock[id] || {};
@@ -3070,7 +3074,7 @@ window.finishStockTake = async function() {
   try {
     const batch = db.batch();
     const takeRef = db.collection('showdrinks_stockTakes').doc();
-    batch.set(takeRef, { createdAt: firebase.firestore.FieldValue.serverTimestamp(), lines });
+    batch.set(takeRef, { createdAt: firebase.firestore.FieldValue.serverTimestamp(), eventName, lines });
     ids.forEach(id => batch.set(db.collection('showdrinks_stock').doc(id), { base: _stockCounts[id], added: 0 }, { merge: true }));
     await batch.commit();
     _stockCounts = {}; saveStockDraft();
@@ -3085,6 +3089,19 @@ function stockTakeDate(t) {
   const d = t.createdAt?.toDate ? t.createdAt.toDate() : new Date();
   return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
+
+function stockTakeLabel(t) { return `${t.eventName || 'Stock take'} — ${stockTakeDate(t)}`; }
+
+window.renameStockTake = async function() {
+  const t = currentStockTake(); if (!t) return;
+  const name = (prompt('Event name for this stock take:', t.eventName || '') || '').trim();
+  if (!name) return;
+  try {
+    await db.collection('showdrinks_stockTakes').doc(t.id).update({ eventName: name });
+    t.eventName = name;
+    renderStockReports();
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
 
 function currentStockTake() { return _stockTakes.find(t => t.id === _stockReportId) || null; }
 
@@ -3113,7 +3130,7 @@ function stockReportHtml(t) {
 
 function renderStockReports() {
   const sel = document.getElementById('stockReportSelect');
-  sel.innerHTML = _stockTakes.map(t => `<option value="${t.id}" ${t.id === _stockReportId ? 'selected' : ''}>${escHtml(stockTakeDate(t))}</option>`).join('');
+  sel.innerHTML = _stockTakes.map(t => `<option value="${t.id}" ${t.id === _stockReportId ? 'selected' : ''}>${escHtml(stockTakeLabel(t))}</option>`).join('');
   const t = currentStockTake();
   document.getElementById('stockReportActions').style.display = t ? '' : 'none';
   document.getElementById('stockReportBody').innerHTML = t ? stockReportHtml(t)
@@ -3126,7 +3143,7 @@ window.printStockReport = function() {
   const t = currentStockTake(); if (!t) return;
   const w = window.open('', '_blank');
   if (!w) { toast('Allow pop-ups to print', 'error'); return; }
-  w.document.write(`<!doctype html><title>Stock take ${escHtml(stockTakeDate(t))}</title><body style="font-family:sans-serif;padding:16px"><h2>Stock take — ${escHtml(stockTakeDate(t))}</h2>${stockReportHtml(t)}</body>`);
+  w.document.write(`<!doctype html><title>Stock take ${escHtml(stockTakeLabel(t))}</title><body style="font-family:sans-serif;padding:16px"><h2>Stock take — ${escHtml(stockTakeLabel(t))}</h2>${stockReportHtml(t)}</body>`);
   w.document.close(); w.focus(); w.print();
 };
 
@@ -3138,7 +3155,7 @@ window.exportStockCsv = function() {
   const blob = new Blob([rows.map(r => r.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'stock-take.csv';
+  a.download = 'stock-take-' + (t.eventName || 'event').replace(/[^\w-]+/g, '_') + '.csv';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
