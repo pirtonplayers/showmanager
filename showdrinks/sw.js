@@ -1,11 +1,11 @@
-const CACHE = 'showdrinks-1.1.76';
+const CACHE = 'showdrinks-1.1.77';
 const STATIC = [
   './',
   './index.html',
-  './style.css?v=1.1.76',
-  './order.js?v=1.1.76',
-  '../shared/version.js?v=1.1.76',
-  './manifest.json?v=1.1.76',
+  './style.css?v=1.1.77',
+  './order.js?v=1.1.77',
+  '../shared/version.js?v=1.1.77',
+  './manifest.json?v=1.1.77',
 ];
 
 self.addEventListener('install', e => {

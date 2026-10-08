@@ -545,3 +545,4 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
   #printView { position:static; overflow:visible; }
   #printView .print-toolbar { display:none; }
 }
+#printView .print-hint { align-self:center; font-size:12px; color:#666; }

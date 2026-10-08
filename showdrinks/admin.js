@@ -3177,10 +3177,9 @@ function printHtml(html) {
   if (!v) {
     v = document.createElement('div');
     v.id = 'printView';
-    v.innerHTML = '<div class="print-toolbar"><button type="button" class="btn btn-secondary" id="printViewBack">← Back</button><button type="button" class="btn btn-primary" id="printViewPrint">Print</button></div><div id="printViewBody"></div>';
+    v.innerHTML = '<div class="print-toolbar"><button type="button" class="btn btn-secondary" id="printViewBack">← Back</button><span class="print-hint">Print with your browser’s Print option</span></div><div id="printViewBody"></div>';
     document.body.appendChild(v);
     document.getElementById('printViewBack').addEventListener('click', () => { v.style.display = 'none'; });
-    document.getElementById('printViewPrint').addEventListener('click', () => window.print());
   }
   document.getElementById('printViewBody').innerHTML = m ? m[1] : html;
   v.style.display = 'block';
