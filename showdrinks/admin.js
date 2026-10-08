@@ -3174,23 +3174,13 @@ window.clearAllStock = async function() {
     toast('All stock reset to 0', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
-// Full-page print view inside the app: a white page with a Back button. It never calls
-// window.print() (the browser blocked that) — print it with the browser's own Print option;
-// style.css's @media print hides everything but this page. Back returns to the app where you were.
-// to the app exactly where you were.
+// Stock prints (stock list, restock list, stock take report) open the document in a new window and
+// call print() on it — the same way they worked before the in-page print view was tried.
 function printHtml(html) {
-  const m = html.match(/<body[^>]*>([\s\S]*)<\/body>/);
-  let v = document.getElementById('printView');
-  if (!v) {
-    v = document.createElement('div');
-    v.id = 'printView';
-    v.innerHTML = '<div class="print-toolbar"><button type="button" class="btn btn-secondary" id="printViewBack">← Back</button><span class="print-hint">Print with your browser’s Print option</span></div><div id="printViewBody"></div>';
-    document.body.appendChild(v);
-    document.getElementById('printViewBack').addEventListener('click', () => { v.style.display = 'none'; });
-  }
-  document.getElementById('printViewBody').innerHTML = m ? m[1] : html;
-  v.style.display = 'block';
-  v.scrollTop = 0;
+  const w = window.open('', '_blank');
+  if (!w) { toast('Allow pop-ups to print', 'error'); return; }
+  w.document.write(html);
+  w.document.close(); w.focus(); w.print();
 }
 
 // Printable count sheet: every item by category with its current figures and a blank box to

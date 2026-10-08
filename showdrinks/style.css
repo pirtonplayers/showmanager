@@ -537,12 +537,3 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .dropdown-menu .menu-item { display: block; width: 100%; text-align: left; padding: 10px 12px; border: none; border-radius: 6px; background: none; font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer; white-space: nowrap; }
 .dropdown-menu .menu-item:hover { background: var(--bg); }
 .dropdown-menu .menu-item.active { color: var(--primary); background: var(--primary-light); }
-#printView { display:none; position:fixed; inset:0; z-index:1000; background:#fff; color:#000; overflow:auto; font-family:sans-serif; }
-#printView .print-toolbar { position:sticky; top:0; display:flex; gap:8px; padding:10px 16px; background:#fff; border-bottom:1px solid #ccc; }
-#printViewBody { padding:16px; }
-@media print {
-  body > *:not(#printView) { display:none !important; }
-  #printView { position:static; overflow:visible; }
-  #printView .print-toolbar { display:none; }
-}
-#printView .print-hint { align-self:center; font-size:12px; color:#666; }
