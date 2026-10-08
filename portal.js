@@ -360,7 +360,8 @@ firebase.auth().onAuthStateChanged(async user => {
       document.getElementById('adminApp').style.display = 'block';
       renderTiles(data);
       renderShellNav();
-      preloadApps();
+      // Apps load on demand (activateApp -> ensureFrame) — preloadApps() used to start every
+      // accessible app's iframe here, which slowed the first screen down.
       if (!dashboardInitialized) {
         dashboardInitialized = true;
         document.getElementById('headerVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';
