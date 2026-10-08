@@ -871,7 +871,7 @@ function openModal(title, ctx) {
     document.getElementById('editShowOnTab').checked = ctx.showOnTab !== false;
     document.getElementById('editShowOnPos').checked = ctx.showOnPos !== false;
     document.getElementById('editStk').checked = ctx.stk !== false;
-    // Cost / Min stock / Reorder level live in showdrinks_stock/{id} (not on the public menu item).
+    // Cost / Min stock / Restock level live in showdrinks_stock/{id} (not on the public menu item).
     const fillStock = st => {
       document.getElementById('editCost').value = st.costPrice ?? '';
       document.getElementById('editMinStock').value = st.minStock ?? '';
@@ -3213,10 +3213,10 @@ document.addEventListener('click', () => {
 });
 
 // Zeroes every item's stock figures (counted base, deliveries since, restock quantity) and drops
-// any in-progress count. Cost, Min and Restock-to are item settings and stay; old stock takes
+// any in-progress count. Cost, Min and Restock level are item settings and stay; old stock takes
 // (showdrinks_stockTakes) are never touched.
 window.clearAllStock = async function() {
-  const msg = 'Reset all stock to 0? This zeroes every item stock, deliveries and restock quantity, and cancels any stock take in progress. Cost, Min and Restock-to settings and previous stock takes are kept.';
+  const msg = 'Reset all stock to 0? This zeroes every item stock, deliveries and restock quantity, and cancels any stock take in progress. Cost, Min and Restock level settings and previous stock takes are kept.';
   if (!confirm(msg)) return;
   try {
     for (let i = 0; i < _allMenuItems.length; i += 400) {
@@ -3265,7 +3265,7 @@ window.printStockList = function() {
     return head + `<tr><td ${td}>${escHtml(i.name || '')}</td><td ${td}>${typeof s.costPrice === 'number' ? fmtCurrency(s.costPrice) : '—'}</td><td ${td}>${dash(s.minStock)}</td><td ${td}>${dash(lvl)}</td><td ${td}>${dash(oh)}</td><td ${td}>${(s.restock || 0) || ''}</td><td ${td} style="width:70px;border:1px solid #999"></td></tr>`;
   }).join('');
   printHtml(`<!doctype html><title>Stock list</title><body style="font-family:sans-serif;padding:16px"><h2>Stock list — ${new Date().toLocaleDateString('en-GB')}</h2>
-    <table style="border-collapse:collapse;width:100%"><tr><th ${th}>Item</th><th ${th}>Cost</th><th ${th}>Min</th><th ${th}>Restock to</th><th ${th}>On hand</th><th ${th}>To order</th><th ${th}>Counted</th></tr>${rows}</table>
+    <table style="border-collapse:collapse;width:100%"><tr><th ${th}>Item</th><th ${th}>Cost</th><th ${th}>Min</th><th ${th}>Restock level</th><th ${th}>On hand</th><th ${th}>To order</th><th ${th}>Counted</th></tr>${rows}</table>
     <p style="font-size:13px"><b>Value of stock on hand:</b> ${fmtCurrency(total)}</p></body>`);
 };
 
@@ -3481,7 +3481,7 @@ function renderStockRestock() {
     const cost = st.costPrice;
     const nowQty = stockOnHand(st);
     return `<tr>
-      <td>${escHtml(i.name || '')}<br><span style="color:var(--text-muted);font-size:11px">Now ${nowQty ?? '—'} · Min ${st.minStock ?? '—'} · Restock to ${stockRestockLevel(st) ?? '—'}</span><br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}${typeof cost === 'number' ? ' · ' + fmtCurrency(cost) + ' each' : ''}</span></td>
+      <td>${escHtml(i.name || '')}<br><span style="color:var(--text-muted);font-size:11px">Now ${nowQty ?? '—'} · Min ${st.minStock ?? '—'} · Restock level ${stockRestockLevel(st) ?? '—'}</span><br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}${typeof cost === 'number' ? ' · ' + fmtCurrency(cost) + ' each' : ''}</span></td>
       <td style="white-space:nowrap;text-align:right">
         <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepRestock('${i.id}',-1)" aria-label="Minus one">−</button>
         <input type="number" min="0" step="1" class="stock-input" id="restockQty-${i.id}" value="${restockQty(i.id)}" onchange="setRestock('${i.id}',this.value)" style="width:64px;text-align:center" aria-label="Quantity to order">

@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.95"></script>
+  <script src="../shared/embed.js?v=1.1.96"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.95">
+  <link rel="stylesheet" href="style.css?v=1.1.96">
 </head>
 <body>
 
@@ -406,7 +406,7 @@
               <th style="min-width:110px">Item</th>
               <th class="col-edit" style="width:60px">Cost £</th>
               <th class="col-edit" style="width:48px">Min</th>
-              <th class="col-edit" style="width:48px">Restock to</th>
+              <th class="col-edit" style="width:48px">Restock level</th>
               <th class="col-edit" style="width:48px;text-align:center">On hand</th>
               <th class="col-edit" style="width:52px"></th>
               <th class="col-count" style="width:150px">Counted</th>
@@ -820,7 +820,7 @@
         <div style="display:flex;gap:10px;margin-top:10px">
           <div style="flex:1"><label for="editCost" style="font-size:12px">Cost £</label><input type="number" id="editCost" class="form-control" min="0" step="0.01"></div>
           <div style="flex:1"><label for="editMinStock" style="font-size:12px">Min stock</label><input type="number" id="editMinStock" class="form-control" min="0" step="1"></div>
-          <div style="flex:1"><label for="editRestockTo" style="font-size:12px">Reorder level</label><input type="number" id="editRestockTo" class="form-control" min="0" step="1"></div>
+          <div style="flex:1"><label for="editRestockTo" style="font-size:12px">Restock level</label><input type="number" id="editRestockTo" class="form-control" min="0" step="1"></div>
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
@@ -1054,11 +1054,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.95"></script>
-<script src="../shared/firebase-config.js?v=1.1.95"></script>
-<script src="../shared/auth.js?v=1.1.95"></script>
-<script src="../shared/suite-nav.js?v=1.1.95"></script>
-<script src="admin.js?v=1.1.95"></script>
+<script src="../shared/version.js?v=1.1.96"></script>
+<script src="../shared/firebase-config.js?v=1.1.96"></script>
+<script src="../shared/auth.js?v=1.1.96"></script>
+<script src="../shared/suite-nav.js?v=1.1.96"></script>
+<script src="admin.js?v=1.1.96"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
