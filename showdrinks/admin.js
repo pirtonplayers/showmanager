@@ -2989,7 +2989,8 @@ function renderStockTab() {
   document.getElementById('stockViewReports').classList.toggle('active', _stockView === 'reports');
   document.getElementById('stockCountView').style.display   = _stockView === 'count' ? '' : 'none';
   document.getElementById('stockViewRestock').classList.toggle('active', _stockView === 'restock');
-  document.getElementById('stockActionsWrap').style.display = _stockView === 'count' ? '' : 'none';
+  document.getElementById('stockCountActions').style.display = _stockView === 'count' ? '' : 'none';
+  document.querySelectorAll('.stock-menu-view').forEach(b => b.classList.toggle('active', b.dataset.view === _stockView));
   document.getElementById('stockReportsView').style.display = _stockView === 'reports' ? '' : 'none';
   document.getElementById('stockRestockView').style.display = _stockView === 'restock' ? '' : 'none';
   if (_stockView === 'count') renderStockCount();
