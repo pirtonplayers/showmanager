@@ -2988,13 +2988,12 @@ function stockOnHandLabel(s) {
 
 function renderStockTab() {
   document.getElementById('stockCountView').style.display   = _stockView === 'count' ? '' : 'none';
-  document.getElementById('stockCountActions').style.display = _stockView === 'count' ? '' : 'none';
   document.querySelectorAll('.stock-menu-view').forEach(b => b.classList.toggle('active', b.dataset.view === _stockView));
   document.getElementById('stockReportsView').style.display = _stockView === 'reports' ? '' : 'none';
   document.getElementById('stockRestockView').style.display = _stockView === 'restock' ? '' : 'none';
-  if (_stockView === 'count') renderStockCount();
-  else if (_stockView === 'reports') renderStockReports();
-  else renderStockRestock();
+  renderStockCount();   // also keeps the ⋯ menu's Start/Finish/Cancel items current on every view
+  if (_stockView === 'reports') renderStockReports();
+  else if (_stockView === 'restock') renderStockRestock();
 }
 
 function updateStockCountSummary() {
@@ -3035,6 +3034,7 @@ function renderStockCount() {
 
 // Event name comes from a dropdown of all shows (current one preselected), or "Other" to type one.
 window.startStockTake = function() {
+  if (_stockView !== 'count') setStockView('count');
   const sel = document.getElementById('stockEventSelect');
   const current = _shows.find(s => s.isCurrent);
   sel.innerHTML = _shows.map(s => `<option value="${escHtml(s.name || '')}" ${s === current ? 'selected' : ''}>${escHtml(s.name || 'Unnamed show')}${s === current ? ' (current)' : ''}</option>`).join('')
@@ -3048,6 +3048,7 @@ window.startStockTake = function() {
 // Opening stock: the same count screen, saved as a stock take called "Opening stock" that sets
 // every counted item's starting figure but records no usage (nothing to compare against).
 window.startOpeningStock = function() {
+  if (_stockView !== 'count') setStockView('count');
   _stockOpening = true;
   _stockTaking = 'Opening stock';
   saveStockSession();
@@ -3166,12 +3167,21 @@ window.clearAllStock = async function() {
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
+// Prints in a hidden iframe on this same page — a new tab/window left phone users with no way back
+// to the app once the print dialog closed.
+function printHtml(html) {
+  const f = document.createElement('iframe');
+  f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(f);
+  const d = f.contentWindow.document;
+  d.open(); d.write(html); d.close();
+  setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 60000); }, 150);
+}
+
 // Printable count sheet: every item by category with its current figures and a blank box to
 // write the count in.
 window.printStockList = function() {
   if (!_allMenuItems.length) { toast('No items to print', 'error'); return; }
-  const w = window.open('', '_blank');
-  if (!w) { toast('Allow pop-ups to print', 'error'); return; }
   const th = 'style="text-align:left;padding:4px 6px;border-bottom:2px solid #999;font-size:12px"';
   const td = 'style="padding:5px 6px;border-bottom:1px solid #ddd;font-size:13px"';
   const dash = v => v === null || v === undefined ? '—' : v;
@@ -3186,10 +3196,9 @@ window.printStockList = function() {
     lastCat = i.category || '';
     return head + `<tr><td ${td}>${escHtml(i.name || '')}</td><td ${td}>${typeof s.costPrice === 'number' ? fmtCurrency(s.costPrice) : '—'}</td><td ${td}>${dash(s.minStock)}</td><td ${td}>${dash(lvl)}</td><td ${td}>${dash(oh)}</td><td ${td}>${(s.restock || 0) || ''}</td><td ${td} style="width:70px;border:1px solid #999"></td></tr>`;
   }).join('');
-  w.document.write(`<!doctype html><title>Stock list</title><body style="font-family:sans-serif;padding:16px"><h2>Stock list — ${new Date().toLocaleDateString('en-GB')}</h2>
+  printHtml(`<!doctype html><title>Stock list</title><body style="font-family:sans-serif;padding:16px"><h2>Stock list — ${new Date().toLocaleDateString('en-GB')}</h2>
     <table style="border-collapse:collapse;width:100%"><tr><th ${th}>Item</th><th ${th}>Cost</th><th ${th}>Min</th><th ${th}>Restock to</th><th ${th}>On hand</th><th ${th}>To order</th><th ${th}>Counted</th></tr>${rows}</table>
     <p style="font-size:13px"><b>Value of stock on hand:</b> ${fmtCurrency(total)}</p></body>`);
-  w.document.close(); w.focus(); w.print();
 };
 
 window.cancelStockTake = function() {
@@ -3418,8 +3427,6 @@ window.confirmRestockAdd = async function() {
 window.printRestock = function() {
   const rows = _allMenuItems.filter(i => restockQty(i.id) > 0);
   if (!rows.length) { toast('Nothing on the restock list', 'error'); return; }
-  const w = window.open('', '_blank');
-  if (!w) { toast('Allow pop-ups to print', 'error'); return; }
   let total = 0;
   const td = 'style="padding:4px 8px;border-bottom:1px solid #ddd;font-size:14px"';
   const body = rows.map(i => {
@@ -3427,10 +3434,9 @@ window.printRestock = function() {
     if (typeof c === 'number') total += q * c;
     return `<tr><td ${td}>${escHtml(i.category || '')}</td><td ${td}>${escHtml(i.name || '')}</td><td ${td}><b>${q}</b></td><td ${td}>${typeof c === 'number' ? fmtCurrency(q * c) : '—'}</td></tr>`;
   }).join('');
-  w.document.write(`<!doctype html><title>Restock list</title><body style="font-family:sans-serif;padding:16px"><h2>Restock list — ${new Date().toLocaleDateString('en-GB')}</h2>
+  printHtml(`<!doctype html><title>Restock list</title><body style="font-family:sans-serif;padding:16px"><h2>Restock list — ${new Date().toLocaleDateString('en-GB')}</h2>
     <table style="border-collapse:collapse;width:100%"><tr><th style="text-align:left">Category</th><th style="text-align:left">Item</th><th style="text-align:left">Order</th><th style="text-align:left">Est. cost</th></tr>${body}
     <tr><td ${td} colspan="3"><b>Estimated total</b></td><td ${td}><b>${fmtCurrency(total)}</b></td></tr></table></body>`);
-  w.document.close(); w.focus(); w.print();
 };
 
 window.receiveRestock = async function() {
@@ -3451,10 +3457,7 @@ window.receiveRestock = async function() {
 
 window.printStockReport = function() {
   const t = currentStockTake(); if (!t) return;
-  const w = window.open('', '_blank');
-  if (!w) { toast('Allow pop-ups to print', 'error'); return; }
-  w.document.write(`<!doctype html><title>Stock take ${escHtml(stockTakeLabel(t))}</title><body style="font-family:sans-serif;padding:16px"><h2>Stock take — ${escHtml(stockTakeLabel(t))}</h2>${stockReportHtml(t)}</body>`);
-  w.document.close(); w.focus(); w.print();
+  printHtml(`<!doctype html><title>Stock take ${escHtml(stockTakeLabel(t))}</title><body style="font-family:sans-serif;padding:16px"><h2>Stock take — ${escHtml(stockTakeLabel(t))}</h2>${stockReportHtml(t)}</body>`);
 };
 
 window.exportStockCsv = function() {
