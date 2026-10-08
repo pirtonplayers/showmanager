@@ -3167,15 +3167,24 @@ window.clearAllStock = async function() {
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
-// Prints in a hidden iframe on this same page — a new tab/window left phone users with no way back
-// to the app once the print dialog closed.
+// Full-page print view inside the app: a white page with Back and Print buttons. Print is a direct
+// tap on window.print() (browsers can block printing that isn't straight from a tap, or from a
+// popup/hidden frame), and style.css's @media print hides everything but this page. Back returns
+// to the app exactly where you were.
 function printHtml(html) {
-  const f = document.createElement('iframe');
-  f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-  document.body.appendChild(f);
-  const d = f.contentWindow.document;
-  d.open(); d.write(html); d.close();
-  setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 60000); }, 150);
+  const m = html.match(/<body[^>]*>([\s\S]*)<\/body>/);
+  let v = document.getElementById('printView');
+  if (!v) {
+    v = document.createElement('div');
+    v.id = 'printView';
+    v.innerHTML = '<div class="print-toolbar"><button type="button" class="btn btn-secondary" id="printViewBack">← Back</button><button type="button" class="btn btn-primary" id="printViewPrint">Print</button></div><div id="printViewBody"></div>';
+    document.body.appendChild(v);
+    document.getElementById('printViewBack').addEventListener('click', () => { v.style.display = 'none'; });
+    document.getElementById('printViewPrint').addEventListener('click', () => window.print());
+  }
+  document.getElementById('printViewBody').innerHTML = m ? m[1] : html;
+  v.style.display = 'block';
+  v.scrollTop = 0;
 }
 
 // Printable count sheet: every item by category with its current figures and a blank box to
