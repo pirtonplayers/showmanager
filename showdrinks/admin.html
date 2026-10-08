@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.93"></script>
+  <script src="../shared/embed.js?v=1.1.94"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.93">
+  <link rel="stylesheet" href="style.css?v=1.1.94">
 </head>
 <body>
 
@@ -373,8 +373,8 @@
 
   <!-- ── STOCK TAKE ── -->
   <div id="tab-stock" class="tab-panel">
-    <div class="section-header">
-      <h2>Stock</h2>
+    <div class="section-header" id="stockHeader">
+      <h2 id="stockTitle">Stock</h2>
       <div style="display:flex;gap:6px">
         <div style="position:relative" id="stockActionsWrap">
           <button class="btn btn-secondary btn-sm" onclick="toggleStockActions(event)" aria-label="Stock actions" title="Stock actions">⋯</button>
@@ -1049,11 +1049,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.93"></script>
-<script src="../shared/firebase-config.js?v=1.1.93"></script>
-<script src="../shared/auth.js?v=1.1.93"></script>
-<script src="../shared/suite-nav.js?v=1.1.93"></script>
-<script src="admin.js?v=1.1.93"></script>
+<script src="../shared/version.js?v=1.1.94"></script>
+<script src="../shared/firebase-config.js?v=1.1.94"></script>
+<script src="../shared/auth.js?v=1.1.94"></script>
+<script src="../shared/suite-nav.js?v=1.1.94"></script>
+<script src="admin.js?v=1.1.94"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
