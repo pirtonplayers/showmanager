@@ -525,9 +525,10 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 
 .stock-step { min-width:34px; padding:6px 0; font-size:16px; font-weight:700; }
 .stock-step-lg { min-width:48px; padding:10px 0; font-size:22px; font-weight:700; }
-.stock-table { min-width: 380px; }
+.stock-table { min-width: 340px; }
 .stock-table th, .stock-table td { padding-left: 4px; padding-right: 4px; }
-.stock-table th { white-space: normal; line-height: 1.2; }
+.stock-table th { white-space: normal; line-height: 1.2; font-size: 9px; letter-spacing: 0; padding-left: 2px; padding-right: 2px; }
+.stock-table .btn-sm { padding: 5px 6px; }
 .stock-table .stock-input { padding: 4px 2px; text-align: center; -moz-appearance: textfield; }
 .stock-table .stock-input::-webkit-outer-spin-button, .stock-table .stock-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .stock-table .col-count { display: none; }
