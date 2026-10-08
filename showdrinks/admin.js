@@ -3148,9 +3148,35 @@ function renderStockReports() {
   sel.innerHTML = _stockTakes.map(t => `<option value="${t.id}" ${t.id === _stockReportId ? 'selected' : ''}>${escHtml(stockTakeLabel(t))}</option>`).join('');
   const t = currentStockTake();
   document.getElementById('stockReportActions').style.display = t ? '' : 'none';
+  document.getElementById('stockDeleteBtn').style.display = t && t.id === _stockTakes[0]?.id ? '' : 'none';
   document.getElementById('stockReportBody').innerHTML = t ? stockReportHtml(t)
     : '<p style="color:var(--text-muted)">No stock takes yet — count some items and press Finish stock take.</p>';
 }
+
+// Only the latest take can be deleted, and doing so rolls the stock back: every item it counted
+// goes back to its previous count (base) and gets that take's deliveries put back into `added`,
+// on top of anything added since — so deleting a take made by mistake loses nothing.
+window.deleteLatestStockTake = async function() {
+  const t = currentStockTake();
+  if (!t || t.id !== _stockTakes[0]?.id) { toast('Only the latest stock take can be deleted', 'error'); return; }
+  if (!confirm(`Delete the stock take "${t.eventName || 'Stock take'}"?
+Item figures go back to how they were before it was finished.`)) return;
+  try {
+    const FV = firebase.firestore.FieldValue;
+    const batch = db.batch();
+    (t.lines || []).forEach(l => {
+      batch.set(db.collection('showdrinks_stock').doc(l.itemId), {
+        base: typeof l.opening === 'number' ? l.opening : FV.delete(),
+        added: FV.increment(l.added || 0),
+      }, { merge: true });
+    });
+    batch.delete(db.collection('showdrinks_stockTakes').doc(t.id));
+    await batch.commit();
+    _stockReportId = null;
+    await loadStockTab();
+    toast('Stock take deleted', 'success');
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
 
 window.selectStockReport = function(id) { _stockReportId = id; renderStockReports(); };
 
