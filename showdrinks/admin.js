@@ -3166,10 +3166,9 @@ window.clearAllStock = async function() {
     toast('All stock reset to 0', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
-
-// Full-page print view inside the app: a white page with Back and Print buttons. Print is a direct
-// tap on window.print() (browsers can block printing that isn't straight from a tap, or from a
-// popup/hidden frame), and style.css's @media print hides everything but this page. Back returns
+// Full-page print view inside the app: a white page with a Back button. It never calls
+// window.print() (the browser blocked that) — print it with the browser's own Print option;
+// style.css's @media print hides everything but this page. Back returns to the app where you were.
 // to the app exactly where you were.
 function printHtml(html) {
   const m = html.match(/<body[^>]*>([\s\S]*)<\/body>/);
