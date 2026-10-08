@@ -921,6 +921,7 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
         });
       }
       await loadMenuItems();
+      if (document.getElementById('tab-stock').classList.contains('active')) renderStockTab();
       closeModal();
     }
     toast('Saved', 'success');
@@ -3169,6 +3170,15 @@ window.confirmStockAdjust = async function() {
     closeStockAdjust();
     toast(`Stock ${delta > 0 ? 'added' : 'removed'}: ${Math.abs(delta)}`, 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+
+// Same Add Item screen as the Price List (Stk ticked by default), opened on the category being
+// viewed; the Stock list refreshes when it's saved (see the save handler in the item modal).
+window.addStockItem = function() {
+  const prev = _selectedMenuCat;
+  _selectedMenuCat = _stockCat && _stockCat !== 'all' ? _stockCat : 'all';
+  openAddMenuItemModal();
+  _selectedMenuCat = prev;
 };
 
 window.toggleStockActions = function(e) {
