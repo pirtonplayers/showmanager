@@ -2933,6 +2933,7 @@ let _stockReportId = null;
 let _restockIds  = null;   // item ids shown on the Restock page (null = recompute on next render)
 const STOCK_DRAFT_KEY = 'showdrinks_stock_draft';
 const STOCK_SESSION_KEY = 'showdrinks_stock_session';
+let _stockUsedOnly = false;   // report option: only list items that had usage
 let _stockPending = null;   // results of a finished count awaiting the user's confirmation
 let _stockOpening = false;   // true while the take in progress is an opening-stock entry (no usage)
 let _stockTaking = null;   // event name while a stock take is in progress, else null
@@ -3230,6 +3231,24 @@ window.cancelStockTake = function() {
   renderStockCount();
 };
 
+function renderStockFinishBody() {
+  if (!_stockPending) return;
+  const { eventName, lines } = _stockPending;
+  const uncounted = 0;
+  const v = stockTakeValues({ lines });
+  document.getElementById('stockFinishTitle').textContent = eventName;
+  document.getElementById('stockFinishBody').innerHTML =
+    `<p style="margin:0 0 10px;font-size:13px"><b>Stock value:</b> ${fmtCurrency(v.stock)} &nbsp; <b>Used value:</b> ${fmtCurrency(v.used)}</p>` +
+    stockReportHtml({ lines });
+}
+
+window.setStockUsedOnly = function(on) {
+  _stockUsedOnly = !!on;
+  document.querySelectorAll('.stock-used-only').forEach(c => { c.checked = _stockUsedOnly; });
+  renderStockFinishBody();
+  renderStockReportModal();
+};
+
 window.finishStockTake = async function() {
   const ids = _allMenuItems.map(i => i.id);   // every item is counted; one left empty counts as 0
   const uncounted = 0;
@@ -3259,12 +3278,7 @@ window.finishStockTake = async function() {
 
   // Nothing is saved yet: show the results and let the user confirm (or go back and keep counting).
   _stockPending = { eventName, lines, ids };
-  const v = stockTakeValues({ lines });
-  document.getElementById('stockFinishTitle').textContent = eventName;
-  document.getElementById('stockFinishBody').innerHTML =
-    `<p style="margin:0 0 10px;font-size:13px"><b>Stock value:</b> ${fmtCurrency(v.stock)} &nbsp; <b>Used value:</b> ${fmtCurrency(v.used)}` +
-    (uncounted ? ` &nbsp; <span style="color:#777">${uncounted} item(s) not counted keep their previous figures</span>` : '') + '</p>' +
-    stockReportHtml({ lines });
+  renderStockFinishBody();
   document.getElementById('stockFinishModal').style.display = 'flex';
 };
 
@@ -3322,6 +3336,7 @@ function currentStockTake() { return _stockTakes.find(t => t.id === _stockReport
 
 function stockReportHtml(t) {
   const lines = (t.lines || []).slice().sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || ''));
+  const shown = _stockUsedOnly ? lines.filter(l => (l.used || 0) !== 0) : lines;
   const dash = v => v === null || v === undefined ? '—' : v;
   const total = lines.reduce((s, l) => s + (l.usedCost || 0), 0);
   const noBase = lines.some(l => l.used === null);
@@ -3331,7 +3346,7 @@ function stockReportHtml(t) {
     <h3 style="margin:0 0 6px">Usage since previous stock take</h3>
     <table style="border-collapse:collapse;width:100%">
       <tr><th ${th}>Category</th><th ${th}>Item</th><th ${th}>Opening</th><th ${th}>Added</th><th ${th}>Counted</th><th ${th}>Used</th><th ${th}>Cost each</th><th ${th}>Cost used</th></tr>
-      ${lines.map(l => `<tr><td ${td}>${escHtml(l.category)}</td><td ${td}>${escHtml(l.name)}</td><td ${td}>${dash(l.opening)}</td><td ${td}>${l.added || 0}</td><td ${td}>${l.counted}</td><td ${td}><b>${dash(l.used)}</b></td><td ${td}>${l.costPrice === null ? '—' : fmtCurrency(l.costPrice)}</td><td ${td}>${l.usedCost === null ? '—' : fmtCurrency(l.usedCost)}</td></tr>`).join('')}
+      ${shown.map(l => `<tr><td ${td}>${escHtml(l.category)}</td><td ${td}>${escHtml(l.name)}</td><td ${td}>${dash(l.opening)}</td><td ${td}>${l.added || 0}</td><td ${td}>${l.counted}</td><td ${td}><b>${dash(l.used)}</b></td><td ${td}>${l.costPrice === null ? '—' : fmtCurrency(l.costPrice)}</td><td ${td}>${l.usedCost === null ? '—' : fmtCurrency(l.usedCost)}</td></tr>`).join('')}
       <tr><td ${td} colspan="7"><b>Total cost of stock used</b></td><td ${td}><b>${fmtCurrency(total)}</b></td></tr>
     </table>
     ${noBase ? '<p style="font-size:12px;color:#777">— = no previous count recorded for that item, so this take sets its starting figure.</p>' : ''}`;
@@ -3503,7 +3518,7 @@ window.exportStockCsv = function() {
   const t = currentStockTake(); if (!t) return;
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   const rows = [['Category', 'Item', 'Opening', 'Added', 'Counted', 'Used', 'Cost each', 'Cost used', 'Minimum', 'Order at least']];
-  (t.lines || []).forEach(l => rows.push([l.category, l.name, l.opening, l.added, l.counted, l.used, l.costPrice, l.usedCost, l.minStock, l.reorder]));
+  (t.lines || []).filter(l => !_stockUsedOnly || (l.used || 0) !== 0).forEach(l => rows.push([l.category, l.name, l.opening, l.added, l.counted, l.used, l.costPrice, l.usedCost, l.minStock, l.reorder]));
   const blob = new Blob([rows.map(r => r.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
