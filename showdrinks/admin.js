@@ -420,7 +420,7 @@ function renderMenuTable() {
     ? 'No items match this filter.'
     : 'No items yet — + Add Item to get started.';
   tbody.innerHTML = items.length ? items.map(i => menuItemRow(i.id, i)).join('')
-    : `<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">${emptyMsg}</td></tr>`;
+    : `<tr><td colspan="7" style="color:var(--text-muted);padding:20px;text-align:center">${emptyMsg}</td></tr>`;
 }
 
 function menuItemRow(id, item) {
@@ -435,6 +435,9 @@ function menuItemRow(id, item) {
     </td>
     <td style="text-align:center">
       <input type="checkbox" ${showOnTab ? 'checked' : ''} onchange="toggleMenuItemShowOn('${id}', 'showOnTab', this)" title="Show on Bar Tabs" aria-label="Show on Bar Tabs">
+    </td>
+    <td style="text-align:center">
+      <input type="checkbox" ${item.stk !== false ? 'checked' : ''} onchange="toggleMenuItemShowOn('${id}', 'stk', this)" title="Stock take item" aria-label="Stock take item">
     </td>
     <td style="text-align:center">
       <button type="button" class="icon-btn" onclick="openEditMenuItemModal('${id}')" title="Edit" aria-label="Edit">${ICON_EDIT}</button>
