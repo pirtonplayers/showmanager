@@ -3263,7 +3263,6 @@ function stockReportHtml(t) {
   const dash = v => v === null || v === undefined ? '—' : v;
   const total = lines.reduce((s, l) => s + (l.usedCost || 0), 0);
   const noBase = lines.some(l => l.used === null);
-  const restock = lines.filter(l => l.reorder > 0);
   const th = 'style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc;font-size:12px"';
   const td = 'style="padding:4px 8px;border-bottom:1px solid #eee;font-size:13px"';
   return `
@@ -3273,12 +3272,7 @@ function stockReportHtml(t) {
       ${lines.map(l => `<tr><td ${td}>${escHtml(l.category)}</td><td ${td}>${escHtml(l.name)}</td><td ${td}>${dash(l.opening)}</td><td ${td}>${l.added || 0}</td><td ${td}>${l.counted}</td><td ${td}><b>${dash(l.used)}</b></td><td ${td}>${l.costPrice === null ? '—' : fmtCurrency(l.costPrice)}</td><td ${td}>${l.usedCost === null ? '—' : fmtCurrency(l.usedCost)}</td></tr>`).join('')}
       <tr><td ${td} colspan="7"><b>Total cost of stock used</b></td><td ${td}><b>${fmtCurrency(total)}</b></td></tr>
     </table>
-    ${noBase ? '<p style="font-size:12px;color:#777">— = no previous count recorded for that item, so this take sets its starting figure.</p>' : ''}
-    <h3 style="margin:20px 0 6px">Restocking list</h3>
-    ${restock.length ? `<table style="border-collapse:collapse;width:100%">
-      <tr><th ${th}>Category</th><th ${th}>Item</th><th ${th}>In stock</th><th ${th}>Minimum</th><th ${th}>Restock to</th><th ${th}>Order</th></tr>
-      ${restock.map(l => `<tr><td ${td}>${escHtml(l.category)}</td><td ${td}>${escHtml(l.name)}</td><td ${td}>${l.counted}</td><td ${td}>${l.minStock}</td><td ${td}>${l.restockTo ?? l.minStock}</td><td ${td}><b>${l.reorder}</b></td></tr>`).join('')}
-    </table>` : '<p style="font-size:13px;color:#777">Nothing below its minimum level.</p>'}`;
+    ${noBase ? '<p style="font-size:12px;color:#777">— = no previous count recorded for that item, so this take sets its starting figure.</p>' : ''}`;
 }
 
 // Stock value = what was counted at the take × cost price; used value = the cost of what was used.
