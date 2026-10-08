@@ -3221,7 +3221,7 @@ window.clearAllStock = async function() {
   try {
     for (let i = 0; i < _allMenuItems.length; i += 400) {
       const batch = db.batch();
-      _allMenuItems.slice(i, i + 400).forEach(it => batch.set(db.collection('showdrinks_stock').doc(it.id), { base: 0, added: 0, restock: 0 }, { merge: true }));
+      _allMenuItems.slice(i, i + 400).forEach(it => batch.set(db.collection('showdrinks_stock').doc(it.id), { base: 0, added: 0, restock: firebase.firestore.FieldValue.delete() }, { merge: true }));
       await batch.commit();
     }
     _stockCounts = {}; saveStockDraft();
@@ -3339,11 +3339,11 @@ window.confirmStockFinish = async function() {
     const batch = db.batch();
     const takeRef = db.collection('showdrinks_stockTakes').doc();
     batch.set(takeRef, { createdAt: firebase.firestore.FieldValue.serverTimestamp(), eventName, ...(_stockOpening ? { opening: true } : {}), lines });
-    // Items counted below their minimum go straight onto the Restock list (quantity to reach the minimum).
+    // The Restock list is worked out from current stock, so drop any hand-set quantity (restock)
+    // and let it recalculate from the new counts.
     ids.forEach(id => {
-      const reorder = lines.find(l => l.itemId === id).reorder;
       batch.set(db.collection('showdrinks_stock').doc(id),
-        { base: lines.find(l => l.itemId === id).counted, added: 0, ...(reorder > 0 ? { restock: reorder } : {}) }, { merge: true });
+        { base: lines.find(l => l.itemId === id).counted, added: 0, restock: firebase.firestore.FieldValue.delete() }, { merge: true });
     });
     await batch.commit();
     closeStockFinish();
@@ -3471,10 +3471,24 @@ Item figures go back to how they were before it was finished.`)) return;
 // showdrinks_stock/{id}.restock = how many to order. Filled automatically by Finish stock take
 // (items counted below Min) and editable by hand here. "Receive restock" turns the quantities
 // into deliveries (`added`) and zeroes them.
-function restockQty(id) { return Math.max(0, (_stock[id] || {}).restock || 0); }
+// Suggested quantity comes from CURRENT stock (last count + deliveries since), not from the last
+// stock take: items below Min are topped up to the Restock level. `restock` on the stock doc is a
+// hand-set override (the +/- and Add item controls); receiving a restock or finishing a stock take
+// removes it so the suggestion takes over again.
+function suggestedRestock(id) {
+  const s = _stock[id] || {};
+  if (typeof s.minStock !== 'number') return 0;
+  const now = stockOnHand(s) ?? 0;
+  return now < s.minStock ? Math.max(0, stockRestockLevel(s) - now) : 0;
+}
+
+function restockQty(id) {
+  const o = (_stock[id] || {}).restock;
+  return typeof o === 'number' ? Math.max(0, o) : suggestedRestock(id);
+}
 
 function renderStockRestock() {
-  if (!_restockIds) _restockIds = new Set(_allMenuItems.filter(i => restockQty(i.id) > 0).map(i => i.id));
+  if (!_restockIds) _restockIds = new Set(_allMenuItems.filter(i => stockIsTracked(i.id) && restockQty(i.id) > 0).map(i => i.id));
   const items = _allMenuItems.filter(i => _restockIds.has(i.id));
   document.getElementById('stockRestockBody').innerHTML = items.length ? items.map(i => {
     const st = _stock[i.id] || {};
@@ -3525,7 +3539,7 @@ window.confirmRestockAdd = async function() {
 };
 
 window.printRestock = function() {
-  const rows = _allMenuItems.filter(i => restockQty(i.id) > 0);
+  const rows = _allMenuItems.filter(i => stockIsTracked(i.id) && restockQty(i.id) > 0);
   if (!rows.length) { toast('Nothing on the restock list', 'error'); return; }
   let total = 0;
   const td = 'style="padding:4px 8px;border-bottom:1px solid #ddd;font-size:14px"';
@@ -3540,15 +3554,21 @@ window.printRestock = function() {
 };
 
 window.receiveRestock = async function() {
-  const rows = _allMenuItems.filter(i => restockQty(i.id) > 0);
+  const rows = _allMenuItems.filter(i => stockIsTracked(i.id) && restockQty(i.id) > 0);
   if (!rows.length) { toast('Nothing on the restock list', 'error'); return; }
   if (!confirm(`Add ${rows.length} item(s) to stock as deliveries and clear the restock list?\nThis cannot be undone from here.`)) return;
   try {
     const FV = firebase.firestore.FieldValue;
     const batch = db.batch();
-    rows.forEach(i => batch.set(db.collection('showdrinks_stock').doc(i.id), { added: FV.increment(restockQty(i.id)), restock: 0 }, { merge: true }));
+    const qty = {};
+    rows.forEach(i => { qty[i.id] = restockQty(i.id); });
+    rows.forEach(i => batch.set(db.collection('showdrinks_stock').doc(i.id), { added: FV.increment(qty[i.id]), restock: FV.delete() }, { merge: true }));
     await batch.commit();
-    rows.forEach(i => { _stock[i.id] = { ..._stock[i.id], added: ((_stock[i.id] || {}).added || 0) + restockQty(i.id), restock: 0 }; });
+    rows.forEach(i => {
+      const st = { ..._stock[i.id], added: ((_stock[i.id] || {}).added || 0) + qty[i.id] };
+      delete st.restock;
+      _stock[i.id] = st;
+    });
     _restockIds = null;
     renderStockRestock();
     toast('Restock added to stock', 'success');
