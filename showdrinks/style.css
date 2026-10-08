@@ -523,3 +523,4 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 #stockViewCount.active, #stockViewReports.active { background:var(--primary); color:#fff; border-color:var(--primary); }
 
 .stock-step { min-width:34px; padding:6px 0; font-size:16px; font-weight:700; }
+.stock-step-lg { min-width:48px; padding:10px 0; font-size:22px; font-weight:700; }

@@ -2990,11 +2990,8 @@ function renderStockCount() {
       <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
       <td><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
       <td><input type="number" min="0" step="1" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
-      <td style="text-align:center" id="stockOh-${i.id}" onclick="adjustStockBy('${i.id}')" title="Tap to add or remove several at once">${stockOnHandLabel(s)}</td>
-      <td style="text-align:center;white-space:nowrap">
-        <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="adjustStock('${i.id}',-1)" aria-label="Remove one">−</button>
-        <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="adjustStock('${i.id}',1)" aria-label="Add one">+</button>
-      </td>
+      <td style="text-align:center" id="stockOh-${i.id}">${stockOnHandLabel(s)}</td>
+      <td style="text-align:center"><button type="button" class="btn btn-secondary btn-sm" onclick="openStockAdjust('${i.id}')">Adjust</button></td>
       <td><input type="number" min="0" step="1" class="stock-input" value="${cnt ?? ''}" oninput="setStockCount('${i.id}',this.value)" aria-label="Counted"></td>
     </tr>`;
   }).join('') : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
@@ -3016,23 +3013,41 @@ window.setStockCount = function(id, raw) {
 };
 
 // Deliveries/top-ups (+) or write-offs (−) at any time — goes in `added`, which the usage sum
-// subtracts back out, so neither counts as sales.
-window.adjustStock = async function(id, delta) {
+// subtracts back out, so neither counts as sales. Done in a modal (− [n] +, OK / Cancel) so a
+// whole delivery is one entry and nothing is written until OK.
+let _stockAdjustId = null;
+
+window.openStockAdjust = function(id) {
+  const item = _allMenuItems.find(i => i.id === id);
+  _stockAdjustId = id;
+  document.getElementById('stockAdjustName').textContent = item?.name || '';
+  document.getElementById('stockAdjustQty').value = 0;
+  document.getElementById('stockAdjustModal').style.display = 'flex';
+};
+
+window.stepStockAdjust = function(d) {
+  const el = document.getElementById('stockAdjustQty');
+  el.value = (parseInt(el.value, 10) || 0) + d;
+};
+
+window.closeStockAdjust = function() {
+  document.getElementById('stockAdjustModal').style.display = 'none';
+  _stockAdjustId = null;
+};
+
+window.confirmStockAdjust = async function() {
+  const id = _stockAdjustId;
+  const delta = parseInt(document.getElementById('stockAdjustQty').value, 10);
+  if (!id) return;
+  if (!delta) { toast('Use + or − to enter a quantity first', 'error'); return; }
   try {
     await db.collection('showdrinks_stock').doc(id).set({ added: firebase.firestore.FieldValue.increment(delta) }, { merge: true });
     _stock[id] = { ..._stock[id], added: ((_stock[id] || {}).added || 0) + delta };
     const cell = document.getElementById('stockOh-' + id);
     if (cell) cell.textContent = stockOnHandLabel(_stock[id]);
+    closeStockAdjust();
+    toast(`Stock ${delta > 0 ? 'added' : 'removed'}: ${Math.abs(delta)}`, 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
-};
-
-window.adjustStockBy = function(id) {
-  const item = _allMenuItems.find(i => i.id === id);
-  const raw = prompt(`"${item?.name || ''}": how many received? (use a minus number to remove stock)`);
-  if (raw === null) return;
-  const qty = Number(raw);
-  if (!isFinite(qty) || qty === 0) { toast('Enter a number other than 0', 'error'); return; }
-  adjustStock(id, qty);
 };
 
 window.clearStockCounts = function() {
