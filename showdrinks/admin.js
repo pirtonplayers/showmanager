@@ -3388,9 +3388,11 @@ function renderStockRestock() {
   if (!_restockIds) _restockIds = new Set(_allMenuItems.filter(i => restockQty(i.id) > 0).map(i => i.id));
   const items = _allMenuItems.filter(i => _restockIds.has(i.id));
   document.getElementById('stockRestockBody').innerHTML = items.length ? items.map(i => {
-    const cost = (_stock[i.id] || {}).costPrice;
+    const st = _stock[i.id] || {};
+    const cost = st.costPrice;
+    const nowQty = stockOnHand(st);
     return `<tr>
-      <td>${escHtml(i.name || '')}<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}${typeof cost === 'number' ? ' · ' + fmtCurrency(cost) + ' each' : ''}</span></td>
+      <td>${escHtml(i.name || '')}<br><span style="color:var(--text-muted);font-size:11px">Now ${nowQty ?? '—'} · Min ${st.minStock ?? '—'} · Restock to ${stockRestockLevel(st) ?? '—'}</span><br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}${typeof cost === 'number' ? ' · ' + fmtCurrency(cost) + ' each' : ''}</span></td>
       <td style="white-space:nowrap;text-align:right">
         <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepRestock('${i.id}',-1)" aria-label="Minus one">−</button>
         <input type="number" min="0" step="1" class="stock-input" id="restockQty-${i.id}" value="${restockQty(i.id)}" onchange="setRestock('${i.id}',this.value)" style="width:64px;text-align:center" aria-label="Quantity to order">
