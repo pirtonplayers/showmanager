@@ -3153,6 +3153,32 @@ window.clearAllStock = async function() {
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
+// Printable count sheet: every item by category with its current figures and a blank box to
+// write the count in.
+window.printStockList = function() {
+  if (!_allMenuItems.length) { toast('No items to print', 'error'); return; }
+  const w = window.open('', '_blank');
+  if (!w) { toast('Allow pop-ups to print', 'error'); return; }
+  const th = 'style="text-align:left;padding:4px 6px;border-bottom:2px solid #999;font-size:12px"';
+  const td = 'style="padding:5px 6px;border-bottom:1px solid #ddd;font-size:13px"';
+  const dash = v => v === null || v === undefined ? '—' : v;
+  let total = 0, lastCat = null;
+  const rows = _allMenuItems.map(i => {
+    const s = _stock[i.id] || {};
+    const oh = stockOnHand(s);
+    const lvl = stockRestockLevel(s);
+    if (oh !== null && typeof s.costPrice === 'number') total += oh * s.costPrice;
+    const head = (i.category || '') !== lastCat
+      ? `<tr><td colspan="7" style="padding:10px 6px 3px;font-weight:700;font-size:13px;background:#f3f3f3">${escHtml(i.category || 'Uncategorised')}</td></tr>` : '';
+    lastCat = i.category || '';
+    return head + `<tr><td ${td}>${escHtml(i.name || '')}</td><td ${td}>${typeof s.costPrice === 'number' ? fmtCurrency(s.costPrice) : '—'}</td><td ${td}>${dash(s.minStock)}</td><td ${td}>${dash(lvl)}</td><td ${td}>${dash(oh)}</td><td ${td}>${(s.restock || 0) || ''}</td><td ${td} style="width:70px;border:1px solid #999"></td></tr>`;
+  }).join('');
+  w.document.write(`<!doctype html><title>Stock list</title><body style="font-family:sans-serif;padding:16px"><h2>Stock list — ${new Date().toLocaleDateString('en-GB')}</h2>
+    <table style="border-collapse:collapse;width:100%"><tr><th ${th}>Item</th><th ${th}>Cost</th><th ${th}>Min</th><th ${th}>Restock to</th><th ${th}>On hand</th><th ${th}>To order</th><th ${th}>Counted</th></tr>${rows}</table>
+    <p style="font-size:13px"><b>Value of stock on hand:</b> ${fmtCurrency(total)}</p></body>`);
+  w.document.close(); w.focus(); w.print();
+};
+
 window.cancelStockTake = function() {
   if (!confirm('Cancel this stock take? Counts entered so far will be discarded.')) return;
   _stockCounts = {}; saveStockDraft();
