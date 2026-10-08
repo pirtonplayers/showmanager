@@ -2989,7 +2989,18 @@ async function loadStockTab() {
   renderStockTab();
 }
 
-window.setStockView = function(v) { _stockView = v; if (v === 'restock') _restockIds = null; renderStockTab(); };
+window.setStockView = function(v) {
+  _stockView = v;
+  if (v === 'restock') {
+    // Re-read stock from the server each time the Restock page is opened, so the suggested
+    // quantities reflect current stock rather than whatever was loaded earlier.
+    _restockIds = null;
+    renderStockTab();
+    loadStockTab();
+    return;
+  }
+  renderStockTab();
+};
 window.setStockCat  = function(c) { _stockCat = c; renderStockTab(); };
 
 // Level a restock tops an item up to: restockTo if set, never below minStock.
@@ -3504,6 +3515,25 @@ function renderStockRestock() {
     </tr>`;
   }).join('') : '<tr><td colspan="2" style="color:var(--text-muted);padding:20px;text-align:center">Nothing to restock. Items counted below their minimum appear here automatically, or use + Add item.</td></tr>';
 }
+
+// Drops every hand-set quantity (including ones left over from older versions, which stored
+// shortfalls at stock take time) so the list is worked out again from current stock.
+window.recalcRestock = async function() {
+  const ids = Object.keys(_stock).filter(id => typeof _stock[id].restock === 'number');
+  if (ids.length && !confirm('Recalculate the restock list from current stock? Quantities you set by hand will be replaced.')) return;
+  try {
+    const FV = firebase.firestore.FieldValue;
+    for (let i = 0; i < ids.length; i += 400) {
+      const batch = db.batch();
+      ids.slice(i, i + 400).forEach(id => batch.set(db.collection('showdrinks_stock').doc(id), { restock: FV.delete() }, { merge: true }));
+      await batch.commit();
+    }
+    ids.forEach(id => { delete _stock[id].restock; });
+    _restockIds = null;
+    renderStockRestock();
+    toast('Restock list recalculated', 'success');
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
 
 window.setRestock = async function(id, raw) {
   const v = Math.max(0, Math.round(Number(raw)) || 0);
