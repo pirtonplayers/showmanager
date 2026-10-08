@@ -871,6 +871,18 @@ function openModal(title, ctx) {
     document.getElementById('editShowOnTab').checked = ctx.showOnTab !== false;
     document.getElementById('editShowOnPos').checked = ctx.showOnPos !== false;
     document.getElementById('editStk').checked = ctx.stk !== false;
+    // Cost / Min stock / Reorder level live in showdrinks_stock/{id} (not on the public menu item).
+    const fillStock = st => {
+      document.getElementById('editCost').value = st.costPrice ?? '';
+      document.getElementById('editMinStock').value = st.minStock ?? '';
+      document.getElementById('editRestockTo').value = st.restockTo ?? '';
+    };
+    fillStock(ctx.id ? (_stock[ctx.id] || {}) : {});
+    if (ctx.id && !_stock[ctx.id]) {
+      db.collection('showdrinks_stock').doc(ctx.id).get().then(d => {
+        if (d.exists) { _stock[ctx.id] = d.data(); if (_modalCtx && _modalCtx.id === ctx.id) fillStock(d.data()); }
+      }).catch(() => {});
+    }
 
     deleteBtn.style.display = ctx.id ? '' : 'none';
   } else {
@@ -913,13 +925,23 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
       const showOnPos  = document.getElementById('editShowOnPos').checked;
       const stk        = document.getElementById('editStk').checked;
       const image      = isBuyNowCategoryName(category) ? _modalImage : '';
-      if (_modalCtx.id) {
-        await db.collection('showdrinks_menuItems').doc(_modalCtx.id).update({ name, category, price, onSale, showOnTab, showOnPos, stk, image });
+      const numOrNull = id => { const v = document.getElementById(id).value; return v === '' ? null : Math.max(0, Number(v) || 0); };
+      const costPrice = numOrNull('editCost');
+      const minStock  = numOrNull('editMinStock');
+      let restockTo   = numOrNull('editRestockTo');
+      if (restockTo !== null && minStock !== null && restockTo < minStock) restockTo = minStock;   // reorder level is never below Min
+      let itemId = _modalCtx.id;
+      if (itemId) {
+        await db.collection('showdrinks_menuItems').doc(itemId).update({ name, category, price, onSale, showOnTab, showOnPos, stk, image });
       } else {
-        await db.collection('showdrinks_menuItems').add({
+        const ref = await db.collection('showdrinks_menuItems').add({
           name, category, price, onSale, showOnTab, showOnPos, stk, image, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
+        itemId = ref.id;
       }
+      const stockFields = { costPrice, minStock, restockTo };
+      await db.collection('showdrinks_stock').doc(itemId).set(stockFields, { merge: true });
+      _stock[itemId] = { ..._stock[itemId], ...stockFields };
       await loadMenuItems();
       if (document.getElementById('tab-stock').classList.contains('active')) renderStockTab();
       closeModal();
