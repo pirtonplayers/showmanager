@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.53"></script>
+  <script src="../shared/embed.js?v=1.1.54"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.53">
+  <link rel="stylesheet" href="style.css?v=1.1.54">
 </head>
 <body>
 
@@ -385,7 +385,7 @@
     </div>
     <div id="stockCountView">
       <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">
-        Enter what is on the shelf for every item (on sale or not). Cost and Min are saved as you type; use Adjust when a delivery arrives (or to remove stock) — neither counts as usage.
+        Enter what is on the shelf for every item (on sale or not). Cost and Min are saved as you type; use Add when a delivery arrives (or to remove stock) — neither counts as usage.
       </p>
       <div id="stockCategoryBar" class="cat-bar"></div>
       <div class="card">
@@ -804,7 +804,7 @@
 <!-- Stock Take → Adjust: add (+) or remove (−) stock outside a count; see adjustStock in admin.js. -->
 <div id="stockAdjustModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:340px;margin:20px">
-    <div class="card-header"><h2>Adjust stock</h2></div>
+    <div class="card-header"><h2>Add stock</h2></div>
     <div class="card-body">
       <p id="stockAdjustName" style="font-weight:600;margin:0 0 12px"></p>
       <div style="display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:8px">
@@ -954,11 +954,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.53"></script>
-<script src="../shared/firebase-config.js?v=1.1.53"></script>
-<script src="../shared/auth.js?v=1.1.53"></script>
-<script src="../shared/suite-nav.js?v=1.1.53"></script>
-<script src="admin.js?v=1.1.53"></script>
+<script src="../shared/version.js?v=1.1.54"></script>
+<script src="../shared/firebase-config.js?v=1.1.54"></script>
+<script src="../shared/auth.js?v=1.1.54"></script>
+<script src="../shared/suite-nav.js?v=1.1.54"></script>
+<script src="admin.js?v=1.1.54"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
