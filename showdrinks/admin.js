@@ -3013,16 +3013,19 @@ function stockPassesNonZero(i) {
 function stockIsTracked(id) { return _allMenuItems.find(i => i.id === id)?.stk !== false; }
 
 function renderStockCount() {
-  const cats = _menuCategories.length ? _menuCategories : [''];
+  // Only stock take (Stk) items appear on the Stock view, and so only their categories.
+  const tracked = _allMenuItems.filter(i => i.stk !== false);
+  const cats = [...new Set(tracked.map(i => i.category || ''))].sort();
+  if (!cats.length) cats.push('');
   if (_stockCat === null || (_stockCat !== 'all' && !cats.includes(_stockCat))) _stockCat = cats[0];
   document.getElementById('stockCategoryBar').innerHTML = ['all', ...cats].map(c => `
     <button type="button" class="cat-btn ${c === _stockCat ? 'active' : ''}" onclick="setStockCat('${escHtml(c)}')">${c === 'all' ? 'All' : escHtml(c || 'Uncategorised')}</button>`).join('');
 
   const items = _allMenuItems.filter(i => _stockCat === 'all' || (i.category || '') === _stockCat).filter(stockPassesNonZero)
-    .filter(i => !_stockTaking || stockIsTracked(i.id));
+    .filter(i => i.stk !== false);
   document.getElementById('stockTableBody').innerHTML = items.length ? items.map(i => {
     const s = _stock[i.id] || {};
-    return `<tr${i.stk === false ? ' style="opacity:.5"' : ''}>
+    return `<tr>
       <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
       <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
       <td class="col-edit"><input type="number" min="0" step="1" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
