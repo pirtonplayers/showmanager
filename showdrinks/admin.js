@@ -2930,6 +2930,7 @@ let _stockCat    = null;
 let _stockCounts = {};   // itemId -> number — the in-progress count, kept in localStorage too
 let _stockView   = 'count';
 let _stockReportId = null;
+let _restockIds  = null;   // item ids shown on the Restock page (null = recompute on next render)
 const STOCK_DRAFT_KEY = 'showdrinks_stock_draft';
 
 try { _stockCounts = JSON.parse(localStorage.getItem(STOCK_DRAFT_KEY) || '{}') || {}; } catch (e) { _stockCounts = {}; }
@@ -2950,10 +2951,11 @@ async function loadStockTab() {
     toast('Could not load stock: ' + e.message, 'error');
   }
   if (!_stockReportId && _stockTakes.length) _stockReportId = _stockTakes[0].id;
+  _restockIds = null;
   renderStockTab();
 }
 
-window.setStockView = function(v) { _stockView = v; renderStockTab(); };
+window.setStockView = function(v) { _stockView = v; if (v === 'restock') _restockIds = null; renderStockTab(); };
 window.setStockCat  = function(c) { _stockCat = c; renderStockTab(); };
 
 function stockOnHand(s) {
@@ -2971,8 +2973,12 @@ function renderStockTab() {
   document.getElementById('stockViewCount').classList.toggle('active', _stockView === 'count');
   document.getElementById('stockViewReports').classList.toggle('active', _stockView === 'reports');
   document.getElementById('stockCountView').style.display   = _stockView === 'count' ? '' : 'none';
+  document.getElementById('stockViewRestock').classList.toggle('active', _stockView === 'restock');
   document.getElementById('stockReportsView').style.display = _stockView === 'reports' ? '' : 'none';
-  if (_stockView === 'count') renderStockCount(); else renderStockReports();
+  document.getElementById('stockRestockView').style.display = _stockView === 'restock' ? '' : 'none';
+  if (_stockView === 'count') renderStockCount();
+  else if (_stockView === 'reports') renderStockReports();
+  else renderStockRestock();
 }
 
 function updateStockCountSummary() {
@@ -3095,12 +3101,18 @@ window.finishStockTake = async function() {
     const batch = db.batch();
     const takeRef = db.collection('showdrinks_stockTakes').doc();
     batch.set(takeRef, { createdAt: firebase.firestore.FieldValue.serverTimestamp(), eventName, lines });
-    ids.forEach(id => batch.set(db.collection('showdrinks_stock').doc(id), { base: _stockCounts[id], added: 0 }, { merge: true }));
+    // Items counted below their minimum go straight onto the Restock list (quantity to reach the minimum).
+    ids.forEach(id => {
+      const reorder = lines.find(l => l.itemId === id).reorder;
+      batch.set(db.collection('showdrinks_stock').doc(id),
+        { base: _stockCounts[id], added: 0, ...(reorder > 0 ? { restock: reorder } : {}) }, { merge: true });
+    });
     await batch.commit();
     _stockCounts = {}; saveStockDraft();
     _stockReportId = takeRef.id;
     _stockView = 'reports';
     await loadStockTab();
+    openStockTake(takeRef.id);
     toast('Stock take saved', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
@@ -3120,6 +3132,7 @@ window.renameStockTake = async function() {
     await db.collection('showdrinks_stockTakes').doc(t.id).update({ eventName: name });
     t.eventName = name;
     renderStockReports();
+    renderStockReportModal();
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
@@ -3148,14 +3161,42 @@ function stockReportHtml(t) {
     </table>` : '<p style="font-size:13px;color:#777">Nothing below its minimum level.</p>'}`;
 }
 
+// Stock value = what was counted at the take × cost price; used value = the cost of what was used.
+function stockTakeValues(t) {
+  const lines = t.lines || [];
+  return {
+    stock: lines.reduce((n, l) => n + (l.counted || 0) * (l.costPrice || 0), 0),
+    used: lines.reduce((n, l) => n + (l.usedCost || 0), 0),
+  };
+}
+
 function renderStockReports() {
-  const sel = document.getElementById('stockReportSelect');
-  sel.innerHTML = _stockTakes.map(t => `<option value="${t.id}" ${t.id === _stockReportId ? 'selected' : ''}>${escHtml(stockTakeLabel(t))}</option>`).join('');
-  const t = currentStockTake();
-  document.getElementById('stockReportActions').style.display = t ? '' : 'none';
-  document.getElementById('stockDeleteBtn').style.display = t && t.id === _stockTakes[0]?.id ? '' : 'none';
-  document.getElementById('stockReportBody').innerHTML = t ? stockReportHtml(t)
-    : '<p style="color:var(--text-muted)">No stock takes yet — count some items and press Finish stock take.</p>';
+  document.getElementById('stockReportListBody').innerHTML = _stockTakes.length ? _stockTakes.map(t => {
+    const v = stockTakeValues(t);
+    return `<tr style="cursor:pointer" onclick="openStockTake('${t.id}')">
+      <td><b>${escHtml(t.eventName || 'Stock take')}</b></td>
+      <td>${escHtml(stockTakeDate(t))}</td>
+      <td style="text-align:right">${fmtCurrency(v.stock)}</td>
+      <td style="text-align:right">${fmtCurrency(v.used)}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="4" style="color:var(--text-muted);padding:20px;text-align:center">No stock takes yet — count some items and press Finish stock take.</td></tr>';
+}
+
+window.openStockTake = function(id) {
+  _stockReportId = id;
+  renderStockReportModal();
+  document.getElementById('stockReportModal').style.display = 'flex';
+};
+
+window.closeStockReport = function() {
+  document.getElementById('stockReportModal').style.display = 'none';
+};
+
+function renderStockReportModal() {
+  const t = currentStockTake(); if (!t) return;
+  document.getElementById('stockReportTitle').textContent = stockTakeLabel(t);
+  document.getElementById('stockDeleteBtn').style.display = t.id === _stockTakes[0]?.id ? '' : 'none';
+  document.getElementById('stockReportBody').innerHTML = stockReportHtml(t);
 }
 
 // Only the latest take can be deleted, and doing so rolls the stock back: every item it counted
@@ -3178,12 +3219,101 @@ Item figures go back to how they were before it was finished.`)) return;
     batch.delete(db.collection('showdrinks_stockTakes').doc(t.id));
     await batch.commit();
     _stockReportId = null;
+    closeStockReport();
     await loadStockTab();
     toast('Stock take deleted', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
-window.selectStockReport = function(id) { _stockReportId = id; renderStockReports(); };
+
+// ── Restock list ─────────────────────────────────────────────────────────────
+// showdrinks_stock/{id}.restock = how many to order. Filled automatically by Finish stock take
+// (items counted below Min) and editable by hand here. "Receive restock" turns the quantities
+// into deliveries (`added`) and zeroes them.
+function restockQty(id) { return Math.max(0, (_stock[id] || {}).restock || 0); }
+
+function renderStockRestock() {
+  if (!_restockIds) _restockIds = new Set(_allMenuItems.filter(i => restockQty(i.id) > 0).map(i => i.id));
+  const items = _allMenuItems.filter(i => _restockIds.has(i.id));
+  document.getElementById('stockRestockBody').innerHTML = items.length ? items.map(i => {
+    const cost = (_stock[i.id] || {}).costPrice;
+    return `<tr>
+      <td>${escHtml(i.name || '')}<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}${typeof cost === 'number' ? ' · ' + fmtCurrency(cost) + ' each' : ''}</span></td>
+      <td style="white-space:nowrap;text-align:right">
+        <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepRestock('${i.id}',-1)" aria-label="Minus one">−</button>
+        <input type="number" min="0" step="1" class="stock-input" id="restockQty-${i.id}" value="${restockQty(i.id)}" onchange="setRestock('${i.id}',this.value)" style="width:64px;text-align:center" aria-label="Quantity to order">
+        <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepRestock('${i.id}',1)" aria-label="Plus one">+</button>
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="2" style="color:var(--text-muted);padding:20px;text-align:center">Nothing to restock. Items counted below their minimum appear here automatically, or use + Add item.</td></tr>';
+}
+
+window.setRestock = async function(id, raw) {
+  const v = Math.max(0, Math.round(Number(raw)) || 0);
+  _stock[id] = { ..._stock[id], restock: v };
+  const el = document.getElementById('restockQty-' + id);
+  if (el) el.value = v;
+  try { await db.collection('showdrinks_stock').doc(id).set({ restock: v }, { merge: true }); }
+  catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+
+window.stepRestock = function(id, d) { setRestock(id, restockQty(id) + d); };
+
+window.openRestockAdd = function() {
+  const byCat = {};
+  _allMenuItems.forEach(i => { (byCat[i.category || 'Uncategorised'] ||= []).push(i); });
+  document.getElementById('restockAddItem').innerHTML = Object.keys(byCat).map(c =>
+    `<optgroup label="${escHtml(c)}">${byCat[c].map(i => `<option value="${i.id}">${escHtml(i.name || '')}</option>`).join('')}</optgroup>`).join('');
+  document.getElementById('restockAddQty').value = 1;
+  document.getElementById('restockAddModal').style.display = 'flex';
+};
+
+window.closeRestockAdd = function() { document.getElementById('restockAddModal').style.display = 'none'; };
+
+window.confirmRestockAdd = async function() {
+  const id = document.getElementById('restockAddItem').value;
+  const qty = Math.round(Number(document.getElementById('restockAddQty').value));
+  if (!id || !(qty > 0)) { toast('Pick an item and a quantity above 0', 'error'); return; }
+  if (!_restockIds) _restockIds = new Set();
+  _restockIds.add(id);
+  closeRestockAdd();
+  await setRestock(id, restockQty(id) + qty);
+  renderStockRestock();
+};
+
+window.printRestock = function() {
+  const rows = _allMenuItems.filter(i => restockQty(i.id) > 0);
+  if (!rows.length) { toast('Nothing on the restock list', 'error'); return; }
+  const w = window.open('', '_blank');
+  if (!w) { toast('Allow pop-ups to print', 'error'); return; }
+  let total = 0;
+  const td = 'style="padding:4px 8px;border-bottom:1px solid #ddd;font-size:14px"';
+  const body = rows.map(i => {
+    const q = restockQty(i.id), c = (_stock[i.id] || {}).costPrice;
+    if (typeof c === 'number') total += q * c;
+    return `<tr><td ${td}>${escHtml(i.category || '')}</td><td ${td}>${escHtml(i.name || '')}</td><td ${td}><b>${q}</b></td><td ${td}>${typeof c === 'number' ? fmtCurrency(q * c) : '—'}</td></tr>`;
+  }).join('');
+  w.document.write(`<!doctype html><title>Restock list</title><body style="font-family:sans-serif;padding:16px"><h2>Restock list — ${new Date().toLocaleDateString('en-GB')}</h2>
+    <table style="border-collapse:collapse;width:100%"><tr><th style="text-align:left">Category</th><th style="text-align:left">Item</th><th style="text-align:left">Order</th><th style="text-align:left">Est. cost</th></tr>${body}
+    <tr><td ${td} colspan="3"><b>Estimated total</b></td><td ${td}><b>${fmtCurrency(total)}</b></td></tr></table></body>`);
+  w.document.close(); w.focus(); w.print();
+};
+
+window.receiveRestock = async function() {
+  const rows = _allMenuItems.filter(i => restockQty(i.id) > 0);
+  if (!rows.length) { toast('Nothing on the restock list', 'error'); return; }
+  if (!confirm(`Add ${rows.length} item(s) to stock as deliveries and clear the restock list?\nThis cannot be undone from here.`)) return;
+  try {
+    const FV = firebase.firestore.FieldValue;
+    const batch = db.batch();
+    rows.forEach(i => batch.set(db.collection('showdrinks_stock').doc(i.id), { added: FV.increment(restockQty(i.id)), restock: 0 }, { merge: true }));
+    await batch.commit();
+    rows.forEach(i => { _stock[i.id] = { ..._stock[i.id], added: ((_stock[i.id] || {}).added || 0) + restockQty(i.id), restock: 0 }; });
+    _restockIds = null;
+    renderStockRestock();
+    toast('Restock added to stock', 'success');
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
 
 window.printStockReport = function() {
   const t = currentStockTake(); if (!t) return;

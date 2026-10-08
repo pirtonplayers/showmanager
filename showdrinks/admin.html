@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.56"></script>
+  <script src="../shared/embed.js?v=1.1.57"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.56">
+  <link rel="stylesheet" href="style.css?v=1.1.57">
 </head>
 <body>
 
@@ -381,6 +381,7 @@
       <div style="display:flex;gap:6px">
         <button class="btn btn-secondary btn-sm active" id="stockViewCount" onclick="setStockView('count')">Count</button>
         <button class="btn btn-secondary btn-sm" id="stockViewReports" onclick="setStockView('reports')">Reports</button>
+        <button class="btn btn-secondary btn-sm" id="stockViewRestock" onclick="setStockView('restock')">Restock</button>
       </div>
     </div>
     <div id="stockCountView">
@@ -406,16 +407,33 @@
       </div>
     </div>
     <div id="stockReportsView" style="display:none">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-        <select id="stockReportSelect" onchange="selectStockReport(this.value)"></select>
-        <span id="stockReportActions">
-          <button class="btn btn-danger btn-sm" id="stockDeleteBtn" onclick="deleteLatestStockTake()">🗑 Delete latest</button>
-          <button class="btn btn-secondary btn-sm" onclick="renameStockTake()">✎ Event name</button>
-          <button class="btn btn-secondary btn-sm" onclick="printStockReport()">🖨 Print</button>
-          <button class="btn btn-secondary btn-sm" onclick="exportStockCsv()">⬇ CSV</button>
-        </span>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">Tap a stock take to see the full usage report.</p>
+      <div class="card">
+        <div class="card-body menu-table-scroll" style="padding:0">
+          <table class="menu-grid-table">
+            <thead><tr><th>Event</th><th>Date</th><th style="text-align:right">Stock value</th><th style="text-align:right">Used value</th></tr></thead>
+            <tbody id="stockReportListBody"></tbody>
+          </table>
+        </div>
       </div>
-      <div class="card"><div class="card-body" style="overflow-x:auto" id="stockReportBody"></div></div>
+    </div>
+    <div id="stockRestockView" style="display:none">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <button class="btn btn-secondary btn-sm" onclick="openRestockAdd()">+ Add item</button>
+        <button class="btn btn-secondary btn-sm" onclick="printRestock()">🖨 Print</button>
+        <button class="btn btn-primary btn-sm" onclick="receiveRestock()">Add restock to stock</button>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">
+        Items counted below their minimum are added here by Finish stock take. Adjust the quantities, print the list, and when the delivery arrives press "Add restock to stock".
+      </p>
+      <div class="card">
+        <div class="card-body menu-table-scroll" style="padding:0">
+          <table class="menu-grid-table">
+            <thead><tr><th>Item</th><th style="text-align:right;width:190px">Order</th></tr></thead>
+            <tbody id="stockRestockBody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -822,6 +840,38 @@
   </div>
 </div>
 
+<!-- Stock Take → Reports: details of one take (see openStockTake in admin.js). -->
+<div id="stockReportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:760px;margin:20px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+      <h2 id="stockReportTitle"></h2>
+      <button onclick="closeStockReport()" style="background:none;border:none;font-size:20px;cursor:pointer">×</button>
+    </div>
+    <div class="card-body" style="overflow:auto" id="stockReportBody"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--border)">
+      <button class="btn btn-danger btn-sm" id="stockDeleteBtn" onclick="deleteLatestStockTake()">🗑 Delete latest</button>
+      <button class="btn btn-secondary btn-sm" onclick="renameStockTake()">✎ Event name</button>
+      <button class="btn btn-secondary btn-sm" onclick="printStockReport()">🖨 Print</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportStockCsv()">⬇ CSV</button>
+      <button class="btn btn-primary btn-sm" onclick="closeStockReport()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="restockAddModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:340px;margin:20px">
+    <div class="card-header"><h2>Add to restock list</h2></div>
+    <div class="card-body">
+      <div class="form-group"><label for="restockAddItem">Item</label><select id="restockAddItem" class="form-control"></select></div>
+      <div class="form-group"><label for="restockAddQty">Quantity</label><input type="number" id="restockAddQty" class="form-control" min="1" step="1" value="1"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="closeRestockAdd()">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmRestockAdd()">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="addTabMemberModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px;margin:20px">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -955,11 +1005,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.56"></script>
-<script src="../shared/firebase-config.js?v=1.1.56"></script>
-<script src="../shared/auth.js?v=1.1.56"></script>
-<script src="../shared/suite-nav.js?v=1.1.56"></script>
-<script src="admin.js?v=1.1.56"></script>
+<script src="../shared/version.js?v=1.1.57"></script>
+<script src="../shared/firebase-config.js?v=1.1.57"></script>
+<script src="../shared/auth.js?v=1.1.57"></script>
+<script src="../shared/suite-nav.js?v=1.1.57"></script>
+<script src="admin.js?v=1.1.57"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
