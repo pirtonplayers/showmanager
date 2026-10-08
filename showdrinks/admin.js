@@ -2933,6 +2933,7 @@ let _stockReportId = null;
 let _restockIds  = null;   // item ids shown on the Restock page (null = recompute on next render)
 const STOCK_DRAFT_KEY = 'showdrinks_stock_draft';
 const STOCK_SESSION_KEY = 'showdrinks_stock_session';
+let _stockPending = null;   // results of a finished count awaiting the user's confirmation
 let _stockOpening = false;   // true while the take in progress is an opening-stock entry (no usage)
 let _stockTaking = null;   // event name while a stock take is in progress, else null
 try { _stockTaking = localStorage.getItem(STOCK_SESSION_KEY) || null; _stockOpening = localStorage.getItem(STOCK_SESSION_KEY + '_opening') === '1'; } catch (e) { _stockTaking = null; }
@@ -3003,13 +3004,20 @@ function updateStockCountSummary() {
   el.textContent = `${_stockTaking}: ` + (n ? `${n} item${n === 1 ? '' : 's'} counted so far (all categories)` : 'nothing counted yet');
 }
 
+// "Non-zero only" checkbox on the Stock view: hides items with nothing on hand. Never applied
+// while a count is in progress, so a zero-stock item can still be counted.
+function stockPassesNonZero(i) {
+  if (_stockTaking || !document.getElementById('stockNonZero')?.checked) return true;
+  return (stockOnHand(_stock[i.id] || {}) || 0) !== 0;
+}
+
 function renderStockCount() {
   const cats = _menuCategories.length ? _menuCategories : [''];
   if (_stockCat === null || (_stockCat !== 'all' && !cats.includes(_stockCat))) _stockCat = cats[0];
   document.getElementById('stockCategoryBar').innerHTML = ['all', ...cats].map(c => `
     <button type="button" class="cat-btn ${c === _stockCat ? 'active' : ''}" onclick="setStockCat('${escHtml(c)}')">${c === 'all' ? 'All' : escHtml(c || 'Uncategorised')}</button>`).join('');
 
-  const items = _allMenuItems.filter(i => _stockCat === 'all' || (i.category || '') === _stockCat);
+  const items = _allMenuItems.filter(i => _stockCat === 'all' || (i.category || '') === _stockCat).filter(stockPassesNonZero);
   document.getElementById('stockTableBody').innerHTML = items.length ? items.map(i => {
     const s = _stock[i.id] || {};
     const cnt = _stockCounts[i.id];
@@ -3193,7 +3201,7 @@ window.printStockList = function() {
   const td = 'style="padding:5px 6px;border-bottom:1px solid #ddd;font-size:13px"';
   const dash = v => v === null || v === undefined ? '—' : v;
   let total = 0, lastCat = null;
-  const rows = _allMenuItems.map(i => {
+  const rows = _allMenuItems.filter(stockPassesNonZero).map(i => {
     const s = _stock[i.id] || {};
     const oh = stockOnHand(s);
     const lvl = stockRestockLevel(s);
@@ -3220,9 +3228,6 @@ window.finishStockTake = async function() {
   const ids = Object.keys(_stockCounts).filter(id => _allMenuItems.some(i => i.id === id));
   if (!ids.length) { toast('Enter at least one count first', 'error'); return; }
   const uncounted = _allMenuItems.length - ids.length;
-  if (!confirm(`Finish this stock take with ${ids.length} item(s) counted?` +
-      (uncounted ? `\n${uncounted} item(s) not counted will keep their previous figures.` : '') +
-      '\nCounted figures become the starting point for the next stock take.')) return;
 
   const eventName = _stockTaking;
   if (!eventName) { toast('Start a stock take first', 'error'); return; }
@@ -3247,6 +3252,24 @@ window.finishStockTake = async function() {
     };
   });
 
+  // Nothing is saved yet: show the results and let the user confirm (or go back and keep counting).
+  _stockPending = { eventName, lines, ids };
+  const v = stockTakeValues({ lines });
+  document.getElementById('stockFinishTitle').textContent = eventName;
+  document.getElementById('stockFinishBody').innerHTML =
+    `<p style="margin:0 0 10px;font-size:13px"><b>Stock value:</b> ${fmtCurrency(v.stock)} &nbsp; <b>Used value:</b> ${fmtCurrency(v.used)}` +
+    (uncounted ? ` &nbsp; <span style="color:#777">${uncounted} item(s) not counted keep their previous figures</span>` : '') + '</p>' +
+    stockReportHtml({ lines });
+  document.getElementById('stockFinishModal').style.display = 'flex';
+};
+
+window.closeStockFinish = function() {
+  document.getElementById('stockFinishModal').style.display = 'none';
+};
+
+window.confirmStockFinish = async function() {
+  const { eventName, lines, ids } = _stockPending || {};
+  if (!lines) return;
   try {
     const batch = db.batch();
     const takeRef = db.collection('showdrinks_stockTakes').doc();
@@ -3258,6 +3281,8 @@ window.finishStockTake = async function() {
         { base: _stockCounts[id], added: 0, ...(reorder > 0 ? { restock: reorder } : {}) }, { merge: true });
     });
     await batch.commit();
+    closeStockFinish();
+    _stockPending = null;
     _stockCounts = {}; saveStockDraft();
     _stockOpening = false;
     _stockTaking = null; saveStockSession();

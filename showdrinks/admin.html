@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.78"></script>
+  <script src="../shared/embed.js?v=1.1.79"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.78">
+  <link rel="stylesheet" href="style.css?v=1.1.79">
 </head>
 <body>
 
@@ -401,6 +401,7 @@
     <div id="stockCountView">
       <div id="stockCountSummary" style="font-size:12px;color:var(--text-muted);margin-bottom:8px"></div>
       <div id="stockCategoryBar" class="cat-bar"></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:0 0 8px"><input type="checkbox" id="stockNonZero" onchange="renderStockCount()"> Show non-zero only</label>
       <div class="card">
         <div class="card-body menu-table-scroll" style="padding:0">
           <table class="menu-grid-table stock-table" id="stockTable">
@@ -900,6 +901,18 @@
   </div>
 </div>
 
+<!-- Finish stock take → results; nothing is saved until Confirm (see finishStockTake in admin.js). -->
+<div id="stockFinishModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:760px;margin:20px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="card-header"><h2 id="stockFinishTitle"></h2></div>
+    <div class="card-body" style="overflow:auto" id="stockFinishBody"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--border)">
+      <button class="btn btn-secondary" onclick="closeStockFinish()">Back to count</button>
+      <button class="btn btn-primary" onclick="confirmStockFinish()">Confirm and close stock take</button>
+    </div>
+  </div>
+</div>
+
 <div id="addTabMemberModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px;margin:20px">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -1033,11 +1046,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.78"></script>
-<script src="../shared/firebase-config.js?v=1.1.78"></script>
-<script src="../shared/auth.js?v=1.1.78"></script>
-<script src="../shared/suite-nav.js?v=1.1.78"></script>
-<script src="admin.js?v=1.1.78"></script>
+<script src="../shared/version.js?v=1.1.79"></script>
+<script src="../shared/firebase-config.js?v=1.1.79"></script>
+<script src="../shared/auth.js?v=1.1.79"></script>
+<script src="../shared/suite-nav.js?v=1.1.79"></script>
+<script src="admin.js?v=1.1.79"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
