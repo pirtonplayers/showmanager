@@ -2932,6 +2932,14 @@ let _stockView   = 'count';
 let _stockReportId = null;
 let _restockIds  = null;   // item ids shown on the Restock page (null = recompute on next render)
 const STOCK_DRAFT_KEY = 'showdrinks_stock_draft';
+const STOCK_SESSION_KEY = 'showdrinks_stock_session';
+let _stockTaking = null;   // event name while a stock take is in progress, else null
+try { _stockTaking = localStorage.getItem(STOCK_SESSION_KEY) || null; } catch (e) { _stockTaking = null; }
+function saveStockSession() {
+  try {
+    if (_stockTaking) localStorage.setItem(STOCK_SESSION_KEY, _stockTaking); else localStorage.removeItem(STOCK_SESSION_KEY);
+  } catch (e) {}
+}
 
 try { _stockCounts = JSON.parse(localStorage.getItem(STOCK_DRAFT_KEY) || '{}') || {}; } catch (e) { _stockCounts = {}; }
 function saveStockDraft() {
@@ -2989,9 +2997,10 @@ function renderStockTab() {
 }
 
 function updateStockCountSummary() {
+  const el = document.getElementById('stockCountSummary');
+  if (!_stockTaking) { el.textContent = ''; return; }
   const n = Object.keys(_stockCounts).length;
-  document.getElementById('stockCountSummary').textContent =
-    n ? `${n} item${n === 1 ? '' : 's'} counted so far (all categories)` : 'Nothing counted yet.';
+  el.textContent = `${_stockTaking}: ` + (n ? `${n} item${n === 1 ? '' : 's'} counted so far (all categories)` : 'nothing counted yet');
 }
 
 function renderStockCount() {
@@ -3006,16 +3015,32 @@ function renderStockCount() {
     const cnt = _stockCounts[i.id];
     return `<tr>
       <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
-      <td><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
-      <td><input type="number" min="0" step="1" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
-      <td><input type="number" min="0" step="1" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>
-      <td style="text-align:center" id="stockOh-${i.id}">${stockOnHandLabel(s)}</td>
-      <td style="text-align:center"><button type="button" class="btn btn-secondary btn-sm" onclick="openStockAdjust('${i.id}')">Add</button></td>
-      <td><input type="number" min="0" step="1" class="stock-input" value="${cnt ?? ''}" oninput="setStockCount('${i.id}',this.value)" aria-label="Counted"></td>
+      <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
+      <td class="col-edit"><input type="number" min="0" step="1" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
+      <td class="col-edit"><input type="number" min="0" step="1" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>
+      <td class="col-edit" style="text-align:center" id="stockOh-${i.id}">${stockOnHandLabel(s)}</td>
+      <td class="col-edit" style="text-align:center"><button type="button" class="btn btn-secondary btn-sm" onclick="openStockAdjust('${i.id}')">Add</button></td>
+      <td class="col-count"><input type="number" min="0" step="1" class="stock-input" value="${cnt ?? ''}" oninput="setStockCount('${i.id}',this.value)" aria-label="Counted"></td>
     </tr>`;
-  }).join('') : '<tr><td colspan="7" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
+  }).join('') : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
+  const counting = !!_stockTaking;
+  document.getElementById('stockTable').classList.toggle('counting', counting);
+  document.getElementById('stockStartBtn').style.display = counting ? 'none' : '';
+  document.getElementById('stockFinishBtn').style.display = counting ? '' : 'none';
+  document.getElementById('stockCancelBtn').style.display = counting ? '' : 'none';
+  document.getElementById('stockEditHelp').style.display = counting ? 'none' : '';
   updateStockCountSummary();
 }
+
+window.startStockTake = function() {
+  const current = _shows.find(s => s.isCurrent);
+  const name = prompt('Name this stock take (the event — used to find it later for billing):', current?.name || '');
+  if (name === null) return;   // cancelled
+  if (!name.trim()) { toast('A stock take needs an event name', 'error'); return; }
+  _stockTaking = name.trim();
+  saveStockSession();
+  renderStockCount();
+};
 
 // Restock level (`restockTo`) is what a restock tops an item up to: it starts out equal to Min
 // (blank = follow Min) and may be set higher, never lower. Raising Min past it drags it up too.
@@ -3083,9 +3108,11 @@ window.confirmStockAdjust = async function() {
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
-window.clearStockCounts = function() {
-  if (!Object.keys(_stockCounts).length || !confirm('Discard the counts entered so far?')) return;
-  _stockCounts = {}; saveStockDraft(); renderStockCount();
+window.cancelStockTake = function() {
+  if (!confirm('Cancel this stock take? Counts entered so far will be discarded.')) return;
+  _stockCounts = {}; saveStockDraft();
+  _stockTaking = null; saveStockSession();
+  renderStockCount();
 };
 
 window.finishStockTake = async function() {
@@ -3096,9 +3123,8 @@ window.finishStockTake = async function() {
       (uncounted ? `\n${uncounted} item(s) not counted will keep their previous figures.` : '') +
       '\nCounted figures become the starting point for the next stock take.')) return;
 
-  const current = _shows.find(s => s.isCurrent);
-  const eventName = (prompt('Name this stock take (the event — used to find it later for billing):', current?.name || '') || '').trim();
-  if (!eventName) { toast('Not saved — a stock take needs an event name', 'error'); return; }
+  const eventName = _stockTaking;
+  if (!eventName) { toast('Start a stock take first', 'error'); return; }
 
   const lines = ids.map(id => {
     const item = _allMenuItems.find(i => i.id === id);
@@ -3132,6 +3158,7 @@ window.finishStockTake = async function() {
     });
     await batch.commit();
     _stockCounts = {}; saveStockDraft();
+    _stockTaking = null; saveStockSession();
     _stockReportId = takeRef.id;
     _stockView = 'reports';
     await loadStockTab();
