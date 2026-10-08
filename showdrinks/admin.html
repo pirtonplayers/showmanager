@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.65"></script>
+  <script src="../shared/embed.js?v=1.1.66"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.65">
+  <link rel="stylesheet" href="style.css?v=1.1.66">
 </head>
 <body>
 
@@ -379,21 +379,18 @@
     <div class="section-header">
       <h2>Stock</h2>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-secondary btn-sm active" id="stockViewCount" onclick="setStockView('count')">Stock</button>
-        <button class="btn btn-secondary btn-sm" id="stockViewReports" onclick="setStockView('reports')">Reports</button>
-        <button class="btn btn-secondary btn-sm" id="stockViewRestock" onclick="setStockView('restock')">Restock</button>
         <div style="position:relative" id="stockActionsWrap">
           <button class="btn btn-secondary btn-sm" onclick="toggleStockActions(event)" aria-label="Stock actions" title="Stock actions">⋯</button>
           <div id="stockActionsDropdown" class="dropdown-menu">
-            <button class="btn btn-secondary btn-sm stock-menu-view" data-view="count" onclick="setStockView('count')">Stock</button>
-            <button class="btn btn-secondary btn-sm stock-menu-view" data-view="reports" onclick="setStockView('reports')">Reports</button>
-            <button class="btn btn-secondary btn-sm stock-menu-view" data-view="restock" onclick="setStockView('restock')">Restock</button>
+            <button class="menu-item stock-menu-view" data-view="count" onclick="setStockView('count')">Stock</button>
+            <button class="menu-item stock-menu-view" data-view="reports" onclick="setStockView('reports')">Reports</button>
+            <button class="menu-item stock-menu-view" data-view="restock" onclick="setStockView('restock')">Restock</button>
             <div id="stockCountActions">
               <div class="dropdown-divider"></div>
-              <button class="btn btn-secondary btn-sm" id="stockStartBtn" onclick="startStockTake()">Start stock take</button>
-              <button class="btn btn-secondary btn-sm" id="stockFinishBtn" onclick="finishStockTake()" style="display:none">Finish stock take</button>
-              <button class="btn btn-secondary btn-sm" id="stockCancelBtn" onclick="cancelStockTake()" style="display:none">Cancel stock take</button>
-              <button class="btn btn-secondary btn-sm" onclick="clearAllStock()">Clear all stock</button>
+              <button class="menu-item" id="stockStartBtn" onclick="startStockTake()">Start stock take</button>
+              <button class="menu-item" id="stockFinishBtn" onclick="finishStockTake()" style="display:none">Finish stock take</button>
+              <button class="menu-item" id="stockCancelBtn" onclick="cancelStockTake()" style="display:none">Cancel stock take</button>
+              <button class="menu-item" onclick="clearAllStock()">Clear all stock</button>
             </div>
           </div>
         </div>
@@ -1041,11 +1038,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.65"></script>
-<script src="../shared/firebase-config.js?v=1.1.65"></script>
-<script src="../shared/auth.js?v=1.1.65"></script>
-<script src="../shared/suite-nav.js?v=1.1.65"></script>
-<script src="admin.js?v=1.1.65"></script>
+<script src="../shared/version.js?v=1.1.66"></script>
+<script src="../shared/firebase-config.js?v=1.1.66"></script>
+<script src="../shared/auth.js?v=1.1.66"></script>
+<script src="../shared/suite-nav.js?v=1.1.66"></script>
+<script src="admin.js?v=1.1.66"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

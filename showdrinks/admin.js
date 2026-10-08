@@ -2985,10 +2985,7 @@ function stockOnHandLabel(s) {
 }
 
 function renderStockTab() {
-  document.getElementById('stockViewCount').classList.toggle('active', _stockView === 'count');
-  document.getElementById('stockViewReports').classList.toggle('active', _stockView === 'reports');
   document.getElementById('stockCountView').style.display   = _stockView === 'count' ? '' : 'none';
-  document.getElementById('stockViewRestock').classList.toggle('active', _stockView === 'restock');
   document.getElementById('stockCountActions').style.display = _stockView === 'count' ? '' : 'none';
   document.querySelectorAll('.stock-menu-view').forEach(b => b.classList.toggle('active', b.dataset.view === _stockView));
   document.getElementById('stockReportsView').style.display = _stockView === 'reports' ? '' : 'none';

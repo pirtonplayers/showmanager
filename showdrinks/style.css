@@ -533,3 +533,6 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .stock-table .col-count { display: none; }
 .stock-table.counting .col-edit { display: none; }
 .stock-table.counting .col-count { display: table-cell; }
+.dropdown-menu .menu-item { display: block; width: 100%; text-align: left; padding: 10px 12px; border: none; border-radius: 6px; background: none; font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer; white-space: nowrap; }
+.dropdown-menu .menu-item:hover { background: var(--bg); }
+.dropdown-menu .menu-item.active { color: var(--primary); background: var(--primary-light); }
