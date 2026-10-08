@@ -3209,11 +3209,17 @@ window.clearAllStock = async function() {
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 // Stock prints (stock list, restock list, stock take report) open the document in a new window and
-// call print() on it — the same way they worked before the in-page print view was tried.
+// print it. The window closes itself once the print dialog is dismissed (printed or cancelled) and
+// also has a Back button, so there's always a way back to the app (in an installed app that new
+// window has no browser chrome to close it with).
 function printHtml(html) {
   const w = window.open('', '_blank');
   if (!w) { toast('Allow pop-ups to print', 'error'); return; }
-  w.document.write(html);
+  const bar = '<style>@media print{.np{display:none}}</style>' +
+    '<div class="np" style="margin-bottom:12px"><button onclick="window.close()" style="font-size:16px;padding:8px 14px">← Back to app</button> ' +
+    '<button onclick="window.print()" style="font-size:16px;padding:8px 14px">Print</button></div>' +
+    '<script>window.addEventListener("afterprint", function () { window.close(); });<' + '/script>';
+  w.document.write(html.replace(/<body([^>]*)>/, '<body$1>' + bar));
   w.document.close(); w.focus(); w.print();
 }
 
