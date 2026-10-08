@@ -3032,6 +3032,8 @@ function renderStockCount() {
     </tr>`;
   }).join('') : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
   const counting = !!_stockTaking;
+  document.getElementById('stockNonZeroLabel').style.display = counting ? 'none' : 'flex';
+  document.getElementById('tab-stock').classList.toggle('stock-taking', counting);
   document.getElementById('stockTable').classList.toggle('counting', counting);
   document.getElementById('stockStartBtn').style.display = counting ? 'none' : '';
   document.getElementById('stockOpeningBtn').style.display = counting ? 'none' : '';
