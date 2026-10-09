@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.104"></script>
+  <script src="../shared/embed.js?v=1.1.105"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.104">
+  <link rel="stylesheet" href="style.css?v=1.1.105">
 </head>
 <body>
 
@@ -774,12 +774,12 @@
 </div>
 
 <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:center;justify-content:center">
-  <div class="card" style="width:100%;max-width:400px;margin:20px">
+  <div class="card" style="width:100%;max-width:400px;margin:20px;max-height:90vh;display:flex;flex-direction:column">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
       <h2 id="editModalTitle">Edit Item</h2>
       <button onclick="closeModal()" style="background:none;border:none;font-size:20px;cursor:pointer">×</button>
     </div>
-    <div class="card-body">
+    <div class="card-body" style="overflow-y:auto">
       <div class="form-group" id="editCategoryGroup" style="display:none">
         <label for="editCategory">Category</label>
         <select id="editCategory" class="form-control"></select>
@@ -825,7 +825,7 @@
           <div style="flex:1"><label for="editRestockTo" style="font-size:12px">Restock level</label><input type="number" id="editRestockTo" class="form-control" min="0" step="any"></div>
         </div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
+      <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;position:sticky;bottom:-20px;background:var(--surface);padding:10px 0 14px;margin-top:6px">
         <button class="btn btn-danger" id="editDeleteBtn" style="display:none;margin-right:auto">Delete</button>
         <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
         <button class="btn btn-primary" id="editSaveBtn">Save</button>
@@ -1068,11 +1068,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.104"></script>
-<script src="../shared/firebase-config.js?v=1.1.104"></script>
-<script src="../shared/auth.js?v=1.1.104"></script>
-<script src="../shared/suite-nav.js?v=1.1.104"></script>
-<script src="admin.js?v=1.1.104"></script>
+<script src="../shared/version.js?v=1.1.105"></script>
+<script src="../shared/firebase-config.js?v=1.1.105"></script>
+<script src="../shared/auth.js?v=1.1.105"></script>
+<script src="../shared/suite-nav.js?v=1.1.105"></script>
+<script src="admin.js?v=1.1.105"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
