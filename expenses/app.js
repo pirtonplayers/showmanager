@@ -298,6 +298,10 @@ document.getElementById('showAllExpensesToggle').addEventListener('change', (e) 
 // ── Expense detail modal ────────────────────────────────────────────────
 // receiptPaths is the current (possibly-multiple) field; receiptPath is the older single-file
 // one still sitting on any expense submitted before this became an array.
+// Receipts can be photos or PDFs. Paths carry the extension we gave them at upload.
+function isPdfPath(path) { return /\.pdf$/i.test(path || ''); }
+function isPdfFile(file) { return !!file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '')); }
+
 function receiptPathsOf(r) {
   return r.receiptPaths || (r.receiptPath ? [r.receiptPath] : []);
 }
@@ -338,6 +342,14 @@ async function openExpenseDetail(id) {
   for (const path of paths) {
     try {
       const url = await storage.ref(path).getDownloadURL();
+      if (isPdfPath(path)) {
+        const a = document.createElement('a');
+        a.className = 'receipt-pdf-tile-lg';
+        a.href = url; a.target = '_blank'; a.rel = 'noopener';
+        a.textContent = '📄 PDF receipt — open';
+        body.appendChild(a);
+        continue;
+      }
       const img = document.createElement('img');
       img.className = 'receipt-thumb';
       img.src = url;
@@ -370,9 +382,10 @@ document.getElementById('detailReceiptInput').addEventListener('change', async (
     for (const file of files) {
       const blob = await compressReceiptImage(file);
       const compressed = blob !== file;
-      const ext = compressed ? 'jpg' : (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const pdf = isPdfFile(file);
+      const ext = pdf ? 'pdf' : compressed ? 'jpg' : (file.name.split('.').pop() || 'jpg').toLowerCase();
       const path = `receipts/${firebase.auth().currentUser.uid}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
-      await storage.ref(path).put(blob, compressed ? { contentType: 'image/jpeg' } : undefined);
+      await storage.ref(path).put(blob, pdf ? { contentType: 'application/pdf' } : compressed ? { contentType: 'image/jpeg' } : undefined);
       newPaths.push(path);
     }
     await db.collection('expenses').doc(id).update({
@@ -405,6 +418,7 @@ const RECEIPT_MAX_DIMENSION = 1000;
 const RECEIPT_JPEG_QUALITY = 0.45;
 
 function compressReceiptImage(file) {
+  if (isPdfFile(file)) return Promise.resolve(file);   // PDFs go up untouched
   return new Promise((resolve) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
@@ -469,11 +483,15 @@ window.addEventListener('beforeunload', (e) => {
 // editing view) — same modal, each just brings its own onDelete for what "delete" actually
 // means in that context (splice a not-yet-uploaded file / delete from Storage right away /
 // defer the delete until Update item is clicked).
-function openReceiptModal(src, onDelete) {
-  document.getElementById('receiptViewImg').src = src;
+function openReceiptModal(src, onDelete, isPdf) {
+  const img = document.getElementById('receiptViewImg');
+  const link = document.getElementById('receiptViewPdfLink');
+  img.style.display = isPdf ? 'none' : '';
+  link.style.display = isPdf ? '' : 'none';
+  if (isPdf) link.href = src; else img.src = src;
   document.getElementById('receiptViewModal').style.display = 'flex';
   document.getElementById('receiptViewDeleteBtn').onclick = () => {
-    if (!confirm('Delete this receipt photo?')) return;
+    if (!confirm('Delete this receipt?')) return;
     onDelete();
     closeReceiptModal();
   };
@@ -492,11 +510,26 @@ document.getElementById('receiptViewModal').addEventListener('click', (e) => {
 // the pending list and the editing view's own thumbnails below. Not fetched inline into the
 // list's own template string: getDownloadURL() is a network round-trip, and building the whole
 // list's HTML can't wait on every receipt's URL before showing anything.
+// An <img> for photos, a "PDF" tile for PDFs — loadReceiptThumb works with either.
+function pdfAwareThumb(path) {
+  if (isPdfPath(path)) {
+    const t = document.createElement('span');
+    t.className = 'receipt-pdf-tile';
+    t.textContent = 'PDF';
+    return t;
+  }
+  const img = document.createElement('img');
+  img.className = 'receipt-thumb-sm';
+  img.alt = 'Receipt photo';
+  return img;
+}
+
 async function loadReceiptThumb(img, path, onDelete) {
   try {
     const url = await storage.ref(path).getDownloadURL();
-    img.src = url;
-    img.addEventListener('click', () => openReceiptModal(url, onDelete));
+    const pdf = isPdfPath(path);
+    if (img.tagName === 'IMG') img.src = url;
+    img.addEventListener('click', () => openReceiptModal(url, onDelete, pdf));
   } catch (err) {
     img.replaceWith(Object.assign(document.createElement('span'), { className: 'muted', style: 'font-size:12px', textContent: 'Receipt unavailable' }));
   }
@@ -537,9 +570,7 @@ function renderPendingList() {
     if (!p.receiptPaths.length) return;
     const container = list.querySelector(`[data-pending-thumbs="${p.id}"]`);
     p.receiptPaths.forEach(path => {
-      const img = document.createElement('img');
-      img.className = 'receipt-thumb-sm';
-      img.alt = 'Receipt photo';
+      const img = pdfAwareThumb(path);
       container.appendChild(img);
       // Deletes for real, right away — this item isn't open for editing, there's no "Update
       // item"/Cancel step here to defer it to.
@@ -590,7 +621,9 @@ function renderEditingExistingReceipts() {
   if (!remaining.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = 'flex';
   el.innerHTML = remaining
-    .map(rp => `<img class="receipt-thumb-sm" alt="Receipt photo" data-existing-thumb="${escapeHtml(rp)}">`)
+    .map(rp => isPdfPath(rp)
+      ? `<span class="receipt-pdf-tile" data-existing-thumb="${escapeHtml(rp)}">PDF</span>`
+      : `<img class="receipt-thumb-sm" alt="Receipt photo" data-existing-thumb="${escapeHtml(rp)}">`)
     .join('');
   el.querySelectorAll('[data-existing-thumb]').forEach(img => {
     const rp = img.getAttribute('data-existing-thumb');
@@ -611,10 +644,9 @@ function renderNewReceiptPreview() {
   el.innerHTML = '';
   newReceiptFiles.forEach((file) => {
     const url = URL.createObjectURL(file);
-    const img = document.createElement('img');
-    img.className = 'receipt-thumb-sm';
-    img.alt = 'Receipt photo';
-    img.src = url;
+    const pdf = isPdfFile(file);
+    const img = pdf ? Object.assign(document.createElement('span'), { className: 'receipt-pdf-tile', textContent: 'PDF' }) : document.createElement('img');
+    if (!pdf) { img.className = 'receipt-thumb-sm'; img.alt = 'Receipt photo'; img.src = url; }
     // Filtered out by reference, not index — an index captured here would go stale for every
     // thumbnail after whichever one actually gets deleted.
     img.addEventListener('click', () => openReceiptModal(url, () => {
@@ -622,7 +654,7 @@ function renderNewReceiptPreview() {
       newReceiptFiles = newReceiptFiles.filter(f => f !== file);
       syncReceiptInput();
       renderNewReceiptPreview();
-    }));
+    }, pdf));
     el.appendChild(img);
   });
 }
@@ -706,12 +738,13 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
     for (const file of files) {
       const blob = await compressReceiptImage(file);
       const compressed = blob !== file;
-      const ext = compressed ? 'jpg' : (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const pdf = isPdfFile(file);
+      const ext = pdf ? 'pdf' : compressed ? 'jpg' : (file.name.split('.').pop() || 'jpg').toLowerCase();
       // Path is receipts/{own uid}/... — storage.rules only lets an account read/write its own
       // uid folder (or a manager read any of them), so this has to be the uid, not anything
       // derived from the email.
       const path = `receipts/${firebase.auth().currentUser.uid}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
-      await storage.ref(path).put(blob, compressed ? { contentType: 'image/jpeg' } : undefined);
+      await storage.ref(path).put(blob, pdf ? { contentType: 'application/pdf' } : compressed ? { contentType: 'image/jpeg' } : undefined);
       newReceiptPaths.push(path);
     }
 

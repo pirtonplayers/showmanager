@@ -47,10 +47,15 @@ function receiptLinksHtml(r) {
 
 async function viewReceipt(path) {
   const img = document.getElementById('receiptViewImg');
+  const link = document.getElementById('receiptViewPdfLink');
+  const pdf = /\.pdf$/i.test(path || '');
   img.src = '';
+  img.style.display = pdf ? 'none' : '';
+  link.style.display = pdf ? '' : 'none';
   document.getElementById('receiptViewModal').style.display = 'flex';
   try {
-    img.src = await storage.ref(path).getDownloadURL();
+    const url = await storage.ref(path).getDownloadURL();
+    if (pdf) link.href = url; else img.src = url;
   } catch (err) {
     closeReceiptViewModal();
     showToast(err.message, 'error');
