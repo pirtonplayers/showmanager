@@ -132,7 +132,9 @@ function basketCount() {
 
 // Ordering screen has two interchangeable layouts, picked in Admin → Settings & QR: the
 // staff-configured POS button grid (default), or a plain list of every item grouped by category.
-function isPosMode() { return (state.settings && state.settings.orderingMode) !== 'list'; }
+// A buy-now session always uses the list (every Buy Now item as a card, buynow-screen styling), whatever
+// ordering method is set — the POS grid would only offer the Buy Now items that happen to be placed in it.
+function isPosMode() { return !state.sessionBuyNow && (state.settings && state.settings.orderingMode) !== 'list'; }
 
 // Settings & QR → Ordering Method's "Starting page" for the customer ordering screen — falls
 // back to root if unset or if the configured grid's since been deleted.
