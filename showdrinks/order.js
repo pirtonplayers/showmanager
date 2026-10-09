@@ -573,11 +573,16 @@ function posIsLight(hex) {
 // reads the old three-way 'visibility' field (both/bar/customer) this replaced, so items set to
 // bar/customer-only under that short-lived scheme keep their setting. admin.js's Bar Tabs
 // POS/List has its own mirror-image itemShowsOnTab() (order.js is a separate script).
+function itemInPosGrid(item) {
+  return !!item && Object.values(state.posGrids || {}).some(g => (g.cells || []).some(c => c && c.type === 'item' && c.menuItemId === item.id));
+}
+
 function itemShowsOnPos(item) {
   // A "buy-now" session (set per session in Admin → Show & Sessions) only offers items in the
   // "Buy Now" category — see also renderPosGrid, which blanks the cell.
-  // ...and in every other session the Buy Now category is hidden.
-  if (state.sessionBuyNow !== isBuyNowItem(item)) return false;
+  // ...and in every other session the Buy Now category is hidden — unless the item has been
+  // placed in a POS grid, which is an explicit choice to offer it there.
+  if (state.sessionBuyNow !== isBuyNowItem(item) && !(isBuyNowItem(item) && itemInPosGrid(item))) return false;
   if (!item) return true;
   if (item.showOnPos !== undefined) return item.showOnPos !== false;
   if (item.visibility) return item.visibility !== 'bar';
@@ -608,8 +613,9 @@ function renderPosGrid() {
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
     const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
     const menuItem = cell.type === 'item' ? state.menuItems.find(mi => mi.id === cell.menuItemId) : null;
-    // Items from the wrong side of the buy-now split aren't just dimmed, they're not shown at all.
-    if (cell.type === 'item' && menuItem && state.sessionBuyNow !== isBuyNowItem(menuItem) || (state.sessionBuyNow && cell.type === 'item' && !menuItem)) {
+    // In a buy-now session, anything that isn't a Buy Now item isn't just dimmed, it's not shown at
+    // all. Other sessions show Buy Now items that have been placed in the grid (this cell is one).
+    if (state.sessionBuyNow && cell.type === 'item' && !(menuItem && isBuyNowItem(menuItem))) {
       return `<button class="pos-btn empty" disabled></button>`;
     }
     // Off-sale (or, same treatment, bar-only): dimmed and untappable, but still shown (a
