@@ -366,15 +366,20 @@ async function renderHomeScreen() {
   // re-render the whole (short) list — simplest way to keep it sorted/consistent.
   const byId = {};
 
+  // True when at least one of the customer's saved orders is from today (any status), so the
+  // "Your orders" header and All toggle only appear when there's something to look at.
+  function allOrdersToday(map, saved) {
+    return saved.some(o => map[o.id] && map[o.id].showDate === today());
+  }
+
   function renderOrdersList() {
     const section = document.getElementById('ordersListSection');
     if (!section) return; // navigated off the home screen since this fired
-    if (!allSaved.length) {
-      section.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">No orders yet.</p>';
-      return;
-    }
+    if (!allSaved.length) { section.innerHTML = ''; return; }
     const showAll = getShowAllOrders();
+    // Only today's orders are listed at all; with none, nothing is shown (no header, no message).
     const enriched = allSaved.map(o => byId[o.id]).filter(Boolean)
+      .filter(o => o.showDate === today())
       .filter(o => showAll || (o.prepStatus !== 'collected' && !o.cancelled))
       .sort((a, b) => (b.orderNumber || 0) - (a.orderNumber || 0));
     const header = `<div class="section-label" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -385,9 +390,8 @@ async function renderHomeScreen() {
         <span>All</span>
       </label>
     </div>`;
-    section.innerHTML = header + (enriched.length
-      ? enriched.map(orderCard).join('')
-      : showAll ? `<p style="font-size:13px;color:var(--text-muted)">No orders yet.</p>` : '');
+    if (!allOrdersToday(byId, allSaved)) { section.innerHTML = ''; return; }
+    section.innerHTML = header + enriched.map(orderCard).join('');
   }
 
   const docs = await Promise.all(
