@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.103"></script>
+  <script src="../shared/embed.js?v=1.1.104"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.103">
+  <link rel="stylesheet" href="style.css?v=1.1.104">
 </head>
 <body>
 
@@ -234,10 +234,9 @@
               <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Leave blank for no cutoff — orders stay open for as long as this session's enabled.</p>
             </div>
             <div class="form-group">
-              <label style="display:flex;align-items:center;gap:8px;font-size:14px">
-                <input type="checkbox" id="beforeBuyNow"> Buy now
-              </label>
-              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items in the "Buy Now" category, pay online, and the order is marked collected once paid.</p>
+              <label for="beforeCategory">Category (optional)</label>
+              <select id="beforeCategory" class="form-control"></select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Offer just this category in this session. If it is a Buy Now category, the first item is added automatically, customers pay online, and the order is marked collected once paid.</p>
             </div>
           </div>
           <div class="form-row">
@@ -271,10 +270,9 @@
               <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Leave blank for no cutoff — orders stay open for as long as this session's enabled.</p>
             </div>
             <div class="form-group">
-              <label style="display:flex;align-items:center;gap:8px;font-size:14px">
-                <input type="checkbox" id="intervalBuyNow"> Buy now
-              </label>
-              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items in the "Buy Now" category, pay online, and the order is marked collected once paid.</p>
+              <label for="intervalCategory">Category (optional)</label>
+              <select id="intervalCategory" class="form-control"></select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Offer just this category in this session. If it is a Buy Now category, the first item is added automatically, customers pay online, and the order is marked collected once paid.</p>
             </div>
           </div>
           <div class="form-row">
@@ -308,10 +306,9 @@
               <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Leave blank for no cutoff — orders stay open for as long as this session's enabled.</p>
             </div>
             <div class="form-group">
-              <label style="display:flex;align-items:center;gap:8px;font-size:14px">
-                <input type="checkbox" id="afterBuyNow"> Buy now
-              </label>
-              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Customers only see items in the "Buy Now" category, pay online, and the order is marked collected once paid.</p>
+              <label for="afterCategory">Category (optional)</label>
+              <select id="afterCategory" class="form-control"></select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Offer just this category in this session. If it is a Buy Now category, the first item is added automatically, customers pay online, and the order is marked collected once paid.</p>
             </div>
           </div>
           <div class="form-row">
@@ -336,6 +333,7 @@
           <button class="btn btn-secondary btn-sm" onclick="toggleMenuActions(event)" aria-label="Price list actions" title="Price list actions">⋯</button>
           <div id="menuActionsDropdown" class="dropdown-menu">
             <button class="btn btn-secondary btn-sm" onclick="openAddMenuItemModal()">+ Add Item</button>
+            <button class="btn btn-secondary btn-sm" onclick="openBuyNowCats()">Buy Now categories…</button>
             <button class="btn btn-secondary btn-sm" onclick="openPrintMenuModal()">🖨 Print Price List</button>
             <button class="btn btn-secondary btn-sm" onclick="exportMenuCsv()">⬇ Extract to CSV</button>
           </div>
@@ -925,6 +923,18 @@
   </div>
 </div>
 
+<!-- Price List ⋯ → Buy Now categories: every item in a ticked category is a buy-now item. -->
+<div id="buyNowCatsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:360px;margin:20px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="card-header"><h2>Buy Now categories</h2></div>
+    <div class="card-body" style="overflow:auto" id="buyNowCatsList"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--border)">
+      <button class="btn btn-secondary" onclick="closeBuyNowCats()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBuyNowCats()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="addTabMemberModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px;margin:20px">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -1058,11 +1068,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.103"></script>
-<script src="../shared/firebase-config.js?v=1.1.103"></script>
-<script src="../shared/auth.js?v=1.1.103"></script>
-<script src="../shared/suite-nav.js?v=1.1.103"></script>
-<script src="admin.js?v=1.1.103"></script>
+<script src="../shared/version.js?v=1.1.104"></script>
+<script src="../shared/firebase-config.js?v=1.1.104"></script>
+<script src="../shared/auth.js?v=1.1.104"></script>
+<script src="../shared/suite-nav.js?v=1.1.104"></script>
+<script src="admin.js?v=1.1.104"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

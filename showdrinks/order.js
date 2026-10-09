@@ -98,9 +98,21 @@ const ORDER_STAGE_BADGE = { unpaid: 'badge-danger', paid: 'badge-warning', ready
 // Payment methods on offer: the show's own setting (default pay-at-bar), except a buy-now order
 // which is always online-only — it's paid for on the spot and handed over, so there's no "pay at
 // the bar" for it. Used for both the Review screen and the Status screen's failed-payment wording.
-const BUY_NOW_CATEGORY = 'buy now';
+// Categories marked "Buy now" in Admin (showdrinks_config/categories.buyNow). Every item in one of
+// them is a buy-now item. Until that list has ever been saved, the old convention applies: the
+// category literally named "Buy Now".
+function catKey(c) { return (c || '').trim().toLowerCase(); }
+function isBuyNowCategory(c) {
+  const list = state.buyNowCats;
+  return catKey(c) !== '' && (list ? list.has(catKey(c)) : catKey(c) === 'buy now');
+}
 function isBuyNowItem(item) {
-  return !!item && (item.category || '').trim().toLowerCase() === BUY_NOW_CATEGORY;
+  return !!item && isBuyNowCategory(item.category);
+}
+// A session can have a category assigned (session.category); the old per-session buyNow flag
+// meant "the Buy Now category". It's a buy-now session when that category is a buy-now one.
+function sessionCategoryOf(session) {
+  return session?.category || (session?.buyNow ? 'Buy Now' : '');
 }
 function effectivePaymentMode(buyNow) {
   const m = state.settings?.paymentMode || 'bar';
@@ -500,13 +512,15 @@ window.startSessionOrder = function(id, name) {
   // pill either way (matches the other "shouldn't be reachable" guards in this file).
   if (sessionCutoffPassed((state.sessions || {})[id])) return;
   state.showDate = today(); state.sessionId = id; state.sessionName = name; state.basket = {};
-  state.sessionBuyNow = !!(state.sessions || {})[id]?.buyNow;
+  const sessCat = sessionCategoryOf((state.sessions || {})[id]);
+  state.sessionCategory = sessCat;
+  state.sessionBuyNow = !!sessCat && isBuyNowCategory(sessCat);
   state.editingOrderId = null; state.editingOrderStatus = null; state.editingOrderNumber = null; state.editingOrderPaymentStatus = null; state.editingOrderCancelled = null;
-  state.selectedCategory = null;
-  // Buy-now: the first item is already in the basket, as if it had been tapped.
+  state.selectedCategory = !state.sessionBuyNow && sessCat ? sessCat : null;   // a plain category just opens on that category
+  // Buy-now: the first item of the session's category is already in the basket, as if it had been tapped.
   if (state.sessionBuyNow) {
     const special = n => !/^[a-z0-9]/i.test(n || '');
-    const first = state.menuItems.filter(i => isBuyNowItem(i) && i.onSale !== false)
+    const first = state.menuItems.filter(i => catKey(i.category) === catKey(sessCat) && i.onSale !== false)
       .sort((a, b) => (special(a.name) - special(b.name)) || (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()))[0];
     if (first) state.basket[first.name] = { name: first.name, price: first.price, quantity: 1 };
   }
@@ -529,6 +543,7 @@ window.viewOrder = async function(orderId) {
     state.sessionId   = order.sessionId;
     state.sessionName = order.sessionName;
     state.sessionBuyNow = order.buyNow === true;
+    state.sessionCategory = '';
     // Build basket from saved items (key = item name)
     state.basket = {};
     (order.items || []).forEach(item => {
@@ -575,6 +590,13 @@ function posIsLight(hex) {
 // reads the old three-way 'visibility' field (both/bar/customer) this replaced, so items set to
 // bar/customer-only under that short-lived scheme keep their setting. admin.js's Bar Tabs
 // POS/List has its own mirror-image itemShowsOnTab() (order.js is a separate script).
+// In a buy-now session: only the session's own category (or, when viewing an old order with no
+// category recorded, any buy-now category).
+function sessionOffers(item) {
+  if (!item) return false;
+  return state.sessionCategory ? catKey(item.category) === catKey(state.sessionCategory) : isBuyNowItem(item);
+}
+
 function itemInPosGrid(item) {
   return !!item && Object.values(state.posGrids || {}).some(g => (g.cells || []).some(c => c && c.type === 'item' && c.menuItemId === item.id));
 }
@@ -582,9 +604,11 @@ function itemInPosGrid(item) {
 function itemShowsOnPos(item) {
   // A "buy-now" session (set per session in Admin → Show & Sessions) only offers items in the
   // "Buy Now" category — see also renderPosGrid, which blanks the cell.
-  // ...and in every other session the Buy Now category is hidden — unless the item has been
+  // ...and in every other session buy-now categories are hidden — unless the item has been
   // placed in a POS grid, which is an explicit choice to offer it there.
-  if (state.sessionBuyNow !== isBuyNowItem(item) && !(isBuyNowItem(item) && itemInPosGrid(item))) return false;
+  if (state.sessionBuyNow) {
+    if (!sessionOffers(item)) return false;
+  } else if (isBuyNowItem(item) && !itemInPosGrid(item)) return false;
   if (!item) return true;
   if (item.showOnPos !== undefined) return item.showOnPos !== false;
   if (item.visibility) return item.visibility !== 'bar';
@@ -617,7 +641,7 @@ function renderPosGrid() {
     const menuItem = cell.type === 'item' ? state.menuItems.find(mi => mi.id === cell.menuItemId) : null;
     // In a buy-now session, anything that isn't a Buy Now item isn't just dimmed, it's not shown at
     // all. Other sessions show Buy Now items that have been placed in the grid (this cell is one).
-    if (state.sessionBuyNow && cell.type === 'item' && !(menuItem && isBuyNowItem(menuItem))) {
+    if (state.sessionBuyNow && cell.type === 'item' && !(menuItem && sessionOffers(menuItem))) {
       return `<button class="pos-btn empty" disabled></button>`;
     }
     // Off-sale (or, same treatment, bar-only): dimmed and untappable, but still shown (a
@@ -824,7 +848,7 @@ function renderListMenu() {
   const hasOrder = basketCount() > 0;
   const validSelections = hasOrder ? [...catOrder, ORDER_CHIP] : catOrder;
   // Buy-now session: straight into the Buy Now category, with no category pills to switch away.
-  const buyNowCat = state.sessionBuyNow ? catOrder.find(c => c.trim().toLowerCase() === BUY_NOW_CATEGORY) : null;
+  const buyNowCat = state.sessionBuyNow ? catOrder.find(c => state.sessionCategory ? catKey(c) === catKey(state.sessionCategory) : isBuyNowCategory(c)) : null;
   const selected = buyNowCat ? buyNowCat
     : state.selectedCategory && validSelections.includes(state.selectedCategory)
     ? state.selectedCategory : null;
@@ -1416,12 +1440,14 @@ async function init() {
   }
 
   try {
-    const [showSnap, menuSnap, settingsDoc, posSnap] = await Promise.all([
+    const [showSnap, menuSnap, settingsDoc, posSnap, catDoc] = await Promise.all([
       db.collection('showdrinks_shows').where('isCurrent', '==', true).limit(1).get(),
       db.collection('showdrinks_menuItems').orderBy('name').get(),
       db.collection('showdrinks_config').doc('settings').get(),
       db.collection('showdrinks_posGrids').get(),
+      db.collection('showdrinks_config').doc('categories').get(),
     ]);
+    state.buyNowCats = catDoc.exists ? new Set((catDoc.data().buyNow || []).map(catKey)) : null;
 
     const currentShow = showSnap.empty ? null : showSnap.docs[0].data();
     state.showConfig = currentShow || {};

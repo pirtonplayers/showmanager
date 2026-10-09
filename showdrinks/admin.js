@@ -274,7 +274,13 @@ function renderShowEditor() {
     document.getElementById(`${id}Name`).value = d.name || '';
     document.getElementById(`${id}Enabled`).value = d.enabled !== false ? 'true' : 'false';
     document.getElementById(`${id}Cutoff`).value = d.cutoffTime || '';
-    document.getElementById(`${id}BuyNow`).checked = d.buyNow === true;
+    // Category select: every price list category, plus the session's current one if it has since gone.
+    const sessCat = d.category || (d.buyNow ? 'Buy Now' : '');
+    const catSel = document.getElementById(`${id}Category`);
+    const cats = [..._menuCategories];
+    if (sessCat && !cats.includes(sessCat)) cats.push(sessCat);
+    catSel.innerHTML = '<option value="">— none —</option>' + cats.map(c => `<option value="${escHtml(c)}">${escHtml(c)}${isBuyNowCategoryName(c) ? ' (Buy Now)' : ''}</option>`).join('');
+    catSel.value = sessCat;
     document.getElementById(`${id}ConfirmMsg`).value = d.confirmationMessage || '';
   });
 }
@@ -290,7 +296,7 @@ document.getElementById('saveShowBtn').addEventListener('click', async () => {
       enabled: document.getElementById(`${id}Enabled`).value === 'true',
       // Blank = no cutoff — order.js's sessionCutoffPassed() treats a falsy cutoffTime that way.
       cutoffTime: document.getElementById(`${id}Cutoff`).value || '',
-      buyNow: document.getElementById(`${id}BuyNow`).checked,
+      category: document.getElementById(`${id}Category`).value,
       confirmationMessage: document.getElementById(`${id}ConfirmMsg`).value.trim(),
     };
   });
@@ -345,6 +351,7 @@ function startsWithSpecialChar(name) {
 }
 
 async function loadMenuItems() {
+  await loadBuyNowCats();
   // Fetch all, sort client-side by category then name (special-char-prefixed names last)
   const snap = await db.collection('showdrinks_menuItems').get();
   _allMenuItems = snap.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -825,7 +832,41 @@ function refreshModalImage() {
   prev.style.display = _modalImage ? 'block' : 'none';
   document.getElementById('editImageClear').style.display = _modalImage ? '' : 'none';
 }
-function isBuyNowCategoryName(c) { return (c || '').trim().toLowerCase() === 'buy now'; }
+// Categories marked Buy Now (showdrinks_config/categories.buyNow). Until the list has ever been
+// saved, the old convention applies: the category named "Buy Now".
+let _buyNowCats = null;   // Set of lower-cased names, or null = never saved
+function isBuyNowCategoryName(c) {
+  const k = (c || '').trim().toLowerCase();
+  return k !== '' && (_buyNowCats ? _buyNowCats.has(k) : k === 'buy now');
+}
+
+async function loadBuyNowCats() {
+  try {
+    const d = await db.collection('showdrinks_config').doc('categories').get();
+    _buyNowCats = d.exists ? new Set((d.data().buyNow || []).map(x => String(x).trim().toLowerCase())) : null;
+  } catch (e) { /* keep whatever we had */ }
+}
+
+window.openBuyNowCats = function() {
+  const list = document.getElementById('buyNowCatsList');
+  list.innerHTML = _menuCategories.length ? _menuCategories.map(c => `
+    <label style="display:flex;align-items:center;gap:8px;font-size:14px;padding:6px 0">
+      <input type="checkbox" class="bn-cat" value="${escHtml(c)}" ${isBuyNowCategoryName(c) ? 'checked' : ''}> ${escHtml(c)}
+    </label>`).join('') : '<p style="color:var(--text-muted)">No categories yet.</p>';
+  document.getElementById('buyNowCatsModal').style.display = 'flex';
+};
+
+window.closeBuyNowCats = function() { document.getElementById('buyNowCatsModal').style.display = 'none'; };
+
+window.saveBuyNowCats = async function() {
+  const names = [...document.querySelectorAll('#buyNowCatsList .bn-cat:checked')].map(c => c.value);
+  try {
+    await db.collection('showdrinks_config').doc('categories').set({ buyNow: names }, { merge: true });
+    _buyNowCats = new Set(names.map(n => n.trim().toLowerCase()));
+    closeBuyNowCats();
+    toast('Saved', 'success');
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
 document.getElementById('editImageFile').addEventListener('change', async (e) => {
   const f = e.target.files[0];
   if (!f) return;
