@@ -3116,23 +3116,30 @@ function renderStockCount() {
 
   const items = _allMenuItems.filter(i => _stockCat === 'all' || (i.category || '') === _stockCat).filter(stockPassesNonZero)
     .filter(i => showNonStock || i.stk !== false);
-  document.getElementById('stockTableBody').innerHTML = items.length ? items.map(i => {
+  const rowHtml = i => {
     const s = _stock[i.id] || {};
-    const pencil = `<button type="button" class="icon-btn col-edit" onclick="openEditMenuItemModal('${i.id}')" title="Edit" aria-label="Edit">${ICON_EDIT}</button>`;
+    const pencil = `<td class="col-edit" style="text-align:center"><button type="button" class="icon-btn" onclick="openEditMenuItemModal('${i.id}')" title="Edit" aria-label="Edit">${ICON_EDIT}</button></td>`;
     if (i.stk === false) {
-      // Not a stock item: shown only so it can be edited (e.g. to tick Stk) — no stock fields.
-      return `<tr style="opacity:.7"><td>${escHtml(i.name || '')} ${pencil}</td><td class="col-edit" colspan="5" style="color:var(--text-muted);font-size:11px">Not a stock item</td></tr>`;
+      // Not a stock item: shown only so it can be edited (e.g. to tick Stk) - no stock fields.
+      return `<tr style="opacity:.8"><td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td><td class="col-edit" colspan="5"></td>${pencil}</tr>`;
     }
     return `<tr>
-      <td>${escHtml(i.name || '')} ${pencil}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
+      <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
       <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
       <td class="col-edit"><input type="number" min="0" step="any" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
       <td class="col-edit"><input type="number" min="0" step="any" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>
       <td class="col-edit" style="text-align:center" id="stockOh-${i.id}">${stockOnHandLabel(s)}</td>
       <td class="col-edit" style="text-align:center"><button type="button" class="btn btn-secondary btn-sm" onclick="openStockAdjust('${i.id}')">Add</button></td>
       ${stockCountCell(i)}
+      ${pencil}
     </tr>`;
-  }).join('') : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
+  };
+  const stockRows = items.filter(i => i.stk !== false);
+  const nonStockRows = items.filter(i => i.stk === false);
+  document.getElementById('stockTableBody').innerHTML = items.length
+    ? stockRows.map(rowHtml).join('')
+      + (nonStockRows.length ? `<tr><td colspan="7" style="font-weight:700;padding-top:16px">Non stock items</td></tr>` + nonStockRows.map(rowHtml).join('') : '')
+    : '<tr><td colspan="7" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
   const counting = !!_stockTaking;
   document.getElementById('stockNonZeroLabel').style.display = counting ? 'none' : 'flex';
   document.getElementById('stockNonStockLabel').style.display = counting ? 'none' : 'flex';
