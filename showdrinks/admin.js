@@ -734,8 +734,8 @@ window.printPriceList = function() {
   frame.srcdoc = html;
 };
 
-window.openAddMenuItemModal = function() {
-  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true, stk: true, frac: false, image: '' });
+window.openAddMenuItemModal = function(over) {
+  openModal('Add Item', { type: 'menuItem', id: null, name: '', category: _selectedMenuCat !== 'all' ? _selectedMenuCat : '', price: 0, onSale: true, showOnTab: true, showOnPos: true, stk: true, frac: false, image: '', ...(over && over.type === undefined ? over : {}) });
 };
 
 window.openEditMenuItemModal = function(id) {
@@ -883,7 +883,6 @@ function openModal(title, ctx) {
 
   const priceGroup      = document.getElementById('editPriceGroup');
   const catGroup        = document.getElementById('editCategoryGroup');
-  const onSaleGroup     = document.getElementById('editOnSaleGroup');
   const visibilityGroup = document.getElementById('editVisibilityGroup');
   const deleteBtn       = document.getElementById('editDeleteBtn');
 
@@ -905,8 +904,6 @@ function openModal(title, ctx) {
       syncImageGroup();
     };
 
-    onSaleGroup.style.display = '';
-    document.getElementById('editOnSale').checked = ctx.onSale !== false;
 
     visibilityGroup.style.display = '';
     document.getElementById('editShowOnTab').checked = ctx.showOnTab !== false;
@@ -931,7 +928,6 @@ function openModal(title, ctx) {
     priceGroup.style.display = 'none';
     catGroup.style.display = 'none';
     document.getElementById('editImageGroup').style.display = 'none';
-    onSaleGroup.style.display = 'none';
     visibilityGroup.style.display = 'none';
     deleteBtn.style.display = 'none';
   }
@@ -948,6 +944,11 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
   if (!_modalCtx) return;
   const name = document.getElementById('editName').value.trim();
   if (!name) { toast('Name required', 'error'); return; }
+  // Item names are what a basket is keyed on, so two items can't share one.
+  if (_modalCtx.type === 'menuItem' && _allMenuItems.some(i => i.id !== _modalCtx.id && (i.name || '').trim().toLowerCase() === name.toLowerCase())) {
+    toast(`An item called "${name}" already exists`, 'error');
+    return;
+  }
 
   try {
     if (_modalCtx.type === 'location') {
@@ -962,10 +963,11 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
       const catSelect  = document.getElementById('editCategory');
       const category   = catSelect.value === '__new__' ? '' : catSelect.value;
       const price      = parseFloat(document.getElementById('editPrice').value) || 0;
-      const onSale     = document.getElementById('editOnSale').checked;
       const showOnTab  = document.getElementById('editShowOnTab').checked;
       const showOnPos  = document.getElementById('editShowOnPos').checked;
       const stk        = document.getElementById('editStk').checked;
+      // On sale simply means "offered on at least one of the two channels".
+      const onSale     = showOnTab || showOnPos;
       const frac       = document.getElementById('editFrac').checked;
       const image      = isBuyNowCategoryName(category) ? _modalImage : '';
       const numOrNull = id => { const v = document.getElementById(id).value; return v === '' ? null : Math.max(0, Number(v) || 0); };
@@ -3104,7 +3106,8 @@ function stockIsTracked(id) { return _allMenuItems.find(i => i.id === id)?.stk !
 
 function renderStockCount() {
   // Only stock take (Stk) items appear on the Stock view, and so only their categories.
-  const tracked = _allMenuItems.filter(i => i.stk !== false);
+  const showNonStock = !_stockTaking && !!document.getElementById('stockShowNonStock')?.checked;
+  const tracked = _allMenuItems.filter(i => showNonStock || i.stk !== false);
   const cats = [...new Set(tracked.map(i => i.category || ''))].sort();
   if (!cats.length) cats.push('');
   if (_stockCat === null || (_stockCat !== 'all' && !cats.includes(_stockCat))) _stockCat = cats[0];
@@ -3112,11 +3115,16 @@ function renderStockCount() {
     <button type="button" class="cat-btn ${c === _stockCat ? 'active' : ''}" onclick="setStockCat('${escHtml(c)}')">${c === 'all' ? 'All' : escHtml(c || 'Uncategorised')}</button>`).join('');
 
   const items = _allMenuItems.filter(i => _stockCat === 'all' || (i.category || '') === _stockCat).filter(stockPassesNonZero)
-    .filter(i => i.stk !== false);
+    .filter(i => showNonStock || i.stk !== false);
   document.getElementById('stockTableBody').innerHTML = items.length ? items.map(i => {
     const s = _stock[i.id] || {};
+    const pencil = `<button type="button" class="icon-btn col-edit" onclick="openEditMenuItemModal('${i.id}')" title="Edit" aria-label="Edit">${ICON_EDIT}</button>`;
+    if (i.stk === false) {
+      // Not a stock item: shown only so it can be edited (e.g. to tick Stk) — no stock fields.
+      return `<tr style="opacity:.7"><td>${escHtml(i.name || '')} ${pencil}</td><td class="col-edit" colspan="5" style="color:var(--text-muted);font-size:11px">Not a stock item</td></tr>`;
+    }
     return `<tr>
-      <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
+      <td>${escHtml(i.name || '')} ${pencil}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
       <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
       <td class="col-edit"><input type="number" min="0" step="any" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
       <td class="col-edit"><input type="number" min="0" step="any" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>
@@ -3127,6 +3135,7 @@ function renderStockCount() {
   }).join('') : '<tr><td colspan="6" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
   const counting = !!_stockTaking;
   document.getElementById('stockNonZeroLabel').style.display = counting ? 'none' : 'flex';
+  document.getElementById('stockNonStockLabel').style.display = counting ? 'none' : 'flex';
   document.getElementById('stockHeader').classList.toggle('stock-taking', counting);
   document.getElementById('stockTitle').textContent = counting ? 'Stock take in progress' : 'Stock';
   document.getElementById('stockTable').classList.toggle('counting', counting);
@@ -3292,7 +3301,8 @@ window.confirmStockAdjust = async function() {
 window.addStockItem = function() {
   const prev = _selectedMenuCat;
   _selectedMenuCat = _stockCat && _stockCat !== 'all' ? _stockCat : 'all';
-  openAddMenuItemModal();
+  // Items added from the Stock page start as stock-only: not sold anywhere until you tick a channel.
+  openAddMenuItemModal({ showOnTab: false, showOnPos: false, onSale: false, stk: true });
   _selectedMenuCat = prev;
 };
 
@@ -3308,17 +3318,31 @@ document.addEventListener('click', () => {
 // any in-progress count. Cost, Min and Restock level are item settings and stay; old stock takes
 // (showdrinks_stockTakes) are never touched.
 window.clearAllStock = async function() {
-  const msg = 'Reset all stock to 0? This zeroes every item stock, deliveries and restock quantity, and cancels any stock take in progress. Cost, Min and Restock level settings and previous stock takes are kept.';
+  const msg = 'Reset all stock to 0? This zeroes every item stock, deliveries and restock quantity, and cancels any stock take in progress. Cost, Min and Restock level settings and previous stock takes are kept. A "Stock cleared" line is added to Reports (delete it, if it is the latest, to undo).';
   if (!confirm(msg)) return;
   try {
+    const FV = firebase.firestore.FieldValue;
+    // The report line keeps each item's previous figures so deleting it (when it is the latest
+    // entry) puts everything back — see deleteLatestStockTake.
+    const lines = _allMenuItems.map(it => {
+      const st = _stock[it.id] || {};
+      return {
+        itemId: it.id, name: it.name || '', category: it.category || '',
+        opening: typeof st.base === 'number' ? st.base : null, added: st.added || 0, counted: 0, used: null,
+        costPrice: typeof st.costPrice === 'number' ? st.costPrice : null, usedCost: null,
+        ...(typeof st.restock === 'number' ? { prevRestock: st.restock } : {}),
+      };
+    });
+    await db.collection('showdrinks_stockTakes').add({ createdAt: FV.serverTimestamp(), eventName: 'Stock cleared', cleared: true, lines });
     for (let i = 0; i < _allMenuItems.length; i += 400) {
       const batch = db.batch();
-      _allMenuItems.slice(i, i + 400).forEach(it => batch.set(db.collection('showdrinks_stock').doc(it.id), { base: 0, added: 0, restock: firebase.firestore.FieldValue.delete() }, { merge: true }));
+      _allMenuItems.slice(i, i + 400).forEach(it => batch.set(db.collection('showdrinks_stock').doc(it.id), { base: 0, added: 0, restock: FV.delete() }, { merge: true }));
       await batch.commit();
     }
     _stockCounts = {}; saveStockDraft();
     _stockOpening = false;
     _stockTaking = null; saveStockSession();
+    _stockView = 'reports';
     await loadStockTab();
     toast('All stock reset to 0', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
@@ -3473,6 +3497,7 @@ window.renameStockTake = async function() {
 function currentStockTake() { return _stockTakes.find(t => t.id === _stockReportId) || null; }
 
 function stockReportHtml(t) {
+  if (t.cleared) return '<p style="margin:0;font-size:14px">All stock was reset to 0.</p>';
   const lines = (t.lines || []).slice().sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || ''));
   const shown = _stockUsedOnly ? lines.filter(l => (l.used || 0) !== 0) : lines;
   const dash = v => v === null || v === undefined ? '—' : v;
@@ -3502,7 +3527,8 @@ function stockTakeValues(t) {
 function renderStockReports() {
   document.getElementById('stockReportListBody').innerHTML = _stockTakes.length ? _stockTakes.map(t => {
     const v = stockTakeValues(t);
-    return `<tr style="cursor:pointer" onclick="openStockTake('${t.id}')">
+    const red = t.cleared || t.opening;   // stock cleared / opening stock lines stand out
+    return `<tr style="cursor:pointer${red ? ';color:#dc2626;background:rgba(220,38,38,.08)' : ''}" onclick="openStockTake('${t.id}')">
       <td><b>${escHtml(t.eventName || 'Stock take')}</b></td>
       <td>${escHtml(stockTakeDate(t))}</td>
       <td style="text-align:right">${fmtCurrency(v.stock)}</td>
@@ -3543,6 +3569,7 @@ Item figures go back to how they were before it was finished.`)) return;
       batch.set(db.collection('showdrinks_stock').doc(l.itemId), {
         base: typeof l.opening === 'number' ? l.opening : FV.delete(),
         added: FV.increment(l.added || 0),
+        ...(typeof l.prevRestock === 'number' ? { restock: l.prevRestock } : {}),
       }, { merge: true });
     });
     const takeRef = db.collection('showdrinks_stockTakes').doc(t.id);
