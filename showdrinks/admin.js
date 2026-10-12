@@ -2991,6 +2991,112 @@ sidebarToggleBtn.addEventListener('click', () => {
 // Finishing a take stores a snapshot in showdrinks_stockTakes (usage/cost/restock report) and
 // rolls every counted item forward: base = counted, added = 0. Items left uncounted keep their
 // old base/added, so their usage simply spans two takes.
+// Organisations (showdrinks_orgs): each holds its own share of every item, kept as
+// showdrinks_stock/{id}.org = { orgId: qty }. Total stock (base + added) is the sum of the shares.
+// Opening stock for an org sets that org's share; a delivery adds to the chosen org's share; a stock
+// take for an org counts the physical total, the fall since the last take is that org's usage and
+// comes off its share (so a share can go negative = what that org owes the stock). Stock from before
+// organisations existed is simply "unassigned" (total minus the shares). With no organisations
+// defined everything behaves as before.
+let _orgs        = [];
+const ORG_LAST_KEY = 'showdrinks_last_org';
+function orgName(id) { return _orgs.find(o => o.id === id)?.name || ''; }
+function orgQtyOf(s, id) { const v = s && s.org ? s.org[id] : undefined; return typeof v === 'number' ? v : 0; }
+function orgOptionsHtml(sel) { return _orgs.map(o => `<option value="${o.id}" ${o.id === sel ? 'selected' : ''}>${escHtml(o.name)}</option>`).join(''); }
+function lastOrg() {
+  let v = '';
+  try { v = localStorage.getItem(ORG_LAST_KEY) || ''; } catch (e) {}
+  return _orgs.some(o => o.id === v) ? v : (_orgs[0]?.id || '');
+}
+function rememberOrg(id) { try { localStorage.setItem(ORG_LAST_KEY, id); } catch (e) {} }
+
+// Asks which organisation: resolves to its id, '' when none are defined, null if cancelled.
+let _orgPickResolve = null;
+function pickOrg(title) {
+  if (!_orgs.length) return Promise.resolve('');
+  document.getElementById('orgPickTitle').textContent = title;
+  document.getElementById('orgPickSelect').innerHTML = orgOptionsHtml(lastOrg());
+  document.getElementById('orgPickModal').style.display = 'flex';
+  return new Promise(res => { _orgPickResolve = res; });
+}
+window.orgPickDone = function(ok) {
+  document.getElementById('orgPickModal').style.display = 'none';
+  const v = ok ? document.getElementById('orgPickSelect').value : null;
+  if (v) rememberOrg(v);
+  const r = _orgPickResolve; _orgPickResolve = null;
+  if (r) r(v);
+};
+
+function sortOrgs() { _orgs.sort((a, b) => a.name.localeCompare(b.name)); }
+function renderOrgsList() {
+  document.getElementById('orgsList').innerHTML = _orgs.length ? _orgs.map(o => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1">${escHtml(o.name)}</span>
+      <button class="btn btn-secondary btn-sm" onclick="renameOrg('${o.id}')">Rename</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteOrg('${o.id}')">Delete</button>
+    </div>`).join('') : '<p style="color:var(--text-muted);margin:0">No organisations yet.</p>';
+}
+window.openOrgs = function() { renderOrgsList(); document.getElementById('orgsModal').style.display = 'flex'; };
+window.closeOrgs = function() { document.getElementById('orgsModal').style.display = 'none'; renderStockTab(); };
+window.addOrg = async function() {
+  const inp = document.getElementById('orgNewName');
+  const name = inp.value.trim();
+  if (!name) return;
+  if (_orgs.some(o => o.name.toLowerCase() === name.toLowerCase())) { toast(`"${name}" already exists`, 'error'); return; }
+  try {
+    const ref = await db.collection('showdrinks_orgs').add({ name, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    _orgs.push({ id: ref.id, name }); sortOrgs();
+    inp.value = '';
+    renderOrgsList();
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+window.renameOrg = async function(id) {
+  const o = _orgs.find(x => x.id === id); if (!o) return;
+  const name = (prompt('Organisation name:', o.name) || '').trim();
+  if (!name || name === o.name) return;
+  if (_orgs.some(x => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) { toast(`"${name}" already exists`, 'error'); return; }
+  try {
+    await db.collection('showdrinks_orgs').doc(id).update({ name });
+    o.name = name; sortOrgs();
+    renderOrgsList();
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+window.deleteOrg = async function(id) {
+  const o = _orgs.find(x => x.id === id); if (!o) return;
+  if (Object.values(_stock).some(s => Math.abs(orgQtyOf(s, id)) > 0.001)) { toast(`${o.name} still holds stock (or owes some) - it can't be deleted`, 'error'); return; }
+  if (!confirm(`Delete "${o.name}"?`)) return;
+  try {
+    await db.collection('showdrinks_orgs').doc(id).delete();
+    _orgs = _orgs.filter(x => x.id !== id);
+    renderOrgsList();
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+
+// Reports page header: value of the stock each organisation holds (negative = owed to the stock).
+function renderOrgSummary() {
+  const box = document.getElementById('stockOrgSummary');
+  if (!box) return;
+  if (!_orgs.length) { box.innerHTML = ''; return; }
+  const val = {}; let unassigned = 0, total = 0;
+  _allMenuItems.filter(i => stockIsTracked(i.id)).forEach(i => {
+    const s = _stock[i.id] || {};
+    const c = typeof s.costPrice === 'number' ? s.costPrice : 0;
+    const oh = stockOnHand(s) ?? (s.added || 0);
+    let assigned = 0;
+    _orgs.forEach(o => { const q = orgQtyOf(s, o.id); assigned += q; val[o.id] = (val[o.id] || 0) + q * c; });
+    unassigned += (oh - assigned) * c;
+    total += oh * c;
+  });
+  const money = v => v < -0.005 ? `<span style="color:#dc2626">${fmtCurrency(v)} owed</span>` : fmtCurrency(v);
+  const row = (n, v, b) => `<tr><td>${b ? '<b>' + n + '</b>' : n}</td><td style="text-align:right">${b ? '<b>' + money(v) + '</b>' : money(v)}</td></tr>`;
+  box.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="card-body menu-table-scroll" style="padding:0">
+    <table class="menu-grid-table"><thead><tr><th>Organisation</th><th style="text-align:right">Stock value</th></tr></thead><tbody>
+    ${_orgs.map(o => row(escHtml(o.name), val[o.id] || 0)).join('')}
+    ${Math.abs(unassigned) > 0.005 ? row('Unassigned', unassigned) : ''}
+    ${row('Total stock', total, true)}
+    </tbody></table></div></div>`;
+}
+
 let _stock       = {};
 let _stockTakes  = [];
 let _stockCat    = null;
@@ -3004,11 +3110,14 @@ let _stockUsedOnly = false;   // report option: only list items that had usage
 let _stockPending = null;   // results of a finished count awaiting the user's confirmation
 let _stockOpening = false;   // true while the take in progress is an opening-stock entry (no usage)
 let _stockTaking = null;   // event name while a stock take is in progress, else null
+let _stockOrg = '';   // organisation id the take in progress is for ('' = none defined)
 try { _stockTaking = localStorage.getItem(STOCK_SESSION_KEY) || null; _stockOpening = localStorage.getItem(STOCK_SESSION_KEY + '_opening') === '1'; } catch (e) { _stockTaking = null; }
+try { _stockOrg = localStorage.getItem(STOCK_SESSION_KEY + '_org') || ''; } catch (e) { _stockOrg = ''; }
 function saveStockSession() {
   try {
     if (_stockTaking) localStorage.setItem(STOCK_SESSION_KEY, _stockTaking); else localStorage.removeItem(STOCK_SESSION_KEY);
     if (_stockTaking && _stockOpening) localStorage.setItem(STOCK_SESSION_KEY + '_opening', '1'); else localStorage.removeItem(STOCK_SESSION_KEY + '_opening');
+    if (_stockTaking && _stockOrg) localStorage.setItem(STOCK_SESSION_KEY + '_org', _stockOrg); else localStorage.removeItem(STOCK_SESSION_KEY + '_org');
   } catch (e) {}
 }
 
@@ -3019,10 +3128,12 @@ function saveStockDraft() {
 
 async function loadStockTab() {
   try {
-    const [stockSnap, takesSnap] = await Promise.all([
+    const [stockSnap, takesSnap, orgSnap] = await Promise.all([
       db.collection('showdrinks_stock').get({ source: 'server' }),
       db.collection('showdrinks_stockTakes').orderBy('createdAt', 'desc').limit(200).get({ source: 'server' }),
+      db.collection('showdrinks_orgs').get({ source: 'server' }),
     ]);
+    _orgs = orgSnap.docs.map(d => ({ id: d.id, name: d.data().name || '' })); sortOrgs();
     _stock = {};
     stockSnap.docs.forEach(d => { _stock[d.id] = d.data(); });
     _stockTakes = takesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -3085,12 +3196,12 @@ function renderStockTab() {
   document.getElementById('stockReportsView').style.display = _stockView === 'reports' ? '' : 'none';
   document.getElementById('stockRestockView').style.display = _stockView === 'restock' ? '' : 'none';
   renderStockCount();   // also keeps the ⋯ menu's Start/Finish/Cancel items current on every view
-  if (_stockView === 'reports') renderStockReports();
+  if (_stockView === 'reports') { renderOrgSummary(); renderStockReports(); }
   else if (_stockView === 'restock') renderStockRestock();
 }
 
 function updateStockCountSummary() {
-  document.getElementById('stockCountSummary').textContent = _stockTaking ? _stockTaking : '';
+  document.getElementById('stockCountSummary').textContent = _stockTaking ? _stockTaking + (_stockOrg ? ' · ' + orgName(_stockOrg) : '') : '';
 }
 
 // "Non-zero only" checkbox on the Stock view: hides items with nothing on hand. Never applied
@@ -3163,14 +3274,20 @@ window.startStockTake = function() {
   if (!_shows.length) sel.value = '__other__';
   document.getElementById('stockEventOther').value = '';
   stockEventSelectChanged();
+  document.getElementById('stockEventOrgWrap').style.display = _orgs.length ? '' : 'none';
+  document.getElementById('stockEventOrg').innerHTML = orgOptionsHtml(lastOrg());
   document.getElementById('stockEventModal').style.display = 'flex';
 };
 
 // Opening stock: the same count screen, saved as a stock take called "Opening stock" that sets
 // every counted item's starting figure but records no usage (nothing to compare against).
-window.startOpeningStock = function() {
+window.startOpeningStock = async function() {
+  const org = await pickOrg('Opening stock for which organisation?');
+  if (org === null) return;
   if (_stockView !== 'count') setStockView('count');
   _stockOpening = true;
+  _stockOrg = org;
+  _stockCounts = {}; saveStockDraft();   // counts default to that organisation's current share
   _stockTaking = 'Opening stock';
   saveStockSession();
   renderStockCount();
@@ -3187,8 +3304,12 @@ window.confirmStockEvent = function() {
   const v = document.getElementById('stockEventSelect').value;
   const name = (v === '__other__' ? document.getElementById('stockEventOther').value : v).trim();
   if (!name) { toast('A stock take needs an event name', 'error'); return; }
+  const org = _orgs.length ? document.getElementById('stockEventOrg').value : '';
+  if (_orgs.length && !org) { toast('Pick an organisation', 'error'); return; }
+  if (org) rememberOrg(org);
   closeStockEvent();
   _stockOpening = false;
+  _stockOrg = org;
   _stockTaking = name;
   saveStockSession();
   renderStockCount();
@@ -3220,6 +3341,7 @@ window.saveStockField = async function(id, field, raw) {
 // counted). An empty box counts as 0, so whatever was there is treated as used.
 function stockCountFor(id) {
   if (id in _stockCounts) return _stockCounts[id];
+  if (_stockOpening && _stockOrg) return orgQtyOf(_stock[id], _stockOrg);   // opening stock counts one organisation's share
   return stockOnHand(_stock[id] || {}) ?? 0;
 }
 
@@ -3275,6 +3397,8 @@ window.openStockAdjust = function(id) {
   _stockAdjustStep = item?.frac ? 0.25 : 1;
   document.getElementById('stockAdjustName').textContent = item?.name || '';
   document.getElementById('stockAdjustQty').value = 0;
+  document.getElementById('stockAdjustOrgWrap').style.display = _orgs.length ? '' : 'none';
+  document.getElementById('stockAdjustOrg').innerHTML = orgOptionsHtml(lastOrg());
   document.getElementById('stockAdjustModal').style.display = 'flex';
 };
 
@@ -3293,9 +3417,14 @@ window.confirmStockAdjust = async function() {
   const delta = Math.round((parseFloat(document.getElementById('stockAdjustQty').value) || 0) * 4) / 4;
   if (!id) return;
   if (!delta) { toast('Use + or − to enter a quantity first', 'error'); return; }
+  const org = _orgs.length ? document.getElementById('stockAdjustOrg').value : '';
+  if (_orgs.length && !org) { toast('Pick an organisation', 'error'); return; }
   try {
-    await db.collection('showdrinks_stock').doc(id).set({ added: firebase.firestore.FieldValue.increment(delta) }, { merge: true });
-    _stock[id] = { ..._stock[id], added: ((_stock[id] || {}).added || 0) + delta };
+    const FV = firebase.firestore.FieldValue;
+    await db.collection('showdrinks_stock').doc(id).set({ added: FV.increment(delta), ...(org ? { org: { [org]: FV.increment(delta) } } : {}) }, { merge: true });
+    if (org) rememberOrg(org);
+    const cur = _stock[id] || {};
+    _stock[id] = { ...cur, added: (cur.added || 0) + delta, ...(org ? { org: { ...(cur.org || {}), [org]: orgQtyOf(cur, org) + delta } } : {}) };
     const cell = document.getElementById('stockOh-' + id);
     if (cell) cell.textContent = stockOnHandLabel(_stock[id]);
     closeStockAdjust();
@@ -3338,16 +3467,17 @@ window.clearAllStock = async function() {
         opening: typeof st.base === 'number' ? st.base : null, added: st.added || 0, counted: 0, used: null,
         costPrice: typeof st.costPrice === 'number' ? st.costPrice : null, usedCost: null,
         ...(typeof st.restock === 'number' ? { prevRestock: st.restock } : {}),
+        ...(st.org && Object.keys(st.org).length ? { prevOrg: st.org } : {}),
       };
     });
     await db.collection('showdrinks_stockTakes').add({ createdAt: FV.serverTimestamp(), eventName: 'Stock cleared', cleared: true, lines });
     for (let i = 0; i < _allMenuItems.length; i += 400) {
       const batch = db.batch();
-      _allMenuItems.slice(i, i + 400).forEach(it => batch.set(db.collection('showdrinks_stock').doc(it.id), { base: 0, added: 0, restock: FV.delete() }, { merge: true }));
+      _allMenuItems.slice(i, i + 400).forEach(it => batch.set(db.collection('showdrinks_stock').doc(it.id), { base: 0, added: 0, restock: FV.delete(), org: FV.delete() }, { merge: true }));
       await batch.commit();
     }
     _stockCounts = {}; saveStockDraft();
-    _stockOpening = false;
+    _stockOpening = false; _stockOrg = '';
     _stockTaking = null; saveStockSession();
     _stockView = 'reports';
     await loadStockTab();
@@ -3395,20 +3525,20 @@ window.printStockList = function() {
 window.cancelStockTake = function() {
   if (!confirm('Cancel this stock take? Counts entered so far will be discarded.')) return;
   _stockCounts = {}; saveStockDraft();
-  _stockOpening = false;
+  _stockOpening = false; _stockOrg = '';
   _stockTaking = null; saveStockSession();
   renderStockCount();
 };
 
 function renderStockFinishBody() {
   if (!_stockPending) return;
-  const { eventName, lines } = _stockPending;
+  const { eventName, lines, orgName: oName } = _stockPending;
   const uncounted = 0;
   const v = stockTakeValues({ lines });
   document.getElementById('stockFinishTitle').textContent = eventName;
   document.getElementById('stockFinishBody').innerHTML =
     `<p style="margin:0 0 10px;font-size:13px"><b>Stock value:</b> ${fmtCurrency(v.stock)} &nbsp; <b>Used value:</b> ${fmtCurrency(v.used)}</p>` +
-    stockReportHtml({ lines });
+    stockReportHtml({ lines, orgName: oName });
 }
 
 window.setStockUsedOnly = function(on) {
@@ -3433,11 +3563,17 @@ window.finishStockTake = async function() {
     const opening = hasBase ? s.base : null;
     const added = s.added || 0;
     const used = hasBase && !_stockOpening ? opening + added - counted : null;
+    // Opening stock for an organisation counts only that organisation's share: the total becomes
+    // (old total - its old share + the new count).
+    const orgOpen = _stockOpening && !!_stockOrg;
+    const prevOrgQty = orgOpen && s.org && typeof s.org[_stockOrg] === 'number' ? s.org[_stockOrg] : null;
+    const newTotal = orgOpen ? Math.round(((hasBase ? opening + added : added) - (prevOrgQty || 0) + counted) * 100) / 100 : counted;
     const cost = typeof s.costPrice === 'number' ? s.costPrice : null;
     const min = typeof s.minStock === 'number' ? s.minStock : null;
     return {
       itemId: id, name: item.name || '', category: item.category || '',
       opening, added, counted, used, costPrice: cost,
+      ...(orgOpen ? { prevOrgQty, newTotal } : {}),
       usedCost: used !== null && cost !== null ? Math.round(used * cost * 100) / 100 : null,
       minStock: min,
       restockTo: stockRestockLevel(s),
@@ -3446,7 +3582,7 @@ window.finishStockTake = async function() {
   });
 
   // Nothing is saved yet: show the results and let the user confirm (or go back and keep counting).
-  _stockPending = { eventName, lines, ids };
+  _stockPending = { eventName, lines, ids, orgId: _stockOrg, orgName: orgName(_stockOrg) };
   renderStockFinishBody();
   document.getElementById('stockFinishModal').style.display = 'flex';
 };
@@ -3456,23 +3592,29 @@ window.closeStockFinish = function() {
 };
 
 window.confirmStockFinish = async function() {
-  const { eventName, lines, ids } = _stockPending || {};
+  const { eventName, lines, ids, orgId, orgName: oName } = _stockPending || {};
   if (!lines) return;
   try {
     const batch = db.batch();
     const takeRef = db.collection('showdrinks_stockTakes').doc();
-    batch.set(takeRef, { createdAt: firebase.firestore.FieldValue.serverTimestamp(), eventName, ...(_stockOpening ? { opening: true } : {}), lines });
+    batch.set(takeRef, { createdAt: firebase.firestore.FieldValue.serverTimestamp(), eventName, ...(_stockOpening ? { opening: true } : {}), ...(orgId ? { orgId, orgName: oName } : {}), lines });
     // The Restock list is worked out from current stock, so drop any hand-set quantity (restock)
     // and let it recalculate from the new counts.
     ids.forEach(id => {
+      const l = lines.find(x => x.itemId === id);
+      // The organisation's share: set outright by opening stock; otherwise it pays for what was used
+      // (and may go negative = owes the stock).
+      const orgPatch = !orgId ? {}
+        : _stockOpening ? { org: { [orgId]: l.counted } }
+        : l.used !== null ? { org: { [orgId]: firebase.firestore.FieldValue.increment(-l.used) } } : {};
       batch.set(db.collection('showdrinks_stock').doc(id),
-        { base: lines.find(l => l.itemId === id).counted, added: 0, restock: firebase.firestore.FieldValue.delete() }, { merge: true });
+        { base: l.newTotal ?? l.counted, added: 0, restock: firebase.firestore.FieldValue.delete(), ...orgPatch }, { merge: true });
     });
     await batch.commit();
     closeStockFinish();
     _stockPending = null;
     _stockCounts = {}; saveStockDraft();
-    _stockOpening = false;
+    _stockOpening = false; _stockOrg = '';
     _stockTaking = null; saveStockSession();
     _stockReportId = takeRef.id;
     _stockView = 'reports';
@@ -3505,6 +3647,7 @@ function currentStockTake() { return _stockTakes.find(t => t.id === _stockReport
 
 function stockReportHtml(t) {
   if (t.cleared) return '<p style="margin:0;font-size:14px">All stock was reset to 0.</p>';
+  const orgLine = t.orgName ? `<p style="margin:0 0 8px;font-size:13px"><b>Organisation:</b> ${escHtml(t.orgName)}</p>` : '';
   const lines = (t.lines || []).slice().sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || ''));
   const shown = _stockUsedOnly ? lines.filter(l => (l.used || 0) !== 0) : lines;
   const dash = v => v === null || v === undefined ? '—' : v;
@@ -3512,8 +3655,8 @@ function stockReportHtml(t) {
   const noBase = lines.some(l => l.used === null);
   const th = 'style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc;font-size:12px"';
   const td = 'style="padding:4px 8px;border-bottom:1px solid #eee;font-size:13px"';
-  return `
-    <h3 style="margin:0 0 6px">Usage since previous stock take</h3>
+  return `${orgLine}
+    <h3 style="margin:0 0 6px">${t.opening ? 'Opening stock' : 'Usage since previous stock take'}</h3>
     <table style="border-collapse:collapse;width:100%">
       <tr><th ${th}>Category</th><th ${th}>Item</th><th ${th}>Opening</th><th ${th}>Added</th><th ${th}>Counted</th><th ${th}>Used</th><th ${th}>Cost each</th><th ${th}>Cost used</th></tr>
       ${shown.map(l => `<tr><td ${td}>${escHtml(l.category)}</td><td ${td}>${escHtml(l.name)}</td><td ${td}>${fmtQty(l.opening)}</td><td ${td}>${fmtQty(l.added || 0)}</td><td ${td}>${fmtQty(l.counted)}</td><td ${td}><b>${fmtQty(l.used)}</b></td><td ${td}>${l.costPrice === null ? '—' : fmtCurrency(l.costPrice)}</td><td ${td}>${l.usedCost === null ? '—' : fmtCurrency(l.usedCost)}</td></tr>`).join('')}
@@ -3536,7 +3679,7 @@ function renderStockReports() {
     const v = stockTakeValues(t);
     const red = t.cleared || t.opening;   // stock cleared / opening stock lines stand out
     return `<tr style="cursor:pointer${red ? ';color:#dc2626;background:rgba(220,38,38,.08)' : ''}" onclick="openStockTake('${t.id}')">
-      <td><b>${escHtml(t.eventName || 'Stock take')}</b></td>
+      <td><b>${escHtml(t.eventName || 'Stock take')}</b>${t.orgName ? `<br><span style="font-size:11px;font-weight:400">${escHtml(t.orgName)}</span>` : ''}</td>
       <td>${escHtml(stockTakeDate(t))}</td>
       <td style="text-align:right">${fmtCurrency(v.stock)}</td>
       <td style="text-align:right">${fmtCurrency(v.used)}</td>
@@ -3577,6 +3720,11 @@ Item figures go back to how they were before it was finished.`)) return;
         base: typeof l.opening === 'number' ? l.opening : FV.delete(),
         added: FV.increment(l.added || 0),
         ...(typeof l.prevRestock === 'number' ? { restock: l.prevRestock } : {}),
+        // Organisation shares go back too: a clear restores them all, opening stock restores that
+        // organisation's old share, a normal take gives back the usage it charged.
+        ...(t.cleared ? { org: l.prevOrg || FV.delete() }
+          : t.opening && t.orgId ? { org: { [t.orgId]: typeof l.prevOrgQty === 'number' ? l.prevOrgQty : FV.delete() } }
+          : t.orgId && typeof l.used === 'number' ? { org: { [t.orgId]: FV.increment(l.used) } } : {}),
       }, { merge: true });
     });
     const takeRef = db.collection('showdrinks_stockTakes').doc(t.id);
@@ -3702,15 +3850,18 @@ window.receiveRestock = async function() {
   const rows = _allMenuItems.filter(i => stockIsTracked(i.id) && restockQty(i.id) > 0);
   if (!rows.length) { toast('Nothing on the restock list', 'error'); return; }
   if (!confirm(`Add ${rows.length} item(s) to stock as deliveries and clear the restock list?\nThis cannot be undone from here.`)) return;
+  const org = await pickOrg('Delivery for which organisation?');
+  if (org === null) return;
   try {
     const FV = firebase.firestore.FieldValue;
     const batch = db.batch();
     const qty = {};
     rows.forEach(i => { qty[i.id] = restockQty(i.id); });
-    rows.forEach(i => batch.set(db.collection('showdrinks_stock').doc(i.id), { added: FV.increment(qty[i.id]), restock: FV.delete() }, { merge: true }));
+    rows.forEach(i => batch.set(db.collection('showdrinks_stock').doc(i.id), { added: FV.increment(qty[i.id]), restock: FV.delete(), ...(org ? { org: { [org]: FV.increment(qty[i.id]) } } : {}) }, { merge: true }));
     await batch.commit();
     rows.forEach(i => {
       const st = { ..._stock[i.id], added: ((_stock[i.id] || {}).added || 0) + qty[i.id] };
+      if (org) st.org = { ...(st.org || {}), [org]: orgQtyOf(_stock[i.id], org) + qty[i.id] };
       delete st.restock;
       _stock[i.id] = st;
     });

@@ -96,6 +96,10 @@ service cloud.firestore {
     match /showdrinks_stock/{id} {
       allow read, write: if hasAccess('showdrinksAdmin');
     }
+    // Organisations (Pirton Players, Film Club...) that hold shares of the stock.
+    match /showdrinks_orgs/{id} {
+      allow read, write: if hasAccess('showdrinksAdmin');
+    }
     match /showdrinks_stockTakes/{id} {
       allow read, write: if hasAccess('showdrinksAdmin');
     }
