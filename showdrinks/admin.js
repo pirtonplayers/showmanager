@@ -3087,6 +3087,32 @@ let _trackPage = 0;
 
 function trackPageSize() { return Math.max(5, Math.floor((window.innerHeight * 0.65) / 44)); }
 
+// Phone-width screens get dd/mm/yy in the movement lists instead of date and time.
+function isNarrow() { return window.matchMedia('(max-width: 600px)').matches; }
+function stockMoveDate(t) {
+  if (!isNarrow()) return stockTakeDate(t);
+  const d = t.createdAt?.toDate ? t.createdAt.toDate() : new Date();
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+// Slide a details block open / closed (skipped when the user prefers reduced motion).
+function slideOpen(el) {
+  if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const h = el.scrollHeight;
+  el.style.overflow = 'hidden'; el.style.height = '0'; el.style.transition = 'height .25s ease';
+  el.offsetHeight;   // force a reflow so the transition starts from 0
+  el.style.height = h + 'px';
+  const done = () => { el.style.height = ''; el.style.overflow = ''; el.style.transition = ''; };
+  el.addEventListener('transitionend', done, { once: true });
+  setTimeout(done, 400);
+}
+function slideClose(el, then) {
+  if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { then(); return; }
+  el.style.overflow = 'hidden'; el.style.height = el.scrollHeight + 'px';
+  el.offsetHeight;
+  el.style.transition = 'height .2s ease'; el.style.height = '0';
+  setTimeout(then, 210);
+}
 // Stock is valued at what it cost when it was added, not at today's price: each restock (and each
 // count that finds more than expected) is a layer of quantity at its own cost, and usage or
 // write-offs use up the oldest layers first. A later price rise only affects stock added after it.
@@ -3109,13 +3135,13 @@ function replayStock(key) {
   const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : (x.createdAt?.toDate ? x.createdAt.toDate().getTime() : 0);
   const ev = [];
   _stockTakes.forEach(t => {
-    if (t.cleared) { ev.push({ t: ms(t), kind: 'clear', date: stockTakeDate(t), name: t.eventName || 'Stock cleared', click: `openStockTake('${t.id}')` }); return; }
+    if (t.cleared) { ev.push({ t: ms(t), kind: 'clear', date: stockMoveDate(t), name: t.eventName || 'Stock cleared', click: `openStockTake('${t.id}')` }); return; }
     if (!all && (t.orgId || '') !== key) return;
-    ev.push({ t: ms(t), kind: t.opening ? 'open' : 'take', take: t, date: stockTakeDate(t), name: t.eventName || (t.opening ? 'Opening stock' : 'Stock take'), sub: t.orgName || '', click: `openStockTake('${t.id}')` });
+    ev.push({ t: ms(t), kind: t.opening ? 'open' : 'take', take: t, date: stockMoveDate(t), name: t.eventName || (t.opening ? 'Opening stock' : 'Stock take'), sub: t.orgName || '', click: `openStockTake('${t.id}')` });
   });
   _deliveries.filter(d => all || (d.orgId || '') === key).forEach(d => {
     const its = d.items || [];
-    ev.push({ t: ms(d), kind: 'add', del: d, date: stockTakeDate(d), name: 'Restock: ' + (its.length === 1 ? its[0].name : its.length + ' items'), sub: d.orgName || '', click: `openDelivery('${d.id}')` });
+    ev.push({ t: ms(d), kind: 'add', del: d, date: stockMoveDate(d), name: 'Restock: ' + (its.length === 1 ? its[0].name : its.length + ' items'), sub: d.orgName || '', click: `openDelivery('${d.id}')` });
   });
   ev.sort((a, b) => a.t - b.t);
   const layers = {};
@@ -3210,15 +3236,15 @@ function itemLedger(id) {
   const sgn = n => (n > 0 ? '+' : '') + fmtQty(n);
   const ev = [];
   _stockTakes.forEach(t => {
-    if (t.cleared) { ev.push({ t: ms(t), kind: 'clear', date: stockTakeDate(t), name: t.eventName || 'Stock cleared', click: `openStockTake('${t.id}')` }); return; }
+    if (t.cleared) { ev.push({ t: ms(t), kind: 'clear', date: stockMoveDate(t), name: t.eventName || 'Stock cleared', click: `openStockTake('${t.id}')` }); return; }
     const l = (t.lines || []).find(x => x.itemId === id);
     if (!l) return;
     const after = typeof l.newTotal === 'number' ? l.newTotal : (l.counted || 0);
-    ev.push({ t: ms(t), kind: t.opening ? 'open' : 'take', date: stockTakeDate(t), name: t.eventName || (t.opening ? 'Opening stock' : 'Stock take'), sub: t.orgName || '', after, used: l.used, price: l.costPrice, click: `openStockTake('${t.id}')` });
+    ev.push({ t: ms(t), kind: t.opening ? 'open' : 'take', date: stockMoveDate(t), name: t.eventName || (t.opening ? 'Opening stock' : 'Stock take'), sub: t.orgName || '', after, used: l.used, price: l.costPrice, click: `openStockTake('${t.id}')` });
   });
   _deliveries.forEach(d => {
     (d.items || []).filter(i => i.itemId === id).forEach(i => {
-      ev.push({ t: ms(d), kind: 'add', date: stockTakeDate(d), name: i.qty < 0 ? 'Stock removed' : 'Restock', sub: d.orgName || '', qty: i.qty, price: i.cost, click: `openDelivery('${d.id}')` });
+      ev.push({ t: ms(d), kind: 'add', date: stockMoveDate(d), name: i.qty < 0 ? 'Stock removed' : 'Restock', sub: d.orgName || '', qty: i.qty, price: i.cost, click: `openDelivery('${d.id}')` });
     });
   });
   ev.sort((a, b) => a.t - b.t);
@@ -3266,18 +3292,21 @@ function renderItemMovements() {
       const pages = Math.max(1, Math.ceil(led.length / size));
       _itemPage = Math.min(Math.max(0, _itemPage), pages - 1);
       const slice = led.slice(_itemPage * size, (_itemPage + 1) * size);
-      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th><th>Organisation</th><th>Event</th><th>Item</th><th style="text-align:right">Price</th><th style="text-align:right">Movement</th><th style="text-align:right">Balance</th></tr></thead><tbody>
-        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:130px')}>${escHtml(r.date)}</td><td ${td}>${escHtml(r.sub)}</td><td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.note ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.note)}</span>` : ''}</td><td ${td}>${escHtml(i.name || '')}</td><td ${td} align="right">${typeof r.price === 'number' ? fmtCurrency(r.price) : '—'}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtQty(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="7" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
+      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><div class="trk-slide"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th><th>Organisation</th><th>Event</th><th>Item</th><th style="text-align:right">Price</th><th style="text-align:right">Movement</th><th style="text-align:right">Balance</th></tr></thead><tbody>
+        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:' + (isNarrow() ? 0 : 130) + 'px')}>${escHtml(r.date)}</td><td ${td}>${escHtml(r.sub)}</td><td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.note ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.note)}</span>` : ''}</td><td ${td}>${escHtml(i.name || '')}</td><td ${td} align="right">${typeof r.price === 'number' ? fmtCurrency(r.price) : '—'}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtQty(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="7" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
         </tbody></table>
         ${pages > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:8px"><button class="btn btn-secondary btn-sm" ${_itemPage === 0 ? 'disabled' : ''} onclick="itemMovementPage(-1)">‹ Newer</button><span style="font-size:13px">Page ${_itemPage + 1} of ${pages}</span><button class="btn btn-secondary btn-sm" ${_itemPage >= pages - 1 ? 'disabled' : ''} onclick="itemMovementPage(1)">Older ›</button></div>` : ''}
-      </td></tr>`;
+      </div></td></tr>`;
     }
     return html;
   }).join('');
   box.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="card-body menu-table-scroll" style="padding:0">
     <table class="menu-grid-table"><thead><tr><th>Item</th><th style="text-align:right">Held now</th></tr></thead><tbody>${body || '<tr><td colspan="2" style="padding:20px;text-align:center;color:var(--text-muted)">No stock movements yet.</td></tr>'}</tbody></table></div></div>`;
 }
-window.toggleItemMovement = function(id) { _itemOpen = _itemOpen === id ? null : id; _itemPage = 0; renderItemMovements(); };
+window.toggleItemMovement = function(id) {
+  const go = () => { _itemOpen = _itemOpen === id ? null : id; _itemPage = 0; renderItemMovements(); if (_itemOpen !== null) slideOpen(document.querySelector('#stockItemsSummary .trk-slide')); };
+  if (_itemOpen === id) slideClose(document.querySelector('#stockItemsSummary .trk-slide'), go); else go();
+};
 window.itemMovementPage = function(d) { _itemPage += d; renderItemMovements(); };
 
 
@@ -3306,18 +3335,21 @@ function renderOrgSummary() {
       const pages = Math.max(1, Math.ceil(led.length / size));
       _trackPage = Math.min(Math.max(0, _trackPage), pages - 1);
       const slice = led.slice(_trackPage * size, (_trackPage + 1) * size);
-      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th>${l.key === 'all' ? '<th>Organisation</th>' : ''}<th>Event</th><th style="text-align:right">Value</th><th style="text-align:right">Balance</th></tr></thead><tbody>
-        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:130px')}>${escHtml(r.date)}</td>${l.key === 'all' ? `<td ${td}>${escHtml(r.sub)}</td>` : ''}<td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.note ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.note)}</span>` : ''}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtCurrency(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="${l.key === 'all' ? 5 : 4}" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
+      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><div class="trk-slide"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th>${l.key === 'all' ? '<th>Organisation</th>' : ''}<th>Event</th><th style="text-align:right">Value</th><th style="text-align:right">Balance</th></tr></thead><tbody>
+        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:' + (isNarrow() ? 0 : 130) + 'px')}>${escHtml(r.date)}</td>${l.key === 'all' ? `<td ${td}>${escHtml(r.sub)}</td>` : ''}<td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.note ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.note)}</span>` : ''}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtCurrency(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="${l.key === 'all' ? 5 : 4}" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
         </tbody></table>
         ${pages > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:8px"><button class="btn btn-secondary btn-sm" ${_trackPage === 0 ? 'disabled' : ''} onclick="trackPage(-1)">‹ Newer</button><span style="font-size:13px">Page ${_trackPage + 1} of ${pages}</span><button class="btn btn-secondary btn-sm" ${_trackPage >= pages - 1 ? 'disabled' : ''} onclick="trackPage(1)">Older ›</button></div>` : ''}
-      </td></tr>`;
+      </div></td></tr>`;
     }
     return html;
   }).join('');
   box.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="card-body menu-table-scroll" style="padding:0">
     <table class="menu-grid-table"><thead><tr><th>Organisation</th><th style="text-align:right">Current stock value</th></tr></thead><tbody>${rowsHtml}</tbody></table></div></div>`;
 }
-window.toggleTrack = function(key) { _trackOpen = _trackOpen === key ? null : key; _trackPage = 0; renderOrgSummary(); };
+window.toggleTrack = function(key) {
+  const go = () => { _trackOpen = _trackOpen === key ? null : key; _trackPage = 0; renderOrgSummary(); if (_trackOpen !== null) slideOpen(document.querySelector('#stockOrgSummary .trk-slide')); };
+  if (_trackOpen === key) slideClose(document.querySelector('#stockOrgSummary .trk-slide'), go); else go();
+};
 window.trackPage = function(d) { _trackPage += d; renderOrgSummary(); };
 window.addEventListener('resize', () => { if (_stockView !== 'reports') return; if (_trackTab === 'items') renderItemMovements(); else if (_trackOpen !== null) renderOrgSummary(); });
 
