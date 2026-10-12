@@ -3142,13 +3142,14 @@ window.explainGap = function(key) {
   _deliveries.filter(d => all || (d.orgId || '') === key).forEach(d => ev.push({ t: ms(d), kind: 'add', del: d }));
   ev.sort((a, b) => a.t - b.t);
   const st = {};   // itemId -> { qty, val } as the history implies
-  const get = id => st[id] || (st[id] = { qty: 0, val: 0 });
+  const get = id => st[id] || (st[id] = { qty: 0, val: 0, cost: null });
   ev.forEach(e => {
-    if (e.kind === 'clear') { Object.keys(st).forEach(id => { st[id] = { qty: 0, val: 0 }; }); return; }
-    if (e.kind === 'add') { (e.del.items || []).forEach(i => { const x = get(i.itemId); x.qty += i.qty; x.val += i.qty * (i.cost || 0); }); return; }
+    if (e.kind === 'clear') { Object.keys(st).forEach(id => { st[id].qty = 0; st[id].val = 0; }); return; }
+    if (e.kind === 'add') { (e.del.items || []).forEach(i => { const x = get(i.itemId); x.qty += i.qty; x.val += i.qty * (i.cost || 0); if (typeof i.cost === 'number') x.cost = i.cost; }); return; }
     const t = e.take;
     (t.lines || []).forEach(l => {
       const x = get(l.itemId), c = l.costPrice || 0;
+      if (typeof l.costPrice === 'number') x.cost = l.costPrice;
       if (all) {
         const d = ((typeof l.newTotal === 'number' ? l.newTotal : l.counted) || 0) - ((l.opening || 0) + (l.added || 0));
         x.qty += d; x.val += d * c;
@@ -3164,16 +3165,16 @@ window.explainGap = function(key) {
     const oh = stockOnHand(s) ?? (s.added || 0);
     const orgSum = _orgs.reduce((n, o) => n + orgQtyOf(s, o.id), 0);
     const actual = all ? oh : key === '' ? oh - orgSum : orgQtyOf(s, key);
-    const x = st[i.id] || { qty: 0, val: 0 };
+    const x = st[i.id] || { qty: 0, val: 0, cost: null };
     const d = actual * c - x.val;
     if (Math.abs(d) < 0.005 && Math.abs(actual - x.qty) < 0.001) return;
     diff += d;
-    const why = Math.abs(actual - x.qty) > 0.001 ? 'quantity not in the log' : 'cost price changed';
-    rows.push([escHtml(i.name), `${fmtQty(x.qty)} → ${fmtQty(actual)}`, why, (d >= 0 ? '+' : '-') + fmtCurrency(Math.abs(d))]);
+    const qtyNote = Math.abs(actual - x.qty) > 0.001 ? ` <span style="color:#dc2626">(log: ${fmtQty(x.qty)})</span>` : '';
+    rows.push([escHtml(i.name), fmtQty(actual) + qtyNote, x.cost === null ? '—' : fmtCurrency(x.cost), typeof s.costPrice === 'number' ? fmtCurrency(s.costPrice) : '—', (d >= 0 ? '+' : '-') + fmtCurrency(Math.abs(d))]);
   });
   rows.sort((a, b) => a[0].localeCompare(b[0]));
   const nm = all ? 'All stock' : key === '' ? 'Unassigned' : orgName(key);
-  showStatementModal('Other adjustments - ' + nm, ['Item', 'History → held', 'Why', 'Difference'], [1, 1, 1, 2], rows,
+  showStatementModal('Other adjustments - ' + nm, ['Item', 'Qty', 'Previous cost', 'Current cost', 'Difference'], [1, 1, 2, 2, 2], rows,
     ['Total', (diff >= 0 ? '+' : '-') + fmtCurrency(Math.abs(diff))]);
 };
 
