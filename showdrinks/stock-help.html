@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#4f46e5">
+  <title>Stock help — ShowDrinks</title>
+  <link rel="stylesheet" href="style.css?v=1.1.142">
+  <style>
+    .help h2 { font-size:19px; margin:26px 0 8px; }
+    .help h3 { font-size:15px; margin:18px 0 6px; }
+    .help p, .help li { font-size:14px; line-height:1.55; }
+    .help ul, .help ol { margin:6px 0 10px 20px; padding:0; }
+    .help table { border-collapse:collapse; width:100%; margin:8px 0 12px; }
+    .help th, .help td { text-align:left; vertical-align:top; padding:6px 8px; border-bottom:1px solid var(--border); font-size:13px; }
+    .help th { background:var(--bg); }
+  </style>
+</head>
+<body style="background:var(--bg)">
+
+<div class="help" style="max-width:760px;margin:0 auto;padding:28px 20px 60px">
+  <p style="margin-bottom:20px"><a href="admin.html" style="color:var(--primary);font-weight:600;text-decoration:none">‹ Back to admin</a></p>
+  <h1 style="font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px">Stock system help</h1>
+  <p style="color:var(--text-muted)">Counting stock, recording deliveries, splitting stock between organisations, and tracking every movement.</p>
+
+  <div class="card"><div class="card-body">
+
+  <h2>1. The basics</h2>
+  <p>Open the admin page and choose <b>Stock</b> in the main menu. Everything for stock lives on this one page. The <b>⋯</b> button at the top right switches between the three views and holds the stock actions.</p>
+  <table>
+    <tr><th>View</th><th>What it is for</th></tr>
+    <tr><td><b>Stock</b></td><td>The item list: set cost, minimum and restock level, add or remove stock, and count stock.</td></tr>
+    <tr><td><b>Stock movements</b></td><td>A history of every stock take, restock and clear, by organisation and by item.</td></tr>
+    <tr><td><b>Restock</b></td><td>The list of what to order, based on what is on hand.</td></tr>
+  </table>
+  <p>Only items with <b>Stk</b> ticked on the Price List item screen are part of stock. Use <b>Show non-stock items</b> to see the rest.</p>
+
+  <h2>2. The Stock list</h2>
+  <p>Items are grouped by category. Tap a category button to filter, or <b>All</b>.</p>
+  <table>
+    <tr><th>Column</th><th>Meaning</th></tr>
+    <tr><td><b>Cost £</b></td><td>What one unit costs you. Stock is valued at the cost it had <i>when it was added</i>. Changing it later does not change the value of stock you already hold.</td></tr>
+    <tr><td><b>Min</b></td><td>The level at or below which the item should be reordered.</td></tr>
+    <tr><td><b>Restock level</b></td><td>What a restock tops the item up to. Blank means "same as Min". It can be higher than Min, never lower.</td></tr>
+    <tr><td><b>On hand</b></td><td>The quantity you hold now: the last count plus anything added since.</td></tr>
+    <tr><td><b>+/− button</b></td><td>Add or remove stock outside a count (see section 4).</td></tr>
+    <tr><td><b>Counted</b></td><td>Only used during a stock take (see section 3).</td></tr>
+  </table>
+  <p>Tick <b>Show non-zero only</b> to hide items with nothing on hand. It is also available during a stock take; an item you have already entered a count for stays visible.</p>
+  <p>Quantities can be whole numbers or in quarters (¼ ½ ¾) for items such as bottles.</p>
+
+  <h2>3. Stock takes</h2>
+  <p>A stock take counts everything and works out what was used since the last count.</p>
+  <h3>Start a stock take</h3>
+  <ol>
+    <li>Open the <b>⋯</b> menu and choose <b>Start stock take</b>.</li>
+    <li>Type an <b>event name</b> (for example <i>Autumn show</i>). Pick which organisation the take is for.</li>
+    <li>The page title changes to <i>Stock take in progress</i>, and the Stock menu items read <b>Resume stock take</b> until you finish or cancel.</li>
+  </ol>
+  <h3>Count</h3>
+  <ul>
+    <li>Enter the number you actually have in the <b>Counted</b> column, using − [n] + or typing. Fractions are available for items sold in quarters.</li>
+    <li>Your counts are saved on this device as a draft, so you can leave the page and come back with <b>Resume stock take</b>.</li>
+    <li>An item you leave empty counts as 0.</li>
+  </ul>
+  <h3>Finish</h3>
+  <ol>
+    <li>Open <b>⋯ → Finish stock take</b>.</li>
+    <li>Check the results: for each item, the opening figure, anything added, what you counted, what was used, and the cost of what was used. Tick <b>Used items only</b> to hide unused items.</li>
+    <li>Press <b>Confirm</b> to save. Nothing is saved until you confirm.</li>
+  </ol>
+  <p>Finishing sets each item's new starting figure to your count. Usage is charged to the organisation the take was for.</p>
+  <h3>Cancel</h3>
+  <p><b>⋯ → Cancel stock take</b> throws away the count in progress and changes nothing.</p>
+  <h3>Opening stock</h3>
+  <p>Use <b>⋯ → Set opening stock</b> for the first count (or to reset one organisation's share). Pick the organisation, count, and finish. It sets starting figures but records no usage.</p>
+  <h3>Delete a mistake</h3>
+  <p>Only the <b>latest</b> stock take can be deleted. Deleting it puts every item back as it was before, including deliveries.</p>
+
+  <h2>4. Adding and removing stock between counts</h2>
+  <p>Use the <b>+/−</b> button on an item line for a delivery, top-up or write-off.</p>
+  <ol>
+    <li>Press the button on the item.</li>
+    <li>Use <b>+</b> or <b>−</b> to enter the quantity.</li>
+    <li>Pick the organisation it is for.</li>
+    <li>Press <b>OK</b>.</li>
+  </ol>
+  <p>Nothing is written until you press OK. It is recorded as a restock (or a removal if negative), not as usage, so it does not count as sales.</p>
+
+  <h2>5. Restock</h2>
+  <p>The <b>Restock</b> view lists what to order, worked out from current stock against each item's Min and Restock level.</p>
+  <ul>
+    <li><b>Order</b> column: edit a quantity by hand if you want something different.</li>
+    <li><b>+ Add item</b>: add an item that is not on the list.</li>
+    <li><b>Recalculate</b>: rebuild the list from current stock. Quantities you set by hand are replaced.</li>
+    <li><b>Print</b>: a printable order list with estimated cost.</li>
+    <li><b>Add restock to stock</b>: use this when the delivery arrives. Choose the organisation it is for. It adds everything on the list to stock as a delivery and clears the list. This cannot be undone from here.</li>
+  </ul>
+
+  <h2>6. Organisations</h2>
+  <p>Organisations (for example <i>Pirton Players</i> or <i>Film Club</i>) each hold a share of the stock. Open <b>⋯ → Organisations…</b> to add, rename or delete them. An organisation that still holds stock, or owes some, cannot be deleted.</p>
+  <p>Organisations are mandatory, so:</p>
+  <ul>
+    <li>Every stock take, opening stock count, delivery and +/− must say which organisation it is for.</li>
+    <li>A take charges usage to its organisation. If the organisation used more than its share, it shows as <b>owed</b> in red.</li>
+    <li>Stock not held by any organisation shows as <b>Unassigned</b>.</li>
+  </ul>
+
+  <h2>7. Stock movements</h2>
+  <p>Open <b>⋯ → Stock movements</b>. There are two tabs.</p>
+  <h3>Organisations tab</h3>
+  <p>One line per organisation, plus <b>Unassigned</b> if there is any, and a bold <b>Total stock</b> line, each with the value of stock held (at cost; red means owed).</p>
+  <ul>
+    <li><b>Tap a line</b> to slide open its history, newest first. Tap again to close.</li>
+    <li>Tap a history line to open the details: a stock take opens its report, a restock opens the list of items in it.</li>
+    <li>Long histories are split into pages: use <b>‹ Newer</b> and <b>Older ›</b>.</li>
+    <li>The Total history includes an <b>Organisation</b> column; an organisation's own history does not need it.</li>
+  </ul>
+  <p>Opening stock, usage, restocks and "stock cleared" appear in date order with a running <b>Balance</b>.</p>
+  <h3>Items tab</h3>
+  <p>Every item that has moved, grouped by category, with the quantity held now. Tap an item to see its history: date, organisation, event, item, price, movement and running quantity balance. Stock takes show as <i>used n</i> or <i>counted n</i>; restocks as +n; stock cleared as <i>reset to 0</i>.</p>
+  <p>On a phone, dates show as dd/mm/yy.</p>
+  <h3>How stock is valued</h3>
+  <p>Stock is valued at the cost it had when it was added. A price rise only affects stock added after the rise. Usage uses up the oldest stock first.</p>
+  <h3>"Other adjustments (not itemised)"</h3>
+  <p>If the history cannot fully explain the quantity held now, for example stock changed before restocks were logged, one row shows the difference. Tap it to see which items disagree: the quantity according to the history, the quantity held now, and the value difference.</p>
+  <h3>Print and email</h3>
+  <p>The restock detail window has <b>Print</b> and <b>Email</b> buttons. Email opens your mail program with the details filled in.</p>
+
+  <h2>8. Other actions</h2>
+  <table>
+    <tr><th>Action</th><th>What it does</th></tr>
+    <tr><td><b>⋯ → Add item</b></td><td>Adds a new stock item (stock-only: not sold anywhere until you tick a channel).</td></tr>
+    <tr><td><b>⋯ → Print stock list</b></td><td>A printable count sheet by category with a box for each count.</td></tr>
+    <tr><td><b>⋯ → Clear all stock</b></td><td>Resets every item's stock to 0 and cancels any count in progress. Cost, Min and Restock level are kept, and old stock takes are never touched. Use with care.</td></tr>
+  </table>
+
+  <h2>9. Quick answers</h2>
+  <p><b>A delivery arrived. What do I do?</b> Restock → Add restock to stock (if it was on the list), or use +/− on each item.</p>
+  <p><b>I made a stock take by mistake.</b> If it is the latest one, open it and delete it. Otherwise cancel before finishing.</p>
+  <p><b>An organisation shows as owed.</b> It used more stock than it held. A restock or opening stock for that organisation will bring it back up.</p>
+  <p><b>I changed a cost price. Did my stock value change?</b> No. Only stock added after the change uses the new price.</p>
+  <p><b>There is an Other adjustments row I do not understand.</b> Tap it. It lists each item whose quantity does not match the history.</p>
+
+  </div></div>
+</div>
+
+</body>
+</html>
