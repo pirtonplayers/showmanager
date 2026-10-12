@@ -3124,9 +3124,58 @@ function trackLedger(key, current) {
     return { date: e.date, name: e.name, sub: e.sub || '', val, bal, click: e.click };
   }).reverse();
   // Anything the log can't explain (changes made before restocks were recorded, edits elsewhere).
-  if (Math.abs(current - bal) > 0.005) rows.unshift({ date: '', name: 'Other adjustments (not itemised)', sub: '', val: money(current - bal), bal: current, click: '' });
+  if (Math.abs(current - bal) > 0.005) rows.unshift({ date: '', name: 'Other adjustments (not itemised)', sub: 'tap to see which items', val: money(current - bal), bal: current, click: `explainGap('${key}')` });
   return rows;
 }
+
+// Click "Other adjustments": walk the same history per item and list where it disagrees with what
+// is held now (quantity not in the log, or a cost price changed since).
+window.explainGap = function(key) {
+  const all = key === 'all';
+  const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : (x.createdAt?.toDate ? x.createdAt.toDate().getTime() : 0);
+  const ev = [];
+  _stockTakes.forEach(t => {
+    if (t.cleared) { ev.push({ t: ms(t), kind: 'clear' }); return; }
+    if (!all && (t.orgId || '') !== key) return;
+    ev.push({ t: ms(t), kind: 'take', take: t });
+  });
+  _deliveries.filter(d => all || (d.orgId || '') === key).forEach(d => ev.push({ t: ms(d), kind: 'add', del: d }));
+  ev.sort((a, b) => a.t - b.t);
+  const st = {};   // itemId -> { qty, val } as the history implies
+  const get = id => st[id] || (st[id] = { qty: 0, val: 0 });
+  ev.forEach(e => {
+    if (e.kind === 'clear') { Object.keys(st).forEach(id => { st[id] = { qty: 0, val: 0 }; }); return; }
+    if (e.kind === 'add') { (e.del.items || []).forEach(i => { const x = get(i.itemId); x.qty += i.qty; x.val += i.qty * (i.cost || 0); }); return; }
+    const t = e.take;
+    (t.lines || []).forEach(l => {
+      const x = get(l.itemId), c = l.costPrice || 0;
+      if (all) {
+        const d = ((typeof l.newTotal === 'number' ? l.newTotal : l.counted) || 0) - ((l.opening || 0) + (l.added || 0));
+        x.qty += d; x.val += d * c;
+      } else if (t.opening) { x.qty = l.counted || 0; x.val = (l.counted || 0) * c; }
+      else { x.qty -= l.used || 0; x.val -= l.usedCost || 0; }
+    });
+  });
+  const rows = [];
+  let diff = 0;
+  _allMenuItems.filter(i => stockIsTracked(i.id)).forEach(i => {
+    const s = _stock[i.id] || {};
+    const c = typeof s.costPrice === 'number' ? s.costPrice : 0;
+    const oh = stockOnHand(s) ?? (s.added || 0);
+    const orgSum = _orgs.reduce((n, o) => n + orgQtyOf(s, o.id), 0);
+    const actual = all ? oh : key === '' ? oh - orgSum : orgQtyOf(s, key);
+    const x = st[i.id] || { qty: 0, val: 0 };
+    const d = actual * c - x.val;
+    if (Math.abs(d) < 0.005 && Math.abs(actual - x.qty) < 0.001) return;
+    diff += d;
+    const why = Math.abs(actual - x.qty) > 0.001 ? 'quantity not in the log' : 'cost price changed';
+    rows.push([escHtml(i.name), `${fmtQty(x.qty)} → ${fmtQty(actual)}`, why, (d >= 0 ? '+' : '-') + fmtCurrency(Math.abs(d))]);
+  });
+  rows.sort((a, b) => a[0].localeCompare(b[0]));
+  const nm = all ? 'All stock' : key === '' ? 'Unassigned' : orgName(key);
+  showStatementModal('Other adjustments - ' + nm, ['Item', 'History → held', 'Why', 'Difference'], [1, 1, 1, 2], rows,
+    ['Total', (diff >= 0 ? '+' : '-') + fmtCurrency(Math.abs(diff))]);
+};
 
 function renderOrgSummary() {
   const box = document.getElementById('stockOrgSummary');
