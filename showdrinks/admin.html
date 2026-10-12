@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.112"></script>
+  <script src="../shared/embed.js?v=1.1.113"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.112">
+  <link rel="stylesheet" href="style.css?v=1.1.113">
 </head>
 <body>
 
@@ -927,16 +927,12 @@
     <div class="card-header"><h2>Start stock take</h2></div>
     <div class="card-body">
       <div class="form-group">
-        <label for="stockEventSelect">Event</label>
-        <select id="stockEventSelect" class="form-control" onchange="stockEventSelectChanged()"></select>
+        <label for="stockEventName">Event name</label>
+        <input type="text" id="stockEventName" class="form-control" placeholder="e.g. Summer fete" onkeydown="if(event.key==='Enter')confirmStockEvent()">
       </div>
       <div class="form-group" id="stockEventOrgWrap" style="display:none">
         <label for="stockEventOrg">Organisation</label>
         <select id="stockEventOrg" class="form-control"></select>
-      </div>
-      <div class="form-group" id="stockEventOtherWrap" style="display:none">
-        <label for="stockEventOther">Event name</label>
-        <input type="text" id="stockEventOther" class="form-control" placeholder="e.g. Summer fete">
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-secondary" onclick="closeStockEvent()">Cancel</button>
@@ -1104,11 +1100,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.112"></script>
-<script src="../shared/firebase-config.js?v=1.1.112"></script>
-<script src="../shared/auth.js?v=1.1.112"></script>
-<script src="../shared/suite-nav.js?v=1.1.112"></script>
-<script src="admin.js?v=1.1.112"></script>
+<script src="../shared/version.js?v=1.1.113"></script>
+<script src="../shared/firebase-config.js?v=1.1.113"></script>
+<script src="../shared/auth.js?v=1.1.113"></script>
+<script src="../shared/suite-nav.js?v=1.1.113"></script>
+<script src="admin.js?v=1.1.113"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

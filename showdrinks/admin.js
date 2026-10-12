@@ -3267,13 +3267,7 @@ function renderStockCount() {
 // Event name comes from a dropdown of all shows (current one preselected), or "Other" to type one.
 window.startStockTake = function() {
   if (_stockView !== 'count') setStockView('count');
-  const sel = document.getElementById('stockEventSelect');
-  const current = _shows.find(s => s.isCurrent);
-  sel.innerHTML = _shows.map(s => `<option value="${escHtml(s.name || '')}" ${s === current ? 'selected' : ''}>${escHtml(s.name || 'Unnamed show')}${s === current ? ' (current)' : ''}</option>`).join('')
-    + '<option value="__other__">Other…</option>';
-  if (!_shows.length) sel.value = '__other__';
-  document.getElementById('stockEventOther').value = '';
-  stockEventSelectChanged();
+  document.getElementById('stockEventName').value = '';
   document.getElementById('stockEventOrgWrap').style.display = _orgs.length ? '' : 'none';
   document.getElementById('stockEventOrg').innerHTML = orgOptionsHtml(lastOrg());
   document.getElementById('stockEventModal').style.display = 'flex';
@@ -3293,16 +3287,10 @@ window.startOpeningStock = async function() {
   renderStockCount();
 };
 
-window.stockEventSelectChanged = function() {
-  const other = document.getElementById('stockEventSelect').value === '__other__';
-  document.getElementById('stockEventOtherWrap').style.display = other ? '' : 'none';
-};
-
 window.closeStockEvent = function() { document.getElementById('stockEventModal').style.display = 'none'; };
 
 window.confirmStockEvent = function() {
-  const v = document.getElementById('stockEventSelect').value;
-  const name = (v === '__other__' ? document.getElementById('stockEventOther').value : v).trim();
+  const name = document.getElementById('stockEventName').value.trim();
   if (!name) { toast('A stock take needs an event name', 'error'); return; }
   const org = _orgs.length ? document.getElementById('stockEventOrg').value : '';
   if (_orgs.length && !org) { toast('Pick an organisation', 'error'); return; }
