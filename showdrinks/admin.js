@@ -3012,9 +3012,12 @@ function rememberOrg(id) { try { localStorage.setItem(ORG_LAST_KEY, id); } catch
 
 // Asks which organisation: resolves to its id, '' when none are defined, null if cancelled.
 let _orgPickResolve = null;
-function pickOrg(title) {
-  if (!_orgs.length) return Promise.resolve('');
+// `msg` (optional) is a warning shown in the same dialog; with no organisations it falls back to a confirm().
+function pickOrg(title, msg) {
+  if (!_orgs.length) return Promise.resolve(msg && !confirm(msg) ? null : '');
   document.getElementById('orgPickTitle').textContent = title;
+  const m = document.getElementById('orgPickMsg');
+  m.textContent = msg || ''; m.style.display = msg ? '' : 'none';
   document.getElementById('orgPickSelect').innerHTML = orgOptionsHtml(lastOrg());
   document.getElementById('orgPickModal').style.display = 'flex';
   return new Promise(res => { _orgPickResolve = res; });
@@ -3837,8 +3840,7 @@ window.printRestock = function() {
 window.receiveRestock = async function() {
   const rows = _allMenuItems.filter(i => stockIsTracked(i.id) && restockQty(i.id) > 0);
   if (!rows.length) { toast('Nothing on the restock list', 'error'); return; }
-  if (!confirm(`Add ${rows.length} item(s) to stock as deliveries and clear the restock list?\nThis cannot be undone from here.`)) return;
-  const org = await pickOrg('Delivery for which organisation?');
+  const org = await pickOrg('Receive restock', `Add ${rows.length} item(s) to stock as deliveries and clear the restock list? This cannot be undone from here. Which organisation is the delivery for?`);
   if (org === null) return;
   try {
     const FV = firebase.firestore.FieldValue;
