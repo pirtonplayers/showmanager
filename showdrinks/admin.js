@@ -3433,7 +3433,7 @@ let _stockReportId = null;
 let _restockIds  = null;   // item ids shown on the Restock page (null = recompute on next render)
 const STOCK_DRAFT_KEY = 'showdrinks_stock_draft';
 const STOCK_SESSION_KEY = 'showdrinks_stock_session';
-let _stockUsedOnly = false;   // report option: only list items that had usage
+let _stockUsedOnly = true;    // report option: only list items that had usage
 let _stockPending = null;   // results of a finished count awaiting the user's confirmation
 let _stockOpening = false;   // true while the take in progress is an opening-stock entry (no usage)
 let _stockTaking = null;   // event name while a stock take is in progress, else null
