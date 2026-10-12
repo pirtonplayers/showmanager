@@ -3793,8 +3793,8 @@ function renderDeliveries() {
 function renderStockReports() {
   document.getElementById('stockReportListBody').innerHTML = _stockTakes.length ? _stockTakes.map(t => {
     const v = stockTakeValues(t);
-    const red = t.cleared || t.opening;   // stock cleared / opening stock lines stand out
-    return `<tr style="cursor:pointer${red ? ';color:#dc2626;background:rgba(220,38,38,.08)' : ''}" onclick="openStockTake('${t.id}')">
+    const red = t.cleared || t.opening;   // stock cleared / opening stock lines stand out (blue)
+    return `<tr style="cursor:pointer${red ? ';color:#2563eb;background:rgba(37,99,235,.08)' : ''}" onclick="openStockTake('${t.id}')">
       <td><b>${escHtml(t.eventName || 'Stock take')}</b>${t.orgName ? `<br><span style="font-size:11px;font-weight:400">${escHtml(t.orgName)}</span>` : ''}</td>
       <td>${escHtml(stockTakeDate(t))}</td>
       <td style="text-align:right">${fmtCurrency(v.stock)}</td>
