@@ -3106,7 +3106,7 @@ function renderOrgSummary() {
 let _orgCurrent = {};
 
 // Statement for one organisation: opening stock, each stock take (usage comes off), each
-// replenishment (goes on), and stock cleared (back to nothing), with a running balance at cost.
+// restock (goes on), and stock cleared (back to nothing), with a running balance at cost.
 window.openOrgStatement = function(orgId) {
   const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : 0;
   const ev = [];
@@ -3118,7 +3118,7 @@ window.openOrgStatement = function(orgId) {
     else ev.push({ t: ms(t), date: stockTakeDate(t), what: `${t.eventName || 'Stock take'} - stock take`, kind: 'use', amt: lines.reduce((n, l) => n + (l.usedCost || 0), 0) });
   });
   _deliveries.filter(d => d.orgId === orgId).forEach(d => {
-    ev.push({ t: ms(d), date: stockTakeDate(d), what: 'Replenished: ' + (d.items || []).map(i => `${i.name} ${i.qty > 0 ? '+' : ''}${fmtQty(i.qty)}`).join(', '), kind: 'add', amt: (d.items || []).reduce((n, i) => n + i.qty * (i.cost || 0), 0) });
+    ev.push({ t: ms(d), date: stockTakeDate(d), what: 'Restocked: ' + (d.items || []).map(i => `${i.name} ${i.qty > 0 ? '+' : ''}${fmtQty(i.qty)}`).join(', '), kind: 'add', amt: (d.items || []).reduce((n, i) => n + i.qty * (i.cost || 0), 0) });
   });
   ev.sort((a, b) => a.t - b.t);
   let bal = 0;
@@ -3131,7 +3131,7 @@ window.openOrgStatement = function(orgId) {
     return { ...e, label, bal };
   });
   const now = _orgCurrent[orgId] || 0;
-  // Anything the log can't explain (e.g. changes made before replenishments were recorded).
+  // Anything the log can't explain (e.g. changes made before restocks were recorded).
   if (Math.abs(now - bal) > 0.005) rows.push({ date: '', what: 'Other adjustments (not itemised)', label: (now - bal >= 0 ? '+' : '') + fmtCurrency(now - bal), bal: now });
   const neg = v => v < -0.005 ? ' style="color:#dc2626"' : '';
   showStatementModal(orgName(orgId) + ' - statement', ['Date', 'Item', 'Value', 'Balance'], [1, 1, 2, 2],
@@ -3139,12 +3139,12 @@ window.openOrgStatement = function(orgId) {
     ['Current stock value', `<b${neg(now)}>${fmtCurrency(now)}</b>`]);
 };
 
-// One replenishment: who it was for and every item in it.
+// One restock: who it was for and every item in it.
 window.openDelivery = function(id) {
   const d = _deliveries.find(x => x.id === id); if (!d) return;
   const its = d.items || [];
   const val = its.reduce((n, i) => n + i.qty * (i.cost || 0), 0);
-  showStatementModal('Replenishment - ' + stockTakeDate(d), ['Item', 'Qty', 'Cost each', 'Value'], [1, 2, 2, 2],
+  showStatementModal('Restock - ' + stockTakeDate(d), ['Item', 'Qty', 'Cost each', 'Value'], [1, 2, 2, 2],
     its.map(i => [escHtml(i.name), (i.qty > 0 ? '+' : '') + fmtQty(i.qty), typeof i.cost === 'number' ? fmtCurrency(i.cost) : '—', typeof i.cost === 'number' ? fmtCurrency(i.qty * i.cost) : '—']),
     ['Total', `<b>${fmtCurrency(val)}</b>`],
     `Organisation: ${d.orgName ? escHtml(d.orgName) : '<span style="color:#dc2626">Unallocated</span>'}`);
@@ -3779,7 +3779,7 @@ async function logDelivery(orgId, items) {
     _deliveries.unshift({ id: ref.id, createdAt: firebase.firestore.Timestamp.now(), ...org, items });
     renderDeliveries();
     renderOrgSummary();
-  } catch (e) { toast('Stock updated but the replenishment was not logged: ' + e.message, 'error'); }
+  } catch (e) { toast('Stock updated but the restock was not logged: ' + e.message, 'error'); }
 }
 
 function renderDeliveries() {
@@ -3790,7 +3790,7 @@ function renderDeliveries() {
     const val = its.reduce((n, i) => n + i.qty * (i.cost || 0), 0);
     const summary = its.length === 1 ? `${escHtml(its[0].name)} ${its[0].qty > 0 ? '+' : ''}${fmtQty(its[0].qty)}` : `${its.length} items`;
     return `<tr style="cursor:pointer" onclick="openDelivery('${d.id}')"><td style="white-space:nowrap">${escHtml(stockTakeDate(d))}</td><td>${d.orgName ? escHtml(d.orgName) : '<span style="color:#dc2626">Unallocated</span>'}</td><td style="font-size:12px">${summary}</td><td style="text-align:right">${fmtCurrency(val)}</td></tr>`;
-  }).join('') : '<tr><td colspan="4" style="color:var(--text-muted);padding:20px;text-align:center">No replenishments recorded yet.</td></tr>';
+  }).join('') : '<tr><td colspan="4" style="color:var(--text-muted);padding:20px;text-align:center">No restocks recorded yet.</td></tr>';
 }
 
 function renderStockReports() {
