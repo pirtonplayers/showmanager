@@ -4025,6 +4025,8 @@ window.renameStockTake = async function() {
     await db.collection('showdrinks_stockTakes').doc(t.id).update({ eventName: name });
     t.eventName = name;
     renderStockReportModal();
+    renderOrgSummary();      // the name shows in both Stock movements tabs
+    renderItemMovements();
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
