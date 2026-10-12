@@ -3114,6 +3114,7 @@ function renderOrgSummary() {
     <p style="font-size:11px;color:var(--text-muted);margin:0;padding:6px 12px 10px">Values at cost. Negative (red) = owed to the stock. Usage is charged at the next stock take.</p></div>`;
 }
 
+let _deliveries  = [];   // showdrinks_deliveries: every stock addition, newest first
 let _stock       = {};
 let _stockTakes  = [];
 let _stockCat    = null;
@@ -3145,11 +3146,13 @@ function saveStockDraft() {
 
 async function loadStockTab() {
   try {
-    const [stockSnap, takesSnap, orgSnap] = await Promise.all([
+    const [stockSnap, takesSnap, orgSnap, delSnap] = await Promise.all([
       db.collection('showdrinks_stock').get({ source: 'server' }),
       db.collection('showdrinks_stockTakes').orderBy('createdAt', 'desc').limit(200).get({ source: 'server' }),
       db.collection('showdrinks_orgs').get({ source: 'server' }),
+      db.collection('showdrinks_deliveries').orderBy('createdAt', 'desc').limit(300).get({ source: 'server' }),
     ]);
+    _deliveries = delSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     _orgs = orgSnap.docs.map(d => ({ id: d.id, name: d.data().name || '' })); sortOrgs();
     _stock = {};
     stockSnap.docs.forEach(d => { _stock[d.id] = d.data(); });
@@ -3213,7 +3216,7 @@ function renderStockTab() {
   document.getElementById('stockReportsView').style.display = _stockView === 'reports' ? '' : 'none';
   document.getElementById('stockRestockView').style.display = _stockView === 'restock' ? '' : 'none';
   renderStockCount();   // also keeps the ⋯ menu's Start/Finish/Cancel items current on every view
-  if (_stockView === 'reports') { renderOrgSummary(); renderStockReports(); }
+  if (_stockView === 'reports') { renderOrgSummary(); renderStockReports(); renderDeliveries(); }
   else if (_stockView === 'restock') renderStockRestock();
 }
 
@@ -3428,6 +3431,8 @@ window.confirmStockAdjust = async function() {
     const FV = firebase.firestore.FieldValue;
     await db.collection('showdrinks_stock').doc(id).set({ added: FV.increment(delta), ...(org ? { org: { [org]: FV.increment(delta) }, orgAdded: { [org]: FV.increment(delta) } } : {}) }, { merge: true });
     if (org) rememberOrg(org);
+    const itm = _allMenuItems.find(i => i.id === id);
+    await logDelivery(org, [{ itemId: id, name: itm?.name || '', qty: delta, cost: typeof (_stock[id] || {}).costPrice === 'number' ? _stock[id].costPrice : null }]);
     const cur = _stock[id] || {};
     _stock[id] = { ...cur, added: (cur.added || 0) + delta, ...(org ? { org: { ...(cur.org || {}), [org]: orgQtyOf(cur, org) + delta }, orgAdded: { ...(cur.orgAdded || {}), [org]: orgAddedOf(cur, org) + delta } } : {}) };
     const cell = document.getElementById('stockOh-' + id);
@@ -3681,6 +3686,23 @@ function stockTakeValues(t) {
   };
 }
 
+// Every addition to stock, newest first: restock received, or a + / − from the Add button.
+async function logDelivery(orgId, items) {
+  try {
+    await db.collection('showdrinks_deliveries').add({ createdAt: firebase.firestore.FieldValue.serverTimestamp(), ...(orgId ? { orgId, orgName: orgName(orgId) } : {}), items });
+  } catch (e) { toast('Stock updated but the replenishment was not logged: ' + e.message, 'error'); }
+}
+
+function renderDeliveries() {
+  const body = document.getElementById('stockDeliveryBody');
+  if (!body) return;
+  body.innerHTML = _deliveries.length ? _deliveries.map(d => {
+    const items = (d.items || []).map(i => `${escHtml(i.name)} ${i.qty > 0 ? '+' : ''}${fmtQty(i.qty)}`).join(', ');
+    const val = (d.items || []).reduce((n, i) => n + i.qty * (i.cost || 0), 0);
+    return `<tr><td style="white-space:nowrap">${escHtml(stockTakeDate(d))}</td><td>${escHtml(d.orgName || '—')}</td><td style="font-size:12px">${items}</td><td style="text-align:right">${fmtCurrency(val)}</td></tr>`;
+  }).join('') : '<tr><td colspan="4" style="color:var(--text-muted);padding:20px;text-align:center">No replenishments recorded yet.</td></tr>';
+}
+
 function renderStockReports() {
   document.getElementById('stockReportListBody').innerHTML = _stockTakes.length ? _stockTakes.map(t => {
     const v = stockTakeValues(t);
@@ -3866,6 +3888,7 @@ window.receiveRestock = async function() {
     rows.forEach(i => { qty[i.id] = restockQty(i.id); });
     rows.forEach(i => batch.set(db.collection('showdrinks_stock').doc(i.id), { added: FV.increment(qty[i.id]), restock: FV.delete(), ...(org ? { org: { [org]: FV.increment(qty[i.id]) }, orgAdded: { [org]: FV.increment(qty[i.id]) } } : {}) }, { merge: true }));
     await batch.commit();
+    await logDelivery(org, rows.map(i => ({ itemId: i.id, name: i.name || '', qty: qty[i.id], cost: typeof (_stock[i.id] || {}).costPrice === 'number' ? _stock[i.id].costPrice : null })));
     rows.forEach(i => {
       const st = { ..._stock[i.id], added: ((_stock[i.id] || {}).added || 0) + qty[i.id] };
       if (org) { st.org = { ...(st.org || {}), [org]: orgQtyOf(_stock[i.id], org) + qty[i.id] }; st.orgAdded = { ...(st.orgAdded || {}), [org]: orgAddedOf(_stock[i.id], org) + qty[i.id] }; }
