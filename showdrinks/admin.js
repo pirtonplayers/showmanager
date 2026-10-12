@@ -3785,39 +3785,36 @@ document.addEventListener('click', () => {
   document.getElementById('stockActionsDropdown')?.classList.remove('open');
 });
 
-// Zeroes every item's stock figures (counted base, deliveries since, restock quantity) and drops
-// any in-progress count. Cost, Min and Restock level are item settings and stay; old stock takes
-// (showdrinks_stockTakes) are never touched.
+// Wipes the stock system back to a blank start: every item's stock figures (counted base,
+// deliveries since, restock quantity, organisation shares) go to 0, and ALL stock takes and
+// restocks (deliveries) are deleted, so Stock movements is empty too. Any count in progress is
+// dropped. Cost, Min and Restock level are item settings and stay. This cannot be undone.
 window.clearAllStock = async function() {
-  const msg = 'Reset all stock to 0? This zeroes every item stock, deliveries and restock quantity, and cancels any stock take in progress. Cost, Min and Restock level settings and previous stock takes are kept. A "Stock cleared" line is added to Reports (delete it, if it is the latest, to undo).';
+  const msg = 'DELETE ALL STOCK?\n\nThis zeroes every item stock and permanently deletes ALL stock takes, opening stock and restocks, so Stock movements is emptied. A stock take in progress is cancelled.\n\nCost, Min and Restock level settings are kept.\n\nThis cannot be undone.';
   if (!confirm(msg)) return;
   try {
     const FV = firebase.firestore.FieldValue;
-    // The report line keeps each item's previous figures so deleting it (when it is the latest
-    // entry) puts everything back — see deleteLatestStockTake.
-    const lines = _allMenuItems.map(it => {
-      const st = _stock[it.id] || {};
-      return {
-        itemId: it.id, name: it.name || '', category: it.category || '',
-        opening: typeof st.base === 'number' ? st.base : null, added: st.added || 0, counted: 0, used: null,
-        costPrice: typeof st.costPrice === 'number' ? st.costPrice : null, usedCost: null,
-        ...(typeof st.restock === 'number' ? { prevRestock: st.restock } : {}),
-        ...(st.org && Object.keys(st.org).length ? { prevOrg: st.org } : {}),
-        ...(st.orgAdded && Object.keys(st.orgAdded).length ? { prevOrgAdded: st.orgAdded } : {}),
-      };
-    });
-    await db.collection('showdrinks_stockTakes').add({ createdAt: FV.serverTimestamp(), eventName: 'Stock cleared', cleared: true, lines });
+    const del = async name => {
+      const snap = await db.collection(name).get();
+      for (let i = 0; i < snap.docs.length; i += 400) {
+        const batch = db.batch();
+        snap.docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    };
+    await del('showdrinks_stockTakes');
+    await del('showdrinks_deliveries');
     for (let i = 0; i < _allMenuItems.length; i += 400) {
       const batch = db.batch();
       _allMenuItems.slice(i, i + 400).forEach(it => batch.set(db.collection('showdrinks_stock').doc(it.id), { base: 0, added: 0, restock: FV.delete(), org: FV.delete(), orgAdded: FV.delete() }, { merge: true }));
       await batch.commit();
     }
+    _stockTakes = []; _deliveries = [];
     _stockCounts = {}; saveStockDraft();
     _stockOpening = false; _stockOrg = '';
     _stockTaking = null; saveStockSession();
-    _stockView = 'reports';
     await loadStockTab();
-    toast('All stock reset to 0', 'success');
+    toast('All stock and stock history deleted', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 // Stock prints (stock list, restock list, stock take report) open the document in a new window and
