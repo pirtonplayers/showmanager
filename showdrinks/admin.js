@@ -3121,10 +3121,10 @@ function trackLedger(key, current) {
     if (e.kind === 'clear') { e.delta = -bal; bal = 0; val = 'reset to ' + fmtCurrency(0); }
     else if (e.kind === 'set') { e.delta = e.amt - bal; bal = e.amt; val = fmtCurrency(e.amt); }
     else { bal += e.delta; val = e.val || money(e.delta); }
-    return { date: e.date, name: e.name, sub: e.sub || '', val, bal, click: e.click };
+    return { date: e.date, name: e.name, sub: e.sub || (all || e.kind === 'clear' ? '' : (key ? orgName(key) : 'Unassigned')), val, bal, click: e.click };
   }).reverse();
   // Anything the log can't explain (changes made before restocks were recorded, edits elsewhere).
-  if (Math.abs(current - bal) > 0.005) rows.unshift({ date: '', name: 'Other adjustments (not itemised)', sub: 'tap to see which items', val: money(current - bal), bal: current, click: `explainGap('${key}')` });
+  if (Math.abs(current - bal) > 0.005) rows.unshift({ date: '', name: 'Other adjustments (not itemised)', sub: '', note: 'tap to see which items', val: money(current - bal), bal: current, click: `explainGap('${key}')` });
   return rows;
 }
 
@@ -3247,8 +3247,8 @@ function renderItemMovements() {
       const pages = Math.max(1, Math.ceil(led.length / size));
       _itemPage = Math.min(Math.max(0, _itemPage), pages - 1);
       const slice = led.slice(_itemPage * size, (_itemPage + 1) * size);
-      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th><th>Event</th><th style="text-align:right">Movement</th><th style="text-align:right">Balance</th></tr></thead><tbody>
-        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:130px')}>${escHtml(r.date)}</td><td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.sub ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.sub)}</span>` : ''}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtQty(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
+      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th><th>Organisation</th><th>Event</th><th style="text-align:right">Movement</th><th style="text-align:right">Balance</th></tr></thead><tbody>
+        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:130px')}>${escHtml(r.date)}</td><td ${td}>${escHtml(r.sub)}</td><td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.note ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.note)}</span>` : ''}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtQty(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
         </tbody></table>
         ${pages > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:8px"><button class="btn btn-secondary btn-sm" ${_itemPage === 0 ? 'disabled' : ''} onclick="itemMovementPage(-1)">‹ Newer</button><span style="font-size:13px">Page ${_itemPage + 1} of ${pages}</span><button class="btn btn-secondary btn-sm" ${_itemPage >= pages - 1 ? 'disabled' : ''} onclick="itemMovementPage(1)">Older ›</button></div>` : ''}
       </td></tr>`;
@@ -3292,8 +3292,8 @@ function renderOrgSummary() {
       const pages = Math.max(1, Math.ceil(led.length / size));
       _trackPage = Math.min(Math.max(0, _trackPage), pages - 1);
       const slice = led.slice(_trackPage * size, (_trackPage + 1) * size);
-      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th><th>Event</th><th style="text-align:right">Value</th><th style="text-align:right">Balance</th></tr></thead><tbody>
-        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:130px')}>${escHtml(r.date)}</td><td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.sub ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.sub)}</span>` : ''}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtCurrency(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
+      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th><th>Organisation</th><th>Event</th><th style="text-align:right">Value</th><th style="text-align:right">Balance</th></tr></thead><tbody>
+        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:130px')}>${escHtml(r.date)}</td><td ${td}>${escHtml(r.sub)}</td><td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.note ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.note)}</span>` : ''}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtCurrency(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
         </tbody></table>
         ${pages > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:8px"><button class="btn btn-secondary btn-sm" ${_trackPage === 0 ? 'disabled' : ''} onclick="trackPage(-1)">‹ Newer</button><span style="font-size:13px">Page ${_trackPage + 1} of ${pages}</span><button class="btn btn-secondary btn-sm" ${_trackPage >= pages - 1 ? 'disabled' : ''} onclick="trackPage(1)">Older ›</button></div>` : ''}
       </td></tr>`;
