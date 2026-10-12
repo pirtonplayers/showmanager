@@ -3077,11 +3077,60 @@ window.deleteOrg = async function(id) {
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
-// Reports page header: value of the stock each organisation holds (negative = owed to the stock).
+// Stock tracking screen: one line per organisation (plus Unassigned) and a Total line, each with
+// the value of stock held. Click a line to expand its ledger (paged); click a ledger line for
+// that stock take / restock. The Total ledger covers all stock; an organisation's covers its
+// own opening stock, usage and restocks. Values at cost; negative = owed to the stock.
+let _orgCurrent = {};
+let _trackOpen = null;    // key of the expanded line: an org id, '' (unassigned) or 'all'
+let _trackPage = 0;
+
+function trackPageSize() { return Math.max(5, Math.floor((window.innerHeight * 0.65) / 44)); }
+
+// Ledger for one line, newest first: [{ date, name, sub, val, bal, click }].
+function trackLedger(key, current) {
+  const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : (x.createdAt?.toDate ? x.createdAt.toDate().getTime() : 0);
+  const all = key === 'all';
+  const money = v => (v >= 0 ? '+' : '-') + fmtCurrency(Math.abs(v));
+  const ev = [];
+  _stockTakes.forEach(t => {
+    const lines = t.lines || [];
+    if (t.cleared) { ev.push({ t: ms(t), kind: 'clear', date: stockTakeDate(t), name: t.eventName || 'Stock cleared', click: `openStockTake('${t.id}')` }); return; }
+    if (!all && (t.orgId || '') !== key) return;
+    if (all) {
+      // Whatever the take did to the total: (after - before) at cost, before = last count + additions since.
+      const delta = lines.reduce((n, l) => n + (((typeof l.newTotal === 'number' ? l.newTotal : l.counted) || 0) - ((l.opening || 0) + (l.added || 0))) * (l.costPrice || 0), 0);
+      ev.push({ t: ms(t), kind: t.opening ? 'open' : 'take', date: stockTakeDate(t), name: t.eventName || 'Stock take', sub: t.orgName || '', delta, val: t.opening ? null : 'usage ' + fmtCurrency(stockTakeValues(t).used), click: `openStockTake('${t.id}')` });
+    } else if (t.opening) {
+      const amt = lines.reduce((n, l) => n + (l.counted || 0) * (l.costPrice || 0), 0);
+      ev.push({ t: ms(t), kind: 'set', date: stockTakeDate(t), name: t.eventName || 'Opening stock', amt, click: `openStockTake('${t.id}')` });
+    } else {
+      const amt = lines.reduce((n, l) => n + (l.usedCost || 0), 0);
+      ev.push({ t: ms(t), kind: 'use', date: stockTakeDate(t), name: t.eventName || 'Stock take', delta: -amt, val: 'usage ' + fmtCurrency(amt), click: `openStockTake('${t.id}')` });
+    }
+  });
+  _deliveries.filter(d => all || (d.orgId || '') === key).forEach(d => {
+    const its = d.items || [];
+    ev.push({ t: ms(d), kind: 'add', date: stockTakeDate(d), name: 'Restock: ' + (its.length === 1 ? its[0].name : its.length + ' items'), sub: all ? (d.orgName || 'Unallocated') : '',
+      delta: its.reduce((n, i) => n + i.qty * (i.cost || 0), 0), click: `openDelivery('${d.id}')` });
+  });
+  ev.sort((a, b) => a.t - b.t);
+  let bal = 0;
+  const rows = ev.map(e => {
+    let val;
+    if (e.kind === 'clear') { e.delta = -bal; bal = 0; val = 'reset to ' + fmtCurrency(0); }
+    else if (e.kind === 'set') { e.delta = e.amt - bal; bal = e.amt; val = fmtCurrency(e.amt); }
+    else { bal += e.delta; val = e.val || money(e.delta); }
+    return { date: e.date, name: e.name, sub: e.sub || '', val, bal, click: e.click };
+  }).reverse();
+  // Anything the log can't explain (changes made before restocks were recorded, edits elsewhere).
+  if (Math.abs(current - bal) > 0.005) rows.unshift({ date: '', name: 'Other adjustments (not itemised)', sub: '', val: money(current - bal), bal: current, click: '' });
+  return rows;
+}
+
 function renderOrgSummary() {
   const box = document.getElementById('stockOrgSummary');
   if (!box) return;
-  if (!_orgs.length) { box.innerHTML = ''; return; }
   const cur = {}; let unassigned = 0, total = 0;
   _allMenuItems.filter(i => stockIsTracked(i.id)).forEach(i => {
     const s = _stock[i.id] || {};
@@ -3092,52 +3141,38 @@ function renderOrgSummary() {
     unassigned += (oh - assigned) * c; total += oh * c;
   });
   _orgCurrent = cur;
+  const lines = _orgs.map(o => ({ key: o.id, name: o.name, v: cur[o.id] || 0 }));
+  if (_orgs.length && Math.abs(unassigned) > 0.005) lines.push({ key: '', name: 'Unassigned', v: unassigned });
+  lines.push({ key: 'all', name: 'Total stock', v: total, bold: true });
+  if (!lines.some(l => l.key === _trackOpen)) _trackOpen = null;
   const money = v => v < -0.005 ? `<span style="color:#dc2626">${fmtCurrency(v)} owed</span>` : fmtCurrency(v);
-  const row = (n, v, b, id) => `<tr ${id ? `style="cursor:pointer" onclick="openOrgStatement('${id}')"` : ''}><td>${b ? '<b>' + n + '</b>' : n}</td><td style="text-align:right">${b ? '<b>' + money(v) + '</b>' : money(v)}</td></tr>`;
-  box.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="card-body menu-table-scroll" style="padding:0">
-    <table class="menu-grid-table"><thead><tr><th>Organisation</th><th style="text-align:right">Current stock value</th></tr></thead><tbody>
-    ${_orgs.map(o => row(escHtml(o.name), cur[o.id] || 0, false, o.id)).join('')}
-    ${Math.abs(unassigned) > 0.005 ? row('Unassigned', unassigned) : ''}
-    ${row('Total stock', total, true)}
-    </tbody></table></div>
-    <p style="font-size:11px;color:var(--text-muted);margin:0;padding:6px 12px 10px">At cost. Tap an organisation for its statement. Red = owed to the stock.</p></div>`;
-}
-
-let _orgCurrent = {};
-
-// Statement for one organisation: opening stock, each stock take (usage comes off), each
-// restock (goes on), and stock cleared (back to nothing), with a running balance at cost.
-window.openOrgStatement = function(orgId) {
-  const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : 0;
-  const ev = [];
-  _stockTakes.forEach(t => {
-    if (t.cleared) { ev.push({ t: ms(t), date: stockTakeDate(t), what: t.eventName || 'Stock cleared', kind: 'clear' }); return; }
-    if (t.orgId !== orgId) return;
-    const lines = t.lines || [];
-    if (t.opening) ev.push({ t: ms(t), date: stockTakeDate(t), what: t.eventName || 'Opening stock', kind: 'open', amt: lines.reduce((n, l) => n + (l.counted || 0) * (l.costPrice || 0), 0) });
-    else ev.push({ t: ms(t), date: stockTakeDate(t), what: `${t.eventName || 'Stock take'} - stock take`, kind: 'use', amt: lines.reduce((n, l) => n + (l.usedCost || 0), 0) });
-  });
-  _deliveries.filter(d => d.orgId === orgId).forEach(d => {
-    ev.push({ t: ms(d), date: stockTakeDate(d), what: 'Restocked: ' + (d.items || []).map(i => `${i.name} ${i.qty > 0 ? '+' : ''}${fmtQty(i.qty)}`).join(', '), kind: 'add', amt: (d.items || []).reduce((n, i) => n + i.qty * (i.cost || 0), 0) });
-  });
-  ev.sort((a, b) => a.t - b.t);
-  let bal = 0;
-  const rows = ev.map(e => {
-    let amt = e.amt, label;
-    if (e.kind === 'open') { bal = e.amt; label = fmtCurrency(e.amt); }
-    else if (e.kind === 'use') { bal -= e.amt; label = 'usage ' + fmtCurrency(e.amt); }
-    else if (e.kind === 'add') { bal += e.amt; label = '+' + fmtCurrency(e.amt); }
-    else { label = 'reset to ' + fmtCurrency(0); bal = 0; }
-    return { ...e, label, bal };
-  });
-  const now = _orgCurrent[orgId] || 0;
-  // Anything the log can't explain (e.g. changes made before restocks were recorded).
-  if (Math.abs(now - bal) > 0.005) rows.push({ date: '', what: 'Other adjustments (not itemised)', label: (now - bal >= 0 ? '+' : '') + fmtCurrency(now - bal), bal: now });
   const neg = v => v < -0.005 ? ' style="color:#dc2626"' : '';
-  showStatementModal(orgName(orgId) + ' - statement', ['Date', 'Item', 'Value', 'Balance'], [1, 1, 2, 2],
-    rows.reverse().map(r => [escHtml(r.date), escHtml(r.what), r.label, `<b${neg(r.bal)}>${fmtCurrency(r.bal)}</b>`]),
-    ['Current stock value', `<b${neg(now)}>${fmtCurrency(now)}</b>`], '', { nowrap: [0], clip: [1] });
-};
+  const td = 'style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:13px"';
+  const rowsHtml = lines.map(l => {
+    const open = _trackOpen === l.key;
+    const nm = (open ? '▾ ' : '▸ ') + escHtml(l.name);
+    let html = `<tr style="cursor:pointer" onclick="toggleTrack('${l.key}')"><td>${l.bold ? '<b>' + nm + '</b>' : nm}</td><td style="text-align:right">${l.bold ? '<b>' + money(l.v) + '</b>' : money(l.v)}</td></tr>`;
+    if (open) {
+      const led = trackLedger(l.key, l.v);
+      const size = trackPageSize();
+      const pages = Math.max(1, Math.ceil(led.length / size));
+      _trackPage = Math.min(Math.max(0, _trackPage), pages - 1);
+      const slice = led.slice(_trackPage * size, (_trackPage + 1) * size);
+      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th><th>Event</th><th style="text-align:right">Value</th><th style="text-align:right">Balance</th></tr></thead><tbody>
+        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:130px')}>${escHtml(r.date)}</td><td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.sub ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.sub)}</span>` : ''}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtCurrency(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
+        </tbody></table>
+        ${pages > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:8px"><button class="btn btn-secondary btn-sm" ${_trackPage === 0 ? 'disabled' : ''} onclick="trackPage(-1)">‹ Newer</button><span style="font-size:13px">Page ${_trackPage + 1} of ${pages}</span><button class="btn btn-secondary btn-sm" ${_trackPage >= pages - 1 ? 'disabled' : ''} onclick="trackPage(1)">Older ›</button></div>` : ''}
+      </td></tr>`;
+    }
+    return html;
+  }).join('');
+  box.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="card-body menu-table-scroll" style="padding:0">
+    <table class="menu-grid-table"><thead><tr><th>Organisation</th><th style="text-align:right">Current stock value</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+    <p style="font-size:11px;color:var(--text-muted);margin:0;padding:6px 12px 10px">At cost. Tap a line to see its history; tap a history line for the details. Red = owed to the stock.</p></div>`;
+}
+window.toggleTrack = function(key) { _trackOpen = _trackOpen === key ? null : key; _trackPage = 0; renderOrgSummary(); };
+window.trackPage = function(d) { _trackPage += d; renderOrgSummary(); };
+window.addEventListener('resize', () => { if (_trackOpen !== null && _stockView === 'reports') renderOrgSummary(); });
 
 // One restock: who it was for and every item in it.
 window.openDelivery = function(id) {
@@ -3212,7 +3247,6 @@ let _stockTakes  = [];
 let _stockCat    = null;
 let _stockCounts = {};   // itemId -> number — the in-progress count, kept in localStorage too
 let _stockView   = 'count';
-let _reportTab   = 'takes';   // Reports screen tab: takes (the all-stock ledger) | orgs
 let _stockReportId = null;
 let _restockIds  = null;   // item ids shown on the Restock page (null = recompute on next render)
 const STOCK_DRAFT_KEY = 'showdrinks_stock_draft';
@@ -3274,7 +3308,6 @@ window.setStockView = function(v) {
   }
   renderStockTab();
 };
-window.setReportTab = function(t) { _reportTab = t; renderStockTab(); };
 window.setStockCat  = function(c) { _stockCat = c; renderStockTab(); };
 
 // Level a restock tops an item up to: restockTo if set, never below minStock.
@@ -3313,12 +3346,9 @@ function renderStockTab() {
   document.querySelectorAll('.stock-menu-view').forEach(b => b.classList.toggle('active', b.dataset.view === _stockView));
   const rep = _stockView === 'reports';
   document.getElementById('stockReportsView').style.display = rep ? '' : 'none';
-  document.getElementById('stockOrgSummary').style.display = _reportTab === 'orgs' ? '' : 'none';
-  document.getElementById('stockTakesSection').style.display = _reportTab === 'takes' ? '' : 'none';
-  document.querySelectorAll('#stockReportTabs button').forEach(b => { const on = b.dataset.rtab === _reportTab; b.classList.toggle('active', on); });
   document.getElementById('stockRestockView').style.display = _stockView === 'restock' ? '' : 'none';
   renderStockCount();   // also keeps the ⋯ menu's Start/Finish/Cancel items current on every view
-  if (rep) { renderOrgSummary(); renderStockReports(); }
+  if (rep) renderOrgSummary();
   else if (_stockView === 'restock') renderStockRestock();
 }
 
@@ -3592,7 +3622,7 @@ window.clearAllStock = async function() {
     _stockCounts = {}; saveStockDraft();
     _stockOpening = false; _stockOrg = '';
     _stockTaking = null; saveStockSession();
-    _stockView = 'reports'; _reportTab = 'takes';
+    _stockView = 'reports';
     await loadStockTab();
     toast('All stock reset to 0', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
@@ -3731,7 +3761,7 @@ window.confirmStockFinish = async function() {
     _stockOpening = false; _stockOrg = '';
     _stockTaking = null; saveStockSession();
     _stockReportId = takeRef.id;
-    _stockView = 'reports'; _reportTab = 'takes';
+    _stockView = 'reports';
     await loadStockTab();
     openStockTake(takeRef.id);
     toast('Stock take saved', 'success');
@@ -3752,7 +3782,6 @@ window.renameStockTake = async function() {
   try {
     await db.collection('showdrinks_stockTakes').doc(t.id).update({ eventName: name });
     t.eventName = name;
-    renderStockReports();
     renderStockReportModal();
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
@@ -3795,7 +3824,6 @@ async function logDelivery(orgId, items) {
     const ref = await db.collection('showdrinks_deliveries').add({ createdAt: firebase.firestore.FieldValue.serverTimestamp(), ...org, items });
     // Show it straight away (the list is otherwise only loaded when the Stock tab opens).
     _deliveries.unshift({ id: ref.id, createdAt: firebase.firestore.Timestamp.now(), ...org, items });
-    renderStockReports();
     renderOrgSummary();
   } catch (e) { toast('Stock updated but the restock was not logged: ' + e.message, 'error'); }
 }
@@ -3803,51 +3831,6 @@ async function logDelivery(orgId, items) {
 // The all-stock ledger: stock takes (incl. opening stock and clears) and restocks in date order
 // with a running balance of stock value at cost, newest first. Same idea as an organisation's
 // statement, for all stock.
-function renderStockReports() {
-  const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : (x.createdAt?.toDate ? x.createdAt.toDate().getTime() : 0);
-  const ev = [];
-  _stockTakes.forEach(t => {
-    if (t.cleared) { ev.push({ t: ms(t), kind: 'clear', take: t, date: stockTakeDate(t), name: t.eventName || 'Stock cleared' }); return; }
-    // What the take did to the total: (after - before) at cost, where before = last count + additions since.
-    const delta = (t.lines || []).reduce((n, l) => n + (((typeof l.newTotal === 'number' ? l.newTotal : l.counted) || 0) - ((l.opening || 0) + (l.added || 0))) * (l.costPrice || 0), 0);
-    ev.push({ t: ms(t), kind: t.opening ? 'open' : 'take', take: t, date: stockTakeDate(t), name: t.eventName || 'Stock take', sub: t.orgName || '', delta });
-  });
-  _deliveries.forEach(d => {
-    const its = d.items || [];
-    const delta = its.reduce((n, i) => n + i.qty * (i.cost || 0), 0);
-    ev.push({ t: ms(d), kind: 'restock', del: d, date: stockTakeDate(d), name: 'Restock: ' + (its.length === 1 ? its[0].name : its.length + ' items'), sub: d.orgName || 'Unallocated', delta });
-  });
-  ev.sort((a, b) => a.t - b.t);
-  let bal = 0;
-  ev.forEach(e => {
-    if (e.kind === 'clear') { e.delta = -bal; bal = 0; } else bal += e.delta;
-    e.bal = bal;
-  });
-  // Anything the log can't explain (changes made before restocks were recorded, edits elsewhere).
-  const now = _allMenuItems.filter(i => stockIsTracked(i.id)).reduce((n, i) => {
-    const s = _stock[i.id] || {};
-    return n + (stockOnHand(s) ?? (s.added || 0)) * (typeof s.costPrice === 'number' ? s.costPrice : 0);
-  }, 0);
-  const rows = ev.slice().reverse();
-  const neg = v => v < -0.005 ? ' style="color:#dc2626"' : '';
-  const money = v => (v >= 0 ? '+' : '-') + fmtCurrency(Math.abs(v));
-  const row = (click, date, what, sub, val, bal) => `<tr style="${click ? 'cursor:pointer' : ''}" ${click ? `onclick="${click}"` : ''}>
-      <td style="white-space:nowrap;min-width:130px">${escHtml(date)}</td>
-      <td><b>${escHtml(what)}</b>${sub ? `<br><span style="font-size:11px;font-weight:400">${escHtml(sub)}</span>` : ''}</td>
-      <td style="text-align:right">${val}</td>
-      <td style="text-align:right"><b${neg(bal)}>${fmtCurrency(bal)}</b></td></tr>`;
-  const gap = now - bal;
-  const parts = [];
-  if (Math.abs(gap) > 0.005) parts.push(row('', '', 'Other adjustments (not itemised)', '', money(gap), now));
-  rows.forEach(e => {
-    const click = e.kind === 'restock' ? `openDelivery('${e.del.id}')` : `openStockTake('${e.take.id}')`;
-    const val = e.kind === 'take' ? 'usage ' + fmtCurrency(stockTakeValues(e.take).used) : e.kind === 'clear' ? 'reset to ' + fmtCurrency(0) : money(e.delta);
-    parts.push(row(click, e.date, e.name, e.sub, val, e.bal));
-  });
-  document.getElementById('stockReportListBody').innerHTML = parts.length ? parts.join('')
-    : '<tr><td colspan="4" style="color:var(--text-muted);padding:20px;text-align:center">Nothing recorded yet — count some items and press Finish stock take.</td></tr>';
-}
-
 window.openStockTake = function(id) {
   _stockReportId = id;
   renderStockReportModal();
