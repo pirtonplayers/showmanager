@@ -3297,7 +3297,7 @@ function renderStockTab() {
   document.getElementById('stockOrgSummary').style.display = _reportTab === 'orgs' ? '' : 'none';
   document.getElementById('stockTakesSection').style.display = _reportTab === 'takes' ? '' : 'none';
   document.getElementById('stockDeliveriesSection').style.display = _reportTab === 'deliveries' ? '' : 'none';
-  document.querySelectorAll('#stockReportTabs button').forEach(b => { const on = b.dataset.rtab === _reportTab; b.classList.toggle('btn-primary', on); b.classList.toggle('btn-secondary', !on); });
+  document.querySelectorAll('#stockReportTabs button').forEach(b => { const on = b.dataset.rtab === _reportTab; b.classList.toggle('active', on); });
   document.getElementById('stockRestockView').style.display = _stockView === 'restock' ? '' : 'none';
   renderStockCount();   // also keeps the ⋯ menu's Start/Finish/Cancel items current on every view
   if (rep) { renderOrgSummary(); renderStockReports(); renderDeliveries(); }

@@ -540,3 +540,9 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 /* Only the Stock page heading goes red while a stock take is in progress. */
 #stockHeader.stock-taking { background: #dc2626; color: #fff; padding: 10px 12px; border-radius: 8px; }
 #stockHeader.stock-taking h2 { color: #fff; }
+
+/* Underlined tab strip (Stock > Reports) */
+.report-tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 2px solid var(--border); overflow-x: auto; }
+.report-tabs button { padding: 10px 14px; border: none; border-bottom: 3px solid transparent; margin-bottom: -2px; background: none; font-size: 14px; font-weight: 600; color: var(--text-muted); cursor: pointer; white-space: nowrap; }
+.report-tabs button:hover { color: var(--text); }
+.report-tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
