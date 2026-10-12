@@ -4077,6 +4077,18 @@ async function logDelivery(orgId, items) {
 // statement, for all stock.
 window.openStockTake = function(id) {
   _stockReportId = id;
+  const ot = currentStockTake();
+  if (ot && ot.opening) {
+    // Opening stock reads like a restock: what went in, at what cost, for which organisation.
+    const its = (ot.lines || []).filter(l => (l.counted || 0) > 0).slice().sort((x, y) => (x.name || '').localeCompare(y.name || ''));
+    const val = its.reduce((n, l) => n + l.counted * (l.costPrice || 0), 0);
+    showStatementModal('Opening stock - ' + stockTakeDate(ot), ['Item', 'Qty', 'Cost each', 'Value'], [1, 2, 2, 2],
+      its.map(l => [escHtml(l.name), '+' + fmtQty(l.counted), typeof l.costPrice === 'number' ? fmtCurrency(l.costPrice) : '—', typeof l.costPrice === 'number' ? fmtCurrency(l.counted * l.costPrice) : '—']),
+      ['Total', `<b>${fmtCurrency(val)}</b>`],
+      `Organisation: ${ot.orgName ? escHtml(ot.orgName) : '<span style="color:#dc2626">Unallocated</span>'}`,
+      isLatestEntry('take', id) ? { deleteFn: () => { closeOrgStatement(); deleteLatestStockTake(); } } : undefined);
+    return;
+  }
   renderStockReportModal();
   document.getElementById('stockReportModal').style.display = 'flex';
 };
