@@ -3622,9 +3622,23 @@ window.startStockTake = function() {
 
 // Opening stock: the same count screen, saved as a stock take called "Opening stock" that sets
 // every counted item's starting figure but records no usage (nothing to compare against).
+// Opening stock is only for an organisation that holds nothing yet (no organisations defined:
+// nothing held at all); after that, use stock takes and restocks.
+function orgHoldsStock(id) {
+  return _allMenuItems.some(i => {
+    if (!stockIsTracked(i.id)) return false;
+    const s = _stock[i.id] || {};
+    return id ? Math.abs(orgQtyOf(s, id)) > 1e-9 : Math.abs(stockOnHand(s) ?? (s.added || 0)) > 1e-9;
+  });
+}
 window.startOpeningStock = async function() {
-  const org = await pickOrg('Opening stock for which organisation?');
+  if (_orgs.length ? _orgs.every(o => orgHoldsStock(o.id)) : orgHoldsStock('')) {
+    toast(_orgs.length ? 'Opening stock can only be set for an organisation with no stock. Every organisation already holds stock.' : 'Opening stock can only be set when there is no stock.', 'error');
+    return;
+  }
+  const org = await pickOrg('Opening stock for which organisation? (only organisations with no stock)');
   if (org === null) return;
+  if (orgHoldsStock(org)) { toast(orgName(org) + ' already has stock, so opening stock cannot be set for it. Use a stock take or a restock.', 'error'); return; }
   if (_stockView !== 'count') setStockView('count');
   _stockOpening = true;
   _stockOrg = org;
