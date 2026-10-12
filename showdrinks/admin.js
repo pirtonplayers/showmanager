@@ -3305,7 +3305,7 @@ function renderItemMovements() {
 }
 window.toggleItemMovement = function(id) {
   const go = () => { _itemOpen = _itemOpen === id ? null : id; _itemPage = 0; renderItemMovements(); if (_itemOpen !== null) slideOpen(document.querySelector('#stockItemsSummary .trk-slide')); };
-  if (_itemOpen === id) slideClose(document.querySelector('#stockItemsSummary .trk-slide'), go); else go();
+  if (_itemOpen !== null) slideClose(document.querySelector('#stockItemsSummary .trk-slide'), go); else go();
 };
 window.itemMovementPage = function(d) { _itemPage += d; renderItemMovements(); };
 
@@ -3348,7 +3348,7 @@ function renderOrgSummary() {
 }
 window.toggleTrack = function(key) {
   const go = () => { _trackOpen = _trackOpen === key ? null : key; _trackPage = 0; renderOrgSummary(); if (_trackOpen !== null) slideOpen(document.querySelector('#stockOrgSummary .trk-slide')); };
-  if (_trackOpen === key) slideClose(document.querySelector('#stockOrgSummary .trk-slide'), go); else go();
+  if (_trackOpen !== null) slideClose(document.querySelector('#stockOrgSummary .trk-slide'), go); else go();
 };
 window.trackPage = function(d) { _trackPage += d; renderOrgSummary(); };
 window.addEventListener('resize', () => { if (_stockView !== 'reports') return; if (_trackTab === 'items') renderItemMovements(); else if (_trackOpen !== null) renderOrgSummary(); });
