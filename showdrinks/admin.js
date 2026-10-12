@@ -3087,95 +3087,114 @@ let _trackPage = 0;
 
 function trackPageSize() { return Math.max(5, Math.floor((window.innerHeight * 0.65) / 44)); }
 
-// Ledger for one line, newest first: [{ date, name, sub, val, bal, click }].
-function trackLedger(key, current) {
-  const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : (x.createdAt?.toDate ? x.createdAt.toDate().getTime() : 0);
+// Stock is valued at what it cost when it was added, not at today's price: each restock (and each
+// count that finds more than expected) is a layer of quantity at its own cost, and usage or
+// write-offs use up the oldest layers first. A later price rise only affects stock added after it.
+// replayStock() plays the history for one line ('all', an org id, or '' for unassigned) and
+// returns the value change of every event plus the layers each item ends with.
+function layerQty(L) { return L.reduce((n, x) => n + x.q, 0); }
+function layerVal(L) { return L.reduce((n, x) => n + x.q * x.c, 0); }
+function layerAdd(L, q, c) {
+  // New stock first cancels any shortfall (an owed amount), then becomes a layer.
+  while (q > 1e-9 && L.length && L[0].q < 0) { const t = Math.min(q, -L[0].q); L[0].q += t; q -= t; if (L[0].q > -1e-9) L.shift(); }
+  if (q > 1e-9) L.push({ q, c });
+}
+function layerUse(L, q, c) {
+  while (q > 1e-9 && L.length && L[0].q > 0) { const t = Math.min(L[0].q, q); L[0].q -= t; q -= t; if (L[0].q < 1e-9) L.shift(); }
+  if (q > 1e-9) L.push({ q: -q, c });   // used more than held: owed to the stock, at this price
+}
+
+function replayStock(key) {
   const all = key === 'all';
-  const money = v => (v >= 0 ? '+' : '-') + fmtCurrency(Math.abs(v));
+  const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : (x.createdAt?.toDate ? x.createdAt.toDate().getTime() : 0);
   const ev = [];
   _stockTakes.forEach(t => {
-    const lines = t.lines || [];
     if (t.cleared) { ev.push({ t: ms(t), kind: 'clear', date: stockTakeDate(t), name: t.eventName || 'Stock cleared', click: `openStockTake('${t.id}')` }); return; }
     if (!all && (t.orgId || '') !== key) return;
-    if (all) {
-      // Whatever the take did to the total: (after - before) at cost, before = last count + additions since.
-      const delta = lines.reduce((n, l) => n + (((typeof l.newTotal === 'number' ? l.newTotal : l.counted) || 0) - ((l.opening || 0) + (l.added || 0))) * (l.costPrice || 0), 0);
-      ev.push({ t: ms(t), kind: t.opening ? 'open' : 'take', date: stockTakeDate(t), name: t.eventName || 'Stock take', sub: t.orgName || '', delta, val: t.opening ? null : 'usage ' + fmtCurrency(stockTakeValues(t).used), click: `openStockTake('${t.id}')` });
-    } else if (t.opening) {
-      const amt = lines.reduce((n, l) => n + (l.counted || 0) * (l.costPrice || 0), 0);
-      ev.push({ t: ms(t), kind: 'set', date: stockTakeDate(t), name: t.eventName || 'Opening stock', amt, click: `openStockTake('${t.id}')` });
-    } else {
-      const amt = lines.reduce((n, l) => n + (l.usedCost || 0), 0);
-      ev.push({ t: ms(t), kind: 'use', date: stockTakeDate(t), name: t.eventName || 'Stock take', delta: -amt, val: 'usage ' + fmtCurrency(amt), click: `openStockTake('${t.id}')` });
-    }
+    ev.push({ t: ms(t), kind: t.opening ? 'open' : 'take', take: t, date: stockTakeDate(t), name: t.eventName || (t.opening ? 'Opening stock' : 'Stock take'), sub: t.orgName || '', click: `openStockTake('${t.id}')` });
   });
   _deliveries.filter(d => all || (d.orgId || '') === key).forEach(d => {
     const its = d.items || [];
-    ev.push({ t: ms(d), kind: 'add', date: stockTakeDate(d), name: 'Restock: ' + (its.length === 1 ? its[0].name : its.length + ' items'), sub: all ? (d.orgName || 'Unallocated') : '',
-      delta: its.reduce((n, i) => n + i.qty * (i.cost || 0), 0), click: `openDelivery('${d.id}')` });
+    ev.push({ t: ms(d), kind: 'add', del: d, date: stockTakeDate(d), name: 'Restock: ' + (its.length === 1 ? its[0].name : its.length + ' items'), sub: d.orgName || '', click: `openDelivery('${d.id}')` });
   });
   ev.sort((a, b) => a.t - b.t);
+  const layers = {};
+  const get = id => layers[id] || (layers[id] = []);
+  ev.forEach(e => {
+    let delta = 0;
+    const apply = (id, fn) => { const L = get(id); const b = layerVal(L); fn(L); delta += layerVal(L) - b; };
+    if (e.kind === 'clear') Object.keys(layers).forEach(id => apply(id, L => { L.length = 0; }));
+    else if (e.kind === 'add') (e.del.items || []).forEach(i => apply(i.itemId, L => { if (i.qty > 0) layerAdd(L, i.qty, i.cost || 0); else layerUse(L, -i.qty, i.cost || 0); }));
+    else (e.take.lines || []).forEach(l => apply(l.itemId, L => {
+      const c = l.costPrice || 0;
+      if (all) {
+        const after = (typeof l.newTotal === 'number' ? l.newTotal : l.counted) || 0;
+        const before = layerQty(L);
+        if (after > before + 1e-9) layerAdd(L, after - before, c); else if (after < before - 1e-9) layerUse(L, before - after, c);
+      } else if (e.kind === 'open') { L.length = 0; if ((l.counted || 0) > 0) L.push({ q: l.counted, c }); }
+      else if (l.used > 0) layerUse(L, l.used, c);
+      else if (l.used < 0) layerAdd(L, -l.used, c);
+    }));
+    e.delta = delta;
+  });
+  return { ev, layers };
+}
+
+// Value of a line today, from the layers; any quantity the log doesn't explain is valued at the
+// current price (that is the only place today's price is used). Returns { total, corr, items }.
+function stockValuation(key) {
+  const { ev, layers } = replayStock(key);
+  const items = {};
+  let total = 0, corr = 0;
+  _allMenuItems.filter(i => stockIsTracked(i.id)).forEach(i => {
+    const s = _stock[i.id] || {};
+    const cur = typeof s.costPrice === 'number' ? s.costPrice : 0;
+    const oh = stockOnHand(s) ?? (s.added || 0);
+    const orgSum = _orgs.reduce((n, o) => n + orgQtyOf(s, o.id), 0);
+    const actual = key === 'all' ? oh : key === '' ? oh - orgSum : orgQtyOf(s, key);
+    const L = (layers[i.id] || []).map(x => ({ ...x }));
+    const logQty = layerQty(L), b = layerVal(L);
+    if (actual > logQty + 1e-9) layerAdd(L, actual - logQty, cur); else if (actual < logQty - 1e-9) layerUse(L, logQty - actual, cur);
+    const v = layerVal(L);
+    items[i.id] = { actual, logQty, val: v, corr: v - b };
+    total += v; corr += v - b;
+  });
+  return { ev, total, corr, items };
+}
+
+// Ledger for one line, newest first: [{ date, name, sub, val, bal, click }].
+function trackLedger(key) {
+  const money = v => (v >= 0 ? '+' : '-') + fmtCurrency(Math.abs(v));
+  const all = key === 'all';
+  const v = stockValuation(key);
   let bal = 0;
-  const rows = ev.map(e => {
+  const rows = v.ev.map(e => {
+    bal += e.delta;
     let val;
-    if (e.kind === 'clear') { e.delta = -bal; bal = 0; val = 'reset to ' + fmtCurrency(0); }
-    else if (e.kind === 'set') { e.delta = e.amt - bal; bal = e.amt; val = fmtCurrency(e.amt); }
-    else { bal += e.delta; val = e.val || money(e.delta); }
+    if (e.kind === 'clear') val = 'reset to ' + fmtCurrency(0);
+    else if (e.kind === 'open') val = e.delta >= 0 ? '+' + fmtCurrency(e.delta) : money(e.delta);
+    else if (e.kind === 'take') val = e.delta <= 0 ? 'usage ' + fmtCurrency(-e.delta) : money(e.delta);
+    else val = money(e.delta);
     return { date: e.date, name: e.name, sub: e.sub || (all || e.kind === 'clear' ? '' : (key ? orgName(key) : 'Unassigned')), val, bal, click: e.click };
   }).reverse();
-  // Anything the log can't explain (changes made before restocks were recorded, edits elsewhere).
-  if (Math.abs(current - bal) > 0.005) rows.unshift({ date: '', name: 'Other adjustments (not itemised)', sub: '', note: 'tap to see which items', val: money(current - bal), bal: current, click: `explainGap('${key}')` });
+  // Quantity the log can't explain (stock changed before restocks were recorded, edits elsewhere).
+  if (Math.abs(v.corr) > 0.005) rows.unshift({ date: '', name: 'Other adjustments (not itemised)', sub: '', note: 'tap to see which items', val: money(v.corr), bal: v.total, click: `explainGap('${key}')` });
   return rows;
 }
 
-// Click "Other adjustments": walk the same history per item and list where it disagrees with what
-// is held now (quantity not in the log, or a cost price changed since).
+// Click "Other adjustments": the items whose quantity held differs from what the log adds up to.
 window.explainGap = function(key) {
-  const all = key === 'all';
-  const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : (x.createdAt?.toDate ? x.createdAt.toDate().getTime() : 0);
-  const ev = [];
-  _stockTakes.forEach(t => {
-    if (t.cleared) { ev.push({ t: ms(t), kind: 'clear' }); return; }
-    if (!all && (t.orgId || '') !== key) return;
-    ev.push({ t: ms(t), kind: 'take', take: t });
-  });
-  _deliveries.filter(d => all || (d.orgId || '') === key).forEach(d => ev.push({ t: ms(d), kind: 'add', del: d }));
-  ev.sort((a, b) => a.t - b.t);
-  const st = {};   // itemId -> { qty, val } as the history implies
-  const get = id => st[id] || (st[id] = { qty: 0, val: 0, cost: null });
-  ev.forEach(e => {
-    if (e.kind === 'clear') { Object.keys(st).forEach(id => { st[id].qty = 0; st[id].val = 0; }); return; }
-    if (e.kind === 'add') { (e.del.items || []).forEach(i => { const x = get(i.itemId); x.qty += i.qty; x.val += i.qty * (i.cost || 0); if (typeof i.cost === 'number') x.cost = i.cost; }); return; }
-    const t = e.take;
-    (t.lines || []).forEach(l => {
-      const x = get(l.itemId), c = l.costPrice || 0;
-      if (typeof l.costPrice === 'number') x.cost = l.costPrice;
-      if (all) {
-        const d = ((typeof l.newTotal === 'number' ? l.newTotal : l.counted) || 0) - ((l.opening || 0) + (l.added || 0));
-        x.qty += d; x.val += d * c;
-      } else if (t.opening) { x.qty = l.counted || 0; x.val = (l.counted || 0) * c; }
-      else { x.qty -= l.used || 0; x.val -= l.usedCost || 0; }
-    });
-  });
+  const v = stockValuation(key);
   const rows = [];
-  let diff = 0;
   _allMenuItems.filter(i => stockIsTracked(i.id)).forEach(i => {
-    const s = _stock[i.id] || {};
-    const c = typeof s.costPrice === 'number' ? s.costPrice : 0;
-    const oh = stockOnHand(s) ?? (s.added || 0);
-    const orgSum = _orgs.reduce((n, o) => n + orgQtyOf(s, o.id), 0);
-    const actual = all ? oh : key === '' ? oh - orgSum : orgQtyOf(s, key);
-    const x = st[i.id] || { qty: 0, val: 0, cost: null };
-    const d = actual * c - x.val;
-    if (Math.abs(d) < 0.005 && Math.abs(actual - x.qty) < 0.001) return;
-    diff += d;
-    const qtyNote = Math.abs(actual - x.qty) > 0.001 ? ` <span style="color:#dc2626">(log: ${fmtQty(x.qty)})</span>` : '';
-    rows.push([escHtml(i.name), fmtQty(actual) + qtyNote, x.cost === null ? '—' : fmtCurrency(x.cost), typeof s.costPrice === 'number' ? fmtCurrency(s.costPrice) : '—', (d >= 0 ? '+' : '-') + fmtCurrency(Math.abs(d))]);
+    const x = v.items[i.id];
+    if (!x || Math.abs(x.corr) < 0.005) return;
+    rows.push([escHtml(i.name), fmtQty(x.logQty), fmtQty(x.actual), (x.corr >= 0 ? '+' : '-') + fmtCurrency(Math.abs(x.corr))]);
   });
   rows.sort((a, b) => a[0].localeCompare(b[0]));
-  const nm = all ? 'All stock' : key === '' ? 'Unassigned' : orgName(key);
-  showStatementModal('Other adjustments - ' + nm, ['Item', 'Qty', 'Previous cost', 'Current cost', 'Difference'], [1, 1, 2, 2, 2], rows,
-    ['Total', (diff >= 0 ? '+' : '-') + fmtCurrency(Math.abs(diff))]);
+  const nm = key === 'all' ? 'All stock' : key === '' ? 'Unassigned' : orgName(key);
+  showStatementModal('Other adjustments - ' + nm, ['Item', 'Per history', 'Held now', 'Value'], [1, 2, 2, 2], rows,
+    ['Total', (v.corr >= 0 ? '+' : '-') + fmtCurrency(Math.abs(v.corr))]);
 };
 
 // Stock movements > Items: every stock item that has moved, grouped by category. Click an item to
@@ -3265,15 +3284,10 @@ window.itemMovementPage = function(d) { _itemPage += d; renderItemMovements(); }
 function renderOrgSummary() {
   const box = document.getElementById('stockOrgSummary');
   if (!box) return;
-  const cur = {}; let unassigned = 0, total = 0;
-  _allMenuItems.filter(i => stockIsTracked(i.id)).forEach(i => {
-    const s = _stock[i.id] || {};
-    const c = typeof s.costPrice === 'number' ? s.costPrice : 0;
-    const oh = stockOnHand(s) ?? (s.added || 0);
-    let assigned = 0;
-    _orgs.forEach(o => { const q = orgQtyOf(s, o.id); assigned += q; cur[o.id] = (cur[o.id] || 0) + q * c; });
-    unassigned += (oh - assigned) * c; total += oh * c;
-  });
+  const cur = {};
+  _orgs.forEach(o => { cur[o.id] = stockValuation(o.id).total; });
+  const unassigned = _orgs.length ? stockValuation('').total : 0;
+  const total = stockValuation('all').total;
   _orgCurrent = cur;
   const lines = _orgs.map(o => ({ key: o.id, name: o.name, v: cur[o.id] || 0 }));
   if (_orgs.length && Math.abs(unassigned) > 0.005) lines.push({ key: '', name: 'Unassigned', v: unassigned });
@@ -3287,7 +3301,7 @@ function renderOrgSummary() {
     const nm = (open ? '▾ ' : '▸ ') + escHtml(l.name);
     let html = `<tr style="cursor:pointer" onclick="toggleTrack('${l.key}')"><td>${l.bold ? '<b>' + nm + '</b>' : nm}</td><td style="text-align:right">${l.bold ? '<b>' + money(l.v) + '</b>' : money(l.v)}</td></tr>`;
     if (open) {
-      const led = trackLedger(l.key, l.v);
+      const led = trackLedger(l.key);
       const size = trackPageSize();
       const pages = Math.max(1, Math.ceil(led.length / size));
       _trackPage = Math.min(Math.max(0, _trackPage), pages - 1);
