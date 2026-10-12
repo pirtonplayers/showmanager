@@ -3178,6 +3178,90 @@ window.explainGap = function(key) {
     ['Total', (diff >= 0 ? '+' : '-') + fmtCurrency(Math.abs(diff))]);
 };
 
+// Stock movements > Items: every stock item that has moved, grouped by category. Click an item to
+// expand its history (quantities, newest first, paged); click a history line for the details.
+let _itemOpen = null;
+let _itemPage = 0;
+let _trackTab = 'orgs';   // Stock movements tab: orgs | items
+window.setTrackTab = function(t) { _trackTab = t; renderStockTab(); };
+
+// History of one item, newest first: [{ date, name, sub, val, bal, click }] (bal = quantity).
+function itemLedger(id) {
+  const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : (x.createdAt?.toDate ? x.createdAt.toDate().getTime() : 0);
+  const sgn = n => (n > 0 ? '+' : '') + fmtQty(n);
+  const ev = [];
+  _stockTakes.forEach(t => {
+    if (t.cleared) { ev.push({ t: ms(t), kind: 'clear', date: stockTakeDate(t), name: t.eventName || 'Stock cleared', click: `openStockTake('${t.id}')` }); return; }
+    const l = (t.lines || []).find(x => x.itemId === id);
+    if (!l) return;
+    const after = typeof l.newTotal === 'number' ? l.newTotal : (l.counted || 0);
+    ev.push({ t: ms(t), kind: t.opening ? 'open' : 'take', date: stockTakeDate(t), name: t.eventName || (t.opening ? 'Opening stock' : 'Stock take'), sub: t.orgName || '', after, used: l.used, click: `openStockTake('${t.id}')` });
+  });
+  _deliveries.forEach(d => {
+    (d.items || []).filter(i => i.itemId === id).forEach(i => {
+      ev.push({ t: ms(d), kind: 'add', date: stockTakeDate(d), name: i.qty < 0 ? 'Stock removed' : 'Restock', sub: d.orgName || '', qty: i.qty, click: `openDelivery('${d.id}')` });
+    });
+  });
+  ev.sort((a, b) => a.t - b.t);
+  let bal = 0;
+  const rows = ev.map(e => {
+    let val;
+    if (e.kind === 'clear') { bal = 0; val = 'reset to 0'; }
+    else if (e.kind === 'add') { bal += e.qty; val = sgn(e.qty); }
+    else if (e.kind === 'open') { bal = e.after; val = 'counted ' + fmtQty(e.after); }
+    else { val = e.used === null || e.used === undefined ? 'counted ' + fmtQty(e.after) : 'used ' + fmtQty(e.used); bal = e.after; }
+    return { date: e.date, name: e.name, sub: e.sub || '', val, bal, click: e.click };
+  }).reverse();
+  const s = _stock[id] || {};
+  const now = stockOnHand(s) ?? (s.added || 0);
+  if (Math.abs(now - bal) > 0.001) rows.unshift({ date: '', name: 'Other adjustments (not itemised)', sub: '', val: sgn(now - bal), bal: now, click: '' });
+  return rows;
+}
+
+function renderItemMovements() {
+  const box = document.getElementById('stockItemsSummary');
+  if (!box) return;
+  // Items that have moved: stock held now, or any non-zero restock / usage / count on record.
+  const moved = new Set();
+  _deliveries.forEach(d => (d.items || []).forEach(i => { if (i.qty) moved.add(i.itemId); }));
+  _stockTakes.forEach(t => { if (!t.cleared) (t.lines || []).forEach(l => { if (l.used || (t.opening && l.counted)) moved.add(l.itemId); }); });
+  const items = _allMenuItems.filter(i => stockIsTracked(i.id)).filter(i => {
+    const s = _stock[i.id] || {};
+    return moved.has(i.id) || (stockOnHand(s) ?? (s.added || 0)) !== 0;
+  }).sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || ''));
+  if (!items.some(i => i.id === _itemOpen)) _itemOpen = null;
+  const td = 'style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:13px"';
+  const neg = v => v < -0.001 ? ' style="color:#dc2626"' : '';
+  let lastCat = null;
+  const body = items.map(i => {
+    let html = '';
+    const cat = i.category || 'Uncategorised';
+    if (cat !== lastCat) { lastCat = cat; html += `<tr><td colspan="2" style="background:var(--bg);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:6px 10px">${escHtml(cat)}</td></tr>`; }
+    const s = _stock[i.id] || {};
+    const now = stockOnHand(s) ?? (s.added || 0);
+    const open = _itemOpen === i.id;
+    html += `<tr style="cursor:pointer" onclick="toggleItemMovement('${i.id}')"><td>${open ? '▾ ' : '▸ '}${escHtml(i.name || '')}</td><td style="text-align:right"><span${neg(now)}>${fmtQty(now)}</span></td></tr>`;
+    if (open) {
+      const led = itemLedger(i.id);
+      const size = trackPageSize();
+      const pages = Math.max(1, Math.ceil(led.length / size));
+      _itemPage = Math.min(Math.max(0, _itemPage), pages - 1);
+      const slice = led.slice(_itemPage * size, (_itemPage + 1) * size);
+      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th><th>Event</th><th style="text-align:right">Movement</th><th style="text-align:right">Balance</th></tr></thead><tbody>
+        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:130px')}>${escHtml(r.date)}</td><td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.sub ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.sub)}</span>` : ''}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtQty(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
+        </tbody></table>
+        ${pages > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:8px"><button class="btn btn-secondary btn-sm" ${_itemPage === 0 ? 'disabled' : ''} onclick="itemMovementPage(-1)">‹ Newer</button><span style="font-size:13px">Page ${_itemPage + 1} of ${pages}</span><button class="btn btn-secondary btn-sm" ${_itemPage >= pages - 1 ? 'disabled' : ''} onclick="itemMovementPage(1)">Older ›</button></div>` : ''}
+      </td></tr>`;
+    }
+    return html;
+  }).join('');
+  box.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="card-body menu-table-scroll" style="padding:0">
+    <table class="menu-grid-table"><thead><tr><th>Item</th><th style="text-align:right">Held now</th></tr></thead><tbody>${body || '<tr><td colspan="2" style="padding:20px;text-align:center;color:var(--text-muted)">No stock movements yet.</td></tr>'}</tbody></table></div></div>`;
+}
+window.toggleItemMovement = function(id) { _itemOpen = _itemOpen === id ? null : id; _itemPage = 0; renderItemMovements(); };
+window.itemMovementPage = function(d) { _itemPage += d; renderItemMovements(); };
+
+
 function renderOrgSummary() {
   const box = document.getElementById('stockOrgSummary');
   if (!box) return;
@@ -3221,7 +3305,7 @@ function renderOrgSummary() {
 }
 window.toggleTrack = function(key) { _trackOpen = _trackOpen === key ? null : key; _trackPage = 0; renderOrgSummary(); };
 window.trackPage = function(d) { _trackPage += d; renderOrgSummary(); };
-window.addEventListener('resize', () => { if (_trackOpen !== null && _stockView === 'reports') renderOrgSummary(); });
+window.addEventListener('resize', () => { if (_stockView !== 'reports') return; if (_trackTab === 'items') renderItemMovements(); else if (_trackOpen !== null) renderOrgSummary(); });
 
 // One restock: who it was for and every item in it.
 window.openDelivery = function(id) {
@@ -3397,7 +3481,12 @@ function renderStockTab() {
   document.getElementById('stockReportsView').style.display = rep ? '' : 'none';
   document.getElementById('stockRestockView').style.display = _stockView === 'restock' ? '' : 'none';
   renderStockCount();   // also keeps the ⋯ menu's Start/Finish/Cancel items current on every view
-  if (rep) renderOrgSummary();
+  if (rep) {
+    document.getElementById('stockOrgSummary').style.display = _trackTab === 'orgs' ? '' : 'none';
+    document.getElementById('stockItemsSummary').style.display = _trackTab === 'items' ? '' : 'none';
+    document.querySelectorAll('#stockTrackTabs button').forEach(b => b.classList.toggle('active', b.dataset.ttab === _trackTab));
+    if (_trackTab === 'items') renderItemMovements(); else renderOrgSummary();
+  }
   else if (_stockView === 'restock') renderStockRestock();
 }
 
@@ -3456,7 +3545,7 @@ function renderStockCount() {
   document.getElementById('stockNonZeroLabel').style.display = counting ? 'none' : 'flex';
   document.getElementById('stockNonStockLabel').style.display = counting ? 'none' : 'flex';
   document.getElementById('stockHeader').classList.toggle('stock-taking', counting);
-  document.getElementById('stockTitle').textContent = counting ? 'Stock take in progress' : 'Stock';
+  document.getElementById('stockTitle').textContent = counting ? 'Stock take in progress' : _stockView === 'reports' ? 'Stock movements' : 'Stock';
   document.getElementById('stockTable').classList.toggle('counting', counting);
   document.getElementById('stockStartBtn').style.display = counting ? 'none' : '';
   document.getElementById('stockOpeningBtn').style.display = counting ? 'none' : '';
@@ -3874,6 +3963,7 @@ async function logDelivery(orgId, items) {
     // Show it straight away (the list is otherwise only loaded when the Stock tab opens).
     _deliveries.unshift({ id: ref.id, createdAt: firebase.firestore.Timestamp.now(), ...org, items });
     renderOrgSummary();
+    renderItemMovements();
   } catch (e) { toast('Stock updated but the restock was not logged: ' + e.message, 'error'); }
 }
 
