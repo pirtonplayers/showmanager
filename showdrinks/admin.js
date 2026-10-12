@@ -3246,10 +3246,14 @@ function stockOnHandLabel(s) {
 function renderStockTab() {
   document.getElementById('stockCountView').style.display   = _stockView === 'count' ? '' : 'none';
   document.querySelectorAll('.stock-menu-view').forEach(b => b.classList.toggle('active', b.dataset.view === _stockView));
-  document.getElementById('stockReportsView').style.display = _stockView === 'reports' ? '' : 'none';
+  const rep = ['orgs', 'takes', 'deliveries'].includes(_stockView);
+  document.getElementById('stockReportsView').style.display = rep ? '' : 'none';
+  document.getElementById('stockOrgSummary').style.display = _stockView === 'orgs' ? '' : 'none';
+  document.getElementById('stockTakesSection').style.display = _stockView === 'takes' ? '' : 'none';
+  document.getElementById('stockDeliveriesSection').style.display = _stockView === 'deliveries' ? '' : 'none';
   document.getElementById('stockRestockView').style.display = _stockView === 'restock' ? '' : 'none';
   renderStockCount();   // also keeps the ⋯ menu's Start/Finish/Cancel items current on every view
-  if (_stockView === 'reports') { renderOrgSummary(); renderStockReports(); renderDeliveries(); }
+  if (rep) { renderOrgSummary(); renderStockReports(); renderDeliveries(); }
   else if (_stockView === 'restock') renderStockRestock();
 }
 
@@ -3523,7 +3527,7 @@ window.clearAllStock = async function() {
     _stockCounts = {}; saveStockDraft();
     _stockOpening = false; _stockOrg = '';
     _stockTaking = null; saveStockSession();
-    _stockView = 'reports';
+    _stockView = 'takes';
     await loadStockTab();
     toast('All stock reset to 0', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
@@ -3662,7 +3666,7 @@ window.confirmStockFinish = async function() {
     _stockOpening = false; _stockOrg = '';
     _stockTaking = null; saveStockSession();
     _stockReportId = takeRef.id;
-    _stockView = 'reports';
+    _stockView = 'takes';
     await loadStockTab();
     openStockTake(takeRef.id);
     toast('Stock take saved', 'success');
