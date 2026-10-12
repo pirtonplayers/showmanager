@@ -185,7 +185,7 @@ function renderShellNav() {
   } else {
     const tabs = APP_SUBNAV[activeKey] || [];
     const current = lastTab[activeKey] || tabs[0]?.id;
-    html = tabs.map(t => `
+    html = tabs.map(t => `${t.separatorBefore ? '<div class="dropdown-divider"></div>' : ''}
       <button class="tab-btn${t.id === current ? ' active' : ''}" data-app="${activeKey}" data-subtab="${t.id}">${escapeHtml(t.label)}</button>
     `).join('');
   }
