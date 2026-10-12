@@ -3107,7 +3107,7 @@ let _orgCurrent = {};
 
 // Statement for one organisation: opening stock, each stock take (usage comes off), each
 // replenishment (goes on), and stock cleared (back to nothing), with a running balance at cost.
-window.openOrgStatement = function(orgId, deliveryId) {
+window.openOrgStatement = function(orgId) {
   const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : 0;
   const ev = [];
   _stockTakes.forEach(t => {
@@ -3117,7 +3117,7 @@ window.openOrgStatement = function(orgId, deliveryId) {
     if (t.opening) ev.push({ t: ms(t), date: stockTakeDate(t), what: t.eventName || 'Opening stock', kind: 'open', amt: lines.reduce((n, l) => n + (l.counted || 0) * (l.costPrice || 0), 0) });
     else ev.push({ t: ms(t), date: stockTakeDate(t), what: `${t.eventName || 'Stock take'} - stock take`, kind: 'use', amt: lines.reduce((n, l) => n + (l.usedCost || 0), 0) });
   });
-  _deliveries.filter(d => deliveryId ? d.id === deliveryId : d.orgId === orgId).forEach(d => {
+  _deliveries.filter(d => d.orgId === orgId).forEach(d => {
     ev.push({ t: ms(d), date: stockTakeDate(d), what: 'Replenished: ' + (d.items || []).map(i => `${i.name} ${i.qty > 0 ? '+' : ''}${fmtQty(i.qty)}`).join(', '), kind: 'add', amt: (d.items || []).reduce((n, i) => n + i.qty * (i.cost || 0), 0) });
   });
   ev.sort((a, b) => a.t - b.t);
@@ -3130,17 +3130,35 @@ window.openOrgStatement = function(orgId, deliveryId) {
     else { label = 'reset to ' + fmtCurrency(0); bal = 0; }
     return { ...e, label, bal };
   });
-  const now = deliveryId ? bal : (_orgCurrent[orgId] || 0);
+  const now = _orgCurrent[orgId] || 0;
   // Anything the log can't explain (e.g. changes made before replenishments were recorded).
-  if (!deliveryId && Math.abs(now - bal) > 0.005) rows.push({ date: '', what: 'Other adjustments (not itemised)', label: (now - bal >= 0 ? '+' : '') + fmtCurrency(now - bal), bal: now });
-  _stmt = { rows: rows.reverse(), now, title: (deliveryId ? 'Unallocated replenishment' : orgName(orgId) + ' - statement'), page: 0 };
-  document.getElementById('orgStatementTitle').textContent = _stmt.title;
-  document.getElementById('orgStatementModal').style.display = 'flex';
-  renderStatementPage();
+  if (Math.abs(now - bal) > 0.005) rows.push({ date: '', what: 'Other adjustments (not itemised)', label: (now - bal >= 0 ? '+' : '') + fmtCurrency(now - bal), bal: now });
+  const neg = v => v < -0.005 ? ' style="color:#dc2626"' : '';
+  showStatementModal(orgName(orgId) + ' - statement', ['Date', 'Item', 'Value', 'Balance'], [1, 1, 2, 2],
+    rows.reverse().map(r => [escHtml(r.date), escHtml(r.what), r.label, `<b${neg(r.bal)}>${fmtCurrency(r.bal)}</b>`]),
+    ['Current stock value', `<b${neg(now)}>${fmtCurrency(now)}</b>`]);
 };
 
+// One replenishment: who it was for and every item in it.
+window.openDelivery = function(id) {
+  const d = _deliveries.find(x => x.id === id); if (!d) return;
+  const its = d.items || [];
+  const val = its.reduce((n, i) => n + i.qty * (i.cost || 0), 0);
+  showStatementModal('Replenishment - ' + stockTakeDate(d), ['Item', 'Qty', 'Cost each', 'Value'], [1, 2, 2, 2],
+    its.map(i => [escHtml(i.name), (i.qty > 0 ? '+' : '') + fmtQty(i.qty), typeof i.cost === 'number' ? fmtCurrency(i.cost) : '—', typeof i.cost === 'number' ? fmtCurrency(i.qty * i.cost) : '—']),
+    ['Total', `<b>${fmtCurrency(val)}</b>`],
+    `Organisation: ${d.orgName ? escHtml(d.orgName) : '<span style="color:#dc2626">Unallocated</span>'}`);
+};
+
+function showStatementModal(title, cols, align, rows, total, intro) {
+  _stmt = { title, cols, align, rows, total, intro: intro || '', page: 0 };
+  document.getElementById('orgStatementTitle').textContent = title;
+  document.getElementById('orgStatementModal').style.display = 'flex';
+  renderStatementPage();
+}
+
 // Statement shown newest first, split into pages that fit the screen.
-let _stmt = { rows: [], now: 0, title: '', page: 0 };
+let _stmt = { title: '', cols: [], align: [], rows: [], total: null, intro: '', page: 0 };
 function stmtPageSize() {
   // modal body ≈ 90% of the height minus header, footer, table head, total row and pager.
   return Math.max(4, Math.floor((window.innerHeight * 0.9 - 250) / 38));
@@ -3151,10 +3169,11 @@ function renderStatementPage() {
   _stmt.page = Math.min(Math.max(0, _stmt.page), pages - 1);
   const slice = _stmt.rows.slice(_stmt.page * size, (_stmt.page + 1) * size);
   const td = 'style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:13px"';
-  const neg = v => v < -0.005 ? ' style="color:#dc2626"' : '';
-  document.getElementById('orgStatementBody').innerHTML = `<table class="menu-grid-table"><thead><tr><th>Date</th><th>Item</th><th style="text-align:right">Value</th><th style="text-align:right">Balance</th></tr></thead><tbody>
-    <tr><td ${td} colspan="3"><b>Current stock value</b></td><td ${td} align="right"><b${neg(_stmt.now)}>${fmtCurrency(_stmt.now)}</b></td></tr>
-    ${slice.length ? slice.map(r => `<tr><td ${td}>${escHtml(r.date)}</td><td ${td}>${escHtml(r.what)}</td><td ${td} align="right">${r.label}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtCurrency(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
+  const al = i => _stmt.align[i] === 2 ? ' align="right"' : '';
+  const t = _stmt.total;
+  document.getElementById('orgStatementBody').innerHTML = (_stmt.intro ? `<p style="margin:0;padding:8px 10px;font-size:13px">${_stmt.intro}</p>` : '') + `<table class="menu-grid-table"><thead><tr>${_stmt.cols.map((c, i) => `<th${_stmt.align[i] === 2 ? ' style="text-align:right"' : ''}>${c}</th>`).join('')}</tr></thead><tbody>
+    ${t ? `<tr><td ${td} colspan="${_stmt.cols.length - 1}"><b>${t[0]}</b></td><td ${td} align="right">${t[1]}</td></tr>` : ''}
+    ${slice.length ? slice.map(r => `<tr>${r.map((c, i) => `<td ${td}${al(i)}>${c}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${_stmt.cols.length}" style="padding:20px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
     </tbody></table>`;
   const nav = document.getElementById('orgStatementPager');
   nav.style.display = pages > 1 ? 'flex' : 'none';
@@ -3767,7 +3786,7 @@ function renderDeliveries() {
     const its = d.items || [];
     const val = its.reduce((n, i) => n + i.qty * (i.cost || 0), 0);
     const summary = its.length === 1 ? `${escHtml(its[0].name)} ${its[0].qty > 0 ? '+' : ''}${fmtQty(its[0].qty)}` : `${its.length} items`;
-    return `<tr style="cursor:pointer" onclick="${d.orgId ? `openOrgStatement('${d.orgId}')` : `openOrgStatement('', '${d.id}')`}"><td style="white-space:nowrap">${escHtml(stockTakeDate(d))}</td><td>${d.orgName ? escHtml(d.orgName) : '<span style="color:#dc2626">Unallocated</span>'}</td><td style="font-size:12px">${summary}</td><td style="text-align:right">${fmtCurrency(val)}</td></tr>`;
+    return `<tr style="cursor:pointer" onclick="openDelivery('${d.id}')"><td style="white-space:nowrap">${escHtml(stockTakeDate(d))}</td><td>${d.orgName ? escHtml(d.orgName) : '<span style="color:#dc2626">Unallocated</span>'}</td><td style="font-size:12px">${summary}</td><td style="text-align:right">${fmtCurrency(val)}</td></tr>`;
   }).join('') : '<tr><td colspan="4" style="color:var(--text-muted);padding:20px;text-align:center">No replenishments recorded yet.</td></tr>';
 }
 
