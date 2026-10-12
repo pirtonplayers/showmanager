@@ -3082,37 +3082,66 @@ function renderOrgSummary() {
   const box = document.getElementById('stockOrgSummary');
   if (!box) return;
   if (!_orgs.length) { box.innerHTML = ''; return; }
-  // Per organisation: share at the last stock take (previous), deliveries since, and the current
-  // share (= previous + replenishments; usage only comes off at the next take).
-  const cur = {}, rep = {}; let uCur = 0, uRep = 0, tCur = 0, tRep = 0;
+  const cur = {}; let unassigned = 0, total = 0;
   _allMenuItems.filter(i => stockIsTracked(i.id)).forEach(i => {
     const s = _stock[i.id] || {};
     const c = typeof s.costPrice === 'number' ? s.costPrice : 0;
     const oh = stockOnHand(s) ?? (s.added || 0);
-    let assigned = 0, assignedAdd = 0;
-    _orgs.forEach(o => {
-      const q = orgQtyOf(s, o.id), a = orgAddedOf(s, o.id);
-      assigned += q; assignedAdd += a;
-      cur[o.id] = (cur[o.id] || 0) + q * c; rep[o.id] = (rep[o.id] || 0) + a * c;
-    });
-    uCur += (oh - assigned) * c; uRep += ((s.added || 0) - assignedAdd) * c;
-    tCur += oh * c; tRep += (s.added || 0) * c;
+    let assigned = 0;
+    _orgs.forEach(o => { const q = orgQtyOf(s, o.id); assigned += q; cur[o.id] = (cur[o.id] || 0) + q * c; });
+    unassigned += (oh - assigned) * c; total += oh * c;
   });
-  const money = v => v < -0.005 ? `<span style="color:#dc2626">${fmtCurrency(v)}</span>` : fmtCurrency(v);
-  const num = 'style="text-align:right"';
-  const row = (n, c, r, b) => {
-    const cells = [c - r, r, c].map(v => `<td ${num}>${b ? '<b>' + money(v) + '</b>' : money(v)}</td>`).join('');
-    return `<tr><td>${b ? '<b>' + n + '</b>' : n}</td>${cells}</tr>`;
-  };
-  const last = _stockTakes.find(t => !t.cleared);
+  _orgCurrent = cur;
+  const money = v => v < -0.005 ? `<span style="color:#dc2626">${fmtCurrency(v)} owed</span>` : fmtCurrency(v);
+  const row = (n, v, b, id) => `<tr ${id ? `style="cursor:pointer" onclick="openOrgStatement('${id}')"` : ''}><td>${b ? '<b>' + n + '</b>' : n}</td><td style="text-align:right">${b ? '<b>' + money(v) + '</b>' : money(v)}</td></tr>`;
   box.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="card-body menu-table-scroll" style="padding:0">
-    <table class="menu-grid-table"><thead><tr><th>Organisation</th><th ${num}>Previous${last ? ' (' + escHtml(last.eventName || 'stock take') + ')' : ''}</th><th ${num}>Replenished since</th><th ${num}>Current</th></tr></thead><tbody>
-    ${_orgs.map(o => row(escHtml(o.name), cur[o.id] || 0, rep[o.id] || 0)).join('')}
-    ${Math.abs(uCur) > 0.005 || Math.abs(uRep) > 0.005 ? row('Unassigned', uCur, uRep) : ''}
-    ${row('Total stock', tCur, tRep, true)}
+    <table class="menu-grid-table"><thead><tr><th>Organisation</th><th style="text-align:right">Current stock value</th></tr></thead><tbody>
+    ${_orgs.map(o => row(escHtml(o.name), cur[o.id] || 0, false, o.id)).join('')}
+    ${Math.abs(unassigned) > 0.005 ? row('Unassigned', unassigned) : ''}
+    ${row('Total stock', total, true)}
     </tbody></table></div>
-    <p style="font-size:11px;color:var(--text-muted);margin:0;padding:6px 12px 10px">Values at cost. Negative (red) = owed to the stock. Usage is charged at the next stock take.</p></div>`;
+    <p style="font-size:11px;color:var(--text-muted);margin:0;padding:6px 12px 10px">At cost. Tap an organisation for its statement. Red = owed to the stock.</p></div>`;
 }
+
+let _orgCurrent = {};
+
+// Statement for one organisation: opening stock, each stock take (usage comes off), each
+// replenishment (goes on), and stock cleared (back to nothing), with a running balance at cost.
+window.openOrgStatement = function(orgId) {
+  const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : 0;
+  const ev = [];
+  _stockTakes.forEach(t => {
+    if (t.cleared) { ev.push({ t: ms(t), date: stockTakeDate(t), what: t.eventName || 'Stock cleared', kind: 'clear' }); return; }
+    if (t.orgId !== orgId) return;
+    const lines = t.lines || [];
+    if (t.opening) ev.push({ t: ms(t), date: stockTakeDate(t), what: t.eventName || 'Opening stock', kind: 'open', amt: lines.reduce((n, l) => n + (l.counted || 0) * (l.costPrice || 0), 0) });
+    else ev.push({ t: ms(t), date: stockTakeDate(t), what: `${t.eventName || 'Stock take'} - stock take`, kind: 'use', amt: lines.reduce((n, l) => n + (l.usedCost || 0), 0) });
+  });
+  _deliveries.filter(d => d.orgId === orgId).forEach(d => {
+    ev.push({ t: ms(d), date: stockTakeDate(d), what: 'Replenished: ' + (d.items || []).map(i => `${i.name} ${i.qty > 0 ? '+' : ''}${fmtQty(i.qty)}`).join(', '), kind: 'add', amt: (d.items || []).reduce((n, i) => n + i.qty * (i.cost || 0), 0) });
+  });
+  ev.sort((a, b) => a.t - b.t);
+  let bal = 0;
+  const rows = ev.map(e => {
+    let amt = e.amt, label;
+    if (e.kind === 'open') { bal = e.amt; label = fmtCurrency(e.amt); }
+    else if (e.kind === 'use') { bal -= e.amt; label = 'usage ' + fmtCurrency(e.amt); }
+    else if (e.kind === 'add') { bal += e.amt; label = '+' + fmtCurrency(e.amt); }
+    else { label = 'reset to ' + fmtCurrency(0); bal = 0; }
+    return { ...e, label, bal };
+  });
+  const now = _orgCurrent[orgId] || 0;
+  // Anything the log can't explain (e.g. changes made before replenishments were recorded).
+  if (Math.abs(now - bal) > 0.005) rows.push({ date: '', what: 'Other adjustments (not itemised)', label: (now - bal >= 0 ? '+' : '') + fmtCurrency(now - bal), bal: now });
+  const td = 'style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:13px"';
+  const neg = v => v < -0.005 ? ' style="color:#dc2626"' : '';
+  document.getElementById('orgStatementTitle').textContent = orgName(orgId) + ' - statement';
+  document.getElementById('orgStatementBody').innerHTML = `<table class="menu-grid-table"><thead><tr><th>Date</th><th>Item</th><th style="text-align:right">Value</th><th style="text-align:right">Balance</th></tr></thead><tbody>
+    ${rows.length ? rows.map(r => `<tr><td ${td}>${escHtml(r.date)}</td><td ${td}>${escHtml(r.what)}</td><td ${td} align="right">${r.label}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtCurrency(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--text-muted)">Nothing recorded for this organisation yet.</td></tr>`}
+    <tr><td ${td} colspan="3"><b>Current stock value</b></td><td ${td} align="right"><b${neg(now)}>${fmtCurrency(now)}</b></td></tr></tbody></table>`;
+  document.getElementById('orgStatementModal').style.display = 'flex';
+};
+window.closeOrgStatement = function() { document.getElementById('orgStatementModal').style.display = 'none'; };
 
 let _deliveries  = [];   // showdrinks_deliveries: every stock addition, newest first
 let _stock       = {};
