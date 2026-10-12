@@ -3508,10 +3508,11 @@ function updateStockCountSummary() {
   document.getElementById('stockCountSummary').textContent = _stockTaking ? _stockTaking + (_stockOrg ? ' · ' + orgName(_stockOrg) : '') : '';
 }
 
-// "Non-zero only" checkbox on the Stock view: hides items with nothing on hand. Never applied
-// while a count is in progress, so a zero-stock item can still be counted.
+// "Non-zero only" checkbox on the Stock and Stock take screens: hides items with nothing on hand.
+// During a count an item you've already entered a count for stays visible.
 function stockPassesNonZero(i) {
-  if (_stockTaking || !document.getElementById('stockNonZero')?.checked) return true;
+  if (!document.getElementById('stockNonZero')?.checked) return true;
+  if (_stockTaking && stockCountFor(i.id) !== 0) return true;
   return (stockOnHand(_stock[i.id] || {}) || 0) !== 0;
 }
 
@@ -3556,7 +3557,7 @@ function renderStockCount() {
       + (nonStockRows.length ? `<tr><td colspan="7" style="font-weight:700;padding-top:16px">Non stock items</td></tr>` + nonStockRows.map(rowHtml).join('') : '')
     : '<tr><td colspan="7" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
   const counting = !!_stockTaking;
-  document.getElementById('stockNonZeroLabel').style.display = counting ? 'none' : 'flex';
+  document.getElementById('stockNonZeroLabel').style.display = 'flex';
   document.getElementById('stockNonStockLabel').style.display = counting ? 'none' : 'flex';
   document.getElementById('stockHeader').classList.toggle('stock-taking', counting);
   document.getElementById('stockTitle').textContent = counting ? 'Stock take in progress' : _stockView === 'reports' ? 'Stock movements' : 'Stock';
