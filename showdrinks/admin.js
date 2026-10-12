@@ -3175,17 +3175,21 @@ function saveStockDraft() {
 
 async function loadStockTab() {
   try {
-    const [stockSnap, takesSnap, orgSnap, delSnap] = await Promise.all([
+    // Independent queries: one failing (e.g. deliveries) must not blank the organisations, or
+    // additions would be saved with no organisation.
+    const results = await Promise.allSettled([
       db.collection('showdrinks_stock').get({ source: 'server' }),
       db.collection('showdrinks_stockTakes').orderBy('createdAt', 'desc').limit(200).get({ source: 'server' }),
       db.collection('showdrinks_orgs').get({ source: 'server' }),
       db.collection('showdrinks_deliveries').orderBy('createdAt', 'desc').limit(300).get({ source: 'server' }),
     ]);
-    _deliveries = delSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    _orgs = orgSnap.docs.map(d => ({ id: d.id, name: d.data().name || '' })); sortOrgs();
-    _stock = {};
-    stockSnap.docs.forEach(d => { _stock[d.id] = d.data(); });
-    _stockTakes = takesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const [stockR, takesR, orgR, delR] = results;
+    if (delR.status === 'fulfilled') _deliveries = delR.value.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (orgR.status === 'fulfilled') { _orgs = orgR.value.docs.map(d => ({ id: d.id, name: d.data().name || '' })); sortOrgs(); }
+    if (stockR.status === 'fulfilled') { _stock = {}; stockR.value.docs.forEach(d => { _stock[d.id] = d.data(); }); }
+    if (takesR.status === 'fulfilled') _stockTakes = takesR.value.docs.map(d => ({ id: d.id, ...d.data() }));
+    const failed = results.find(r => r.status === 'rejected');
+    if (failed) toast('Could not load some stock data: ' + failed.reason.message, 'error');
   } catch (e) {
     toast('Could not load stock: ' + e.message, 'error');
   }
@@ -3718,17 +3722,32 @@ function stockTakeValues(t) {
 // Every addition to stock, newest first: restock received, or a + / − from the Add button.
 async function logDelivery(orgId, items) {
   try {
-    await db.collection('showdrinks_deliveries').add({ createdAt: firebase.firestore.FieldValue.serverTimestamp(), ...(orgId ? { orgId, orgName: orgName(orgId) } : {}), items });
+    const org = orgId ? { orgId, orgName: orgName(orgId) } : {};
+    const ref = await db.collection('showdrinks_deliveries').add({ createdAt: firebase.firestore.FieldValue.serverTimestamp(), ...org, items });
+    // Show it straight away (the list is otherwise only loaded when the Stock tab opens).
+    _deliveries.unshift({ id: ref.id, createdAt: firebase.firestore.Timestamp.now(), ...org, items });
+    renderDeliveries();
+    renderOrgSummary();
   } catch (e) { toast('Stock updated but the replenishment was not logged: ' + e.message, 'error'); }
 }
+
+const _deliveryOpen = new Set();
+window.toggleDelivery = function(id) {
+  if (_deliveryOpen.has(id)) _deliveryOpen.delete(id); else _deliveryOpen.add(id);
+  renderDeliveries();
+};
 
 function renderDeliveries() {
   const body = document.getElementById('stockDeliveryBody');
   if (!body) return;
   body.innerHTML = _deliveries.length ? _deliveries.map(d => {
-    const items = (d.items || []).map(i => `${escHtml(i.name)} ${i.qty > 0 ? '+' : ''}${fmtQty(i.qty)}`).join(', ');
-    const val = (d.items || []).reduce((n, i) => n + i.qty * (i.cost || 0), 0);
-    return `<tr><td style="white-space:nowrap">${escHtml(stockTakeDate(d))}</td><td>${escHtml(d.orgName || '—')}</td><td style="font-size:12px">${items}</td><td style="text-align:right">${fmtCurrency(val)}</td></tr>`;
+    const its = d.items || [];
+    const val = its.reduce((n, i) => n + i.qty * (i.cost || 0), 0);
+    const open = _deliveryOpen.has(d.id);
+    const summary = its.length === 1 ? `${escHtml(its[0].name)} ${its[0].qty > 0 ? '+' : ''}${fmtQty(its[0].qty)}` : `${its.length} items`;
+    const detail = its.map(i => `<div style="display:flex;justify-content:space-between;gap:12px"><span>${escHtml(i.name)}</span><span>${i.qty > 0 ? '+' : ''}${fmtQty(i.qty)}${typeof i.cost === 'number' ? ' × ' + fmtCurrency(i.cost) + ' = ' + fmtCurrency(i.qty * i.cost) : ''}</span></div>`).join('');
+    return `<tr style="cursor:pointer" onclick="toggleDelivery('${d.id}')"><td style="white-space:nowrap">${open ? '▾' : '▸'} ${escHtml(stockTakeDate(d))}</td><td>${d.orgName ? escHtml(d.orgName) : '<span style="color:#dc2626">Unallocated</span>'}</td><td style="font-size:12px">${summary}</td><td style="text-align:right">${fmtCurrency(val)}</td></tr>`
+      + (open ? `<tr><td colspan="4" style="font-size:12px;background:rgba(0,0,0,.03)">${detail || 'No items'}</td></tr>` : '');
   }).join('') : '<tr><td colspan="4" style="color:var(--text-muted);padding:20px;text-align:center">No replenishments recorded yet.</td></tr>';
 }
 
