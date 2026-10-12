@@ -1,17 +1,17 @@
-const CACHE = 'showplanner-1.1.147';
+const CACHE = 'showplanner-1.1.148';
 const STATIC = [
   './',
   './index.html',
-  './style.css?v=1.1.147',
-  './budget.js?v=1.1.147',
-  '../shared/firebase-config.js?v=1.1.147',
-  '../shared/auth.js?v=1.1.147',
-  '../shared/suite-nav.js?v=1.1.147',
-  '../shared/embed.js?v=1.1.147',
-  '../shared/version.js?v=1.1.147',
-  './manifest.json?v=1.1.147',
-  './icons/icon-192.png?v=1.1.147',
-  './icons/icon-512.png?v=1.1.147',
+  './style.css?v=1.1.148',
+  './budget.js?v=1.1.148',
+  '../shared/firebase-config.js?v=1.1.148',
+  '../shared/auth.js?v=1.1.148',
+  '../shared/suite-nav.js?v=1.1.148',
+  '../shared/embed.js?v=1.1.148',
+  '../shared/version.js?v=1.1.148',
+  './manifest.json?v=1.1.148',
+  './icons/icon-192.png?v=1.1.148',
+  './icons/icon-512.png?v=1.1.148',
 ];
 
 self.addEventListener('install', e => {

@@ -3004,7 +3004,7 @@ function orgName(id) { return _orgs.find(o => o.id === id)?.name || ''; }
 function orgQtyOf(s, id) { const v = s && s.org ? s.org[id] : undefined; return typeof v === 'number' ? v : 0; }
 // Deliveries to an org since the last stock take (reset by every take).
 function orgAddedOf(s, id) { const v = s && s.orgAdded ? s.orgAdded[id] : undefined; return typeof v === 'number' ? v : 0; }
-function orgOptionsHtml(sel) { return _orgs.map(o => `<option value="${o.id}" ${o.id === sel ? 'selected' : ''}>${escHtml(o.name)}</option>`).join(''); }
+function orgOptionsHtml(sel, list) { return (list || _orgs).map(o => `<option value="${o.id}" ${o.id === sel ? 'selected' : ''}>${escHtml(o.name)}</option>`).join(''); }
 function lastOrg() {
   let v = '';
   try { v = localStorage.getItem(ORG_LAST_KEY) || ''; } catch (e) {}
@@ -3015,12 +3015,13 @@ function rememberOrg(id) { try { localStorage.setItem(ORG_LAST_KEY, id); } catch
 // Asks which organisation: resolves to its id, '' when none are defined, null if cancelled.
 let _orgPickResolve = null;
 // `msg` (optional) is a warning shown in the same dialog; with no organisations it falls back to a confirm().
-function pickOrg(title, msg) {
+// `list` (optional) limits the choices to those organisations.
+function pickOrg(title, msg, list) {
   if (!_orgs.length) return Promise.resolve(msg && !confirm(msg) ? null : '');
   document.getElementById('orgPickTitle').textContent = title;
   const m = document.getElementById('orgPickMsg');
   m.textContent = msg || ''; m.style.display = msg ? '' : 'none';
-  document.getElementById('orgPickSelect').innerHTML = orgOptionsHtml(lastOrg());
+  document.getElementById('orgPickSelect').innerHTML = orgOptionsHtml(lastOrg(), list);
   document.getElementById('orgPickModal').style.display = 'flex';
   return new Promise(res => { _orgPickResolve = res; });
 }
@@ -3633,12 +3634,11 @@ function orgHoldsStock(id) {
 }
 window.startOpeningStock = async function() {
   if (_orgs.length ? _orgs.every(o => orgHoldsStock(o.id)) : orgHoldsStock('')) {
-    toast(_orgs.length ? 'Opening stock can only be set for an organisation with no stock. Every organisation already holds stock.' : 'Opening stock can only be set when there is no stock.', 'error');
+    toast(_orgs.length ? 'Every organisation already holds stock, so there is none to set opening stock for.' : 'Opening stock can only be set when there is no stock.', 'error');
     return;
   }
-  const org = await pickOrg('Opening stock for which organisation? (only organisations with no stock)');
+  const org = await pickOrg('Opening stock for which organisation?', '', _orgs.filter(o => !orgHoldsStock(o.id)));
   if (org === null) return;
-  if (orgHoldsStock(org)) { toast(orgName(org) + ' already has stock, so opening stock cannot be set for it. Use a stock take or a restock.', 'error'); return; }
   if (_stockView !== 'count') setStockView('count');
   _stockOpening = true;
   _stockOrg = org;
