@@ -3167,8 +3167,7 @@ function renderOrgSummary() {
     return html;
   }).join('');
   box.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="card-body menu-table-scroll" style="padding:0">
-    <table class="menu-grid-table"><thead><tr><th>Organisation</th><th style="text-align:right">Current stock value</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
-    <p style="font-size:11px;color:var(--text-muted);margin:0;padding:6px 12px 10px">At cost. Tap a line to see its history; tap a history line for the details. Red = owed to the stock.</p></div>`;
+    <table class="menu-grid-table"><thead><tr><th>Organisation</th><th style="text-align:right">Current stock value</th></tr></thead><tbody>${rowsHtml}</tbody></table></div></div>`;
 }
 window.toggleTrack = function(key) { _trackOpen = _trackOpen === key ? null : key; _trackPage = 0; renderOrgSummary(); };
 window.trackPage = function(d) { _trackPage += d; renderOrgSummary(); };
