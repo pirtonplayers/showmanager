@@ -3136,7 +3136,7 @@ window.openOrgStatement = function(orgId) {
   const neg = v => v < -0.005 ? ' style="color:#dc2626"' : '';
   showStatementModal(orgName(orgId) + ' - statement', ['Date', 'Item', 'Value', 'Balance'], [1, 1, 2, 2],
     rows.reverse().map(r => [escHtml(r.date), escHtml(r.what), r.label, `<b${neg(r.bal)}>${fmtCurrency(r.bal)}</b>`]),
-    ['Current stock value', `<b${neg(now)}>${fmtCurrency(now)}</b>`]);
+    ['Current stock value', `<b${neg(now)}>${fmtCurrency(now)}</b>`], '', { nowrap: [0], clip: [1] });
 };
 
 // One restock: who it was for and every item in it.
@@ -3150,15 +3150,15 @@ window.openDelivery = function(id) {
     `Organisation: ${d.orgName ? escHtml(d.orgName) : '<span style="color:#dc2626">Unallocated</span>'}`);
 };
 
-function showStatementModal(title, cols, align, rows, total, intro) {
-  _stmt = { title, cols, align, rows, total, intro: intro || '', page: 0 };
+function showStatementModal(title, cols, align, rows, total, intro, opts) {
+  _stmt = { title, cols, align, rows, total, intro: intro || '', page: 0, nowrap: [], clip: [], ...(opts || {}) };
   document.getElementById('orgStatementTitle').textContent = title;
   document.getElementById('orgStatementModal').style.display = 'flex';
   renderStatementPage();
 }
 
 // Statement shown newest first, split into pages that fit the screen.
-let _stmt = { title: '', cols: [], align: [], rows: [], total: null, intro: '', page: 0 };
+let _stmt = { title: '', cols: [], align: [], rows: [], total: null, intro: '', page: 0, nowrap: [], clip: [] };
 function stmtPageSize() {
   // modal body ≈ 90% of the height minus header, footer, table head, total row and pager.
   return Math.max(4, Math.floor((window.innerHeight * 0.9 - 250) / 38));
@@ -3173,7 +3173,7 @@ function renderStatementPage() {
   const t = _stmt.total;
   document.getElementById('orgStatementBody').innerHTML = (_stmt.intro ? `<p style="margin:0;padding:8px 10px;font-size:13px">${_stmt.intro}</p>` : '') + `<table class="menu-grid-table"><thead><tr>${_stmt.cols.map((c, i) => `<th${_stmt.align[i] === 2 ? ' style="text-align:right"' : ''}>${c}</th>`).join('')}</tr></thead><tbody>
     ${t ? `<tr><td ${td} colspan="${_stmt.cols.length - 1}"><b>${t[0]}</b></td><td ${td} align="right">${t[1]}</td></tr>` : ''}
-    ${slice.length ? slice.map(r => `<tr>${r.map((c, i) => `<td ${td}${al(i)}>${c}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${_stmt.cols.length}" style="padding:20px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
+    ${slice.length ? slice.map(r => `<tr>${r.map((c, i) => `<td ${_stmt.nowrap.includes(i) ? td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:130px') : td}${al(i)}>${_stmt.clip.includes(i) ? `<div class="stmt-clip" title="${c.replace(/<[^>]*>/g, '').replace(/"/g, '&quot;')}" onclick="this.classList.toggle('open')">${c}</div>` : c}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${_stmt.cols.length}" style="padding:20px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
     </tbody></table>`;
   const nav = document.getElementById('orgStatementPager');
   nav.style.display = pages > 1 ? 'flex' : 'none';
@@ -3181,6 +3181,25 @@ function renderStatementPage() {
   document.getElementById('orgStatementPrev').disabled = _stmt.page === 0;
   document.getElementById('orgStatementNext').disabled = _stmt.page >= pages - 1;
 }
+// Plain-text / print versions of whatever the statement modal is showing (all pages).
+function stmtPlain(c) { return new DOMParser().parseFromString(c, 'text/html').body.textContent; }
+window.printStatement = function() {
+  const th = 'style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc;font-size:12px"';
+  const td = 'style="padding:4px 8px;border-bottom:1px solid #eee;font-size:13px"';
+  const t = _stmt.total;
+  printHtml(`<!doctype html><title>${escHtml(_stmt.title)}</title><body style="font-family:sans-serif;padding:16px"><h2>${escHtml(_stmt.title)}</h2>${_stmt.intro ? `<p>${_stmt.intro}</p>` : ''}
+    <table style="border-collapse:collapse;width:100%"><tr>${_stmt.cols.map((c, i) => `<th ${th.replace('left', _stmt.align[i] === 2 ? 'right' : 'left')}>${c}</th>`).join('')}</tr>
+    ${t ? `<tr><td ${td} colspan="${_stmt.cols.length - 1}"><b>${t[0]}</b></td><td ${td} align="right">${t[1]}</td></tr>` : ''}
+    ${_stmt.rows.map(r => `<tr>${r.map((c, i) => `<td ${td}${_stmt.align[i] === 2 ? ' align="right"' : ''}>${c}</td>`).join('')}</tr>`).join('')}</table></body>`);
+};
+window.emailStatement = function() {
+  const t = _stmt.total;
+  const lines = [_stmt.title, ''];
+  if (_stmt.intro) lines.push(stmtPlain(_stmt.intro), '');
+  if (t) lines.push(`${stmtPlain(t[0])}: ${stmtPlain(t[1])}`, '');
+  _stmt.rows.forEach(r => lines.push(r.map(stmtPlain).join('  |  ')));
+  location.href = 'mailto:?subject=' + encodeURIComponent(_stmt.title) + '&body=' + encodeURIComponent(lines.join(String.fromCharCode(10)));
+};
 window.stmtPage = function(d) { _stmt.page += d; renderStatementPage(); };
 window.addEventListener('resize', () => {
   if (document.getElementById('orgStatementModal').style.display === 'flex') renderStatementPage();

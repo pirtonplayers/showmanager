@@ -546,3 +546,6 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .report-tabs button { padding: 10px 14px; border: none; border-bottom: 3px solid transparent; margin-bottom: -2px; background: none; font-size: 14px; font-weight: 600; color: var(--text-muted); cursor: pointer; white-space: nowrap; }
 .report-tabs button:hover { color: var(--text); }
 .report-tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
+/* Long item text in the statement modal: one line with …, tap/hover to see it all */
+.stmt-clip { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.stmt-clip.open { white-space: normal; overflow: visible; }
