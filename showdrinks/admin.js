@@ -3405,7 +3405,14 @@ let _stockTaking = null;   // event name while a stock take is in progress, else
 let _stockOrg = '';   // organisation id the take in progress is for ('' = none defined)
 try { _stockTaking = localStorage.getItem(STOCK_SESSION_KEY) || null; _stockOpening = localStorage.getItem(STOCK_SESSION_KEY + '_opening') === '1'; } catch (e) { _stockTaking = null; }
 try { _stockOrg = localStorage.getItem(STOCK_SESSION_KEY + '_org') || ''; } catch (e) { _stockOrg = ''; }
+document.addEventListener('DOMContentLoaded', () => updateStockMenuLabels());
+// Menu labels say "Resume stock take" while a count is in progress.
+function updateStockMenuLabels() {
+  const label = _stockTaking ? 'Resume stock take' : 'Stock';
+  document.querySelectorAll('.tab-btn[data-tab="stock"], .stock-menu-view[data-view="count"]').forEach(b => { b.textContent = label; });
+}
 function saveStockSession() {
+  updateStockMenuLabels();
   try {
     if (_stockTaking) localStorage.setItem(STOCK_SESSION_KEY, _stockTaking); else localStorage.removeItem(STOCK_SESSION_KEY);
     if (_stockTaking && _stockOpening) localStorage.setItem(STOCK_SESSION_KEY + '_opening', '1'); else localStorage.removeItem(STOCK_SESSION_KEY + '_opening');
@@ -3557,6 +3564,7 @@ function renderStockCount() {
       + (nonStockRows.length ? `<tr><td colspan="7" style="font-weight:700;padding-top:16px">Non stock items</td></tr>` + nonStockRows.map(rowHtml).join('') : '')
     : '<tr><td colspan="7" style="color:var(--text-muted);padding:20px;text-align:center">No items in this category.</td></tr>';
   const counting = !!_stockTaking;
+  updateStockMenuLabels();
   document.getElementById('stockNonZeroLabel').style.display = 'flex';
   document.getElementById('stockNonStockLabel').style.display = counting ? 'none' : 'flex';
   document.getElementById('stockHeader').classList.toggle('stock-taking', counting);
