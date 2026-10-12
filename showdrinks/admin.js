@@ -3361,11 +3361,13 @@ window.openDelivery = function(id) {
   showStatementModal('Restock - ' + stockTakeDate(d), ['Item', 'Qty', 'Cost each', 'Value'], [1, 2, 2, 2],
     its.map(i => [escHtml(i.name), (i.qty > 0 ? '+' : '') + fmtQty(i.qty), typeof i.cost === 'number' ? fmtCurrency(i.cost) : '—', typeof i.cost === 'number' ? fmtCurrency(i.qty * i.cost) : '—']),
     ['Total', `<b>${fmtCurrency(val)}</b>`],
-    `Organisation: ${d.orgName ? escHtml(d.orgName) : '<span style="color:#dc2626">Unallocated</span>'}`);
+    `Organisation: ${d.orgName ? escHtml(d.orgName) : '<span style="color:#dc2626">Unallocated</span>'}`,
+    isLatestEntry('delivery', d.id) ? { deleteFn: () => deleteDelivery(d.id) } : undefined);
 };
 
 function showStatementModal(title, cols, align, rows, total, intro, opts) {
   _stmt = { title, cols, align, rows, total, intro: intro || '', page: 0, nowrap: [], clip: [], ...(opts || {}) };
+  document.getElementById('orgStatementDelete').style.display = _stmt.deleteFn ? '' : 'none';
   document.getElementById('orgStatementTitle').textContent = title;
   document.getElementById('orgStatementModal').style.display = 'flex';
   renderStatementPage();
@@ -3958,6 +3960,43 @@ window.confirmStockFinish = async function() {
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
+// The newest entry across stock takes (incl. opening stock) and restocks: the only one that can
+// be deleted, so stock can always be rolled back cleanly.
+function latestEntry() {
+  const ms = x => x.createdAt?.toMillis ? x.createdAt.toMillis() : (x.createdAt?.toDate ? x.createdAt.toDate().getTime() : 0);
+  let best = null;
+  _stockTakes.forEach(t => { if (!best || ms(t) > best.t) best = { kind: 'take', id: t.id, t: ms(t) }; });
+  _deliveries.forEach(d => { if (!best || ms(d) > best.t) best = { kind: 'delivery', id: d.id, t: ms(d) }; });
+  return best;
+}
+function isLatestEntry(kind, id) { const l = latestEntry(); return !!l && l.kind === kind && l.id === id; }
+
+// Deleting the latest restock takes its quantities (and organisation shares) back out of stock.
+async function deleteDelivery(id) {
+  const d = _deliveries.find(x => x.id === id);
+  if (!d || !isLatestEntry('delivery', id)) { toast('Only the latest entry can be deleted', 'error'); return; }
+  if (!confirm('Delete this restock? The quantities in it are taken back out of stock.')) return;
+  try {
+    const FV = firebase.firestore.FieldValue;
+    const batch = db.batch();
+    (d.items || []).forEach(i => {
+      const q = i.qty || 0;
+      batch.set(db.collection('showdrinks_stock').doc(i.itemId), {
+        added: FV.increment(-q),
+        ...(d.orgId ? { org: { [d.orgId]: FV.increment(-q) }, orgAdded: { [d.orgId]: FV.increment(-q) } } : {}),
+      }, { merge: true });
+    });
+    const ref = db.collection('showdrinks_deliveries').doc(id);
+    batch.delete(ref);
+    await batch.commit();
+    const still = await ref.get({ source: 'server' });
+    if (still.exists) { toast('Delete did not go through — the restock is still on the server', 'error'); return; }
+    closeOrgStatement();
+    await loadStockTab();
+    toast('Restock deleted', 'success');
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+}
+
 function stockTakeDate(t) {
   const d = t.createdAt?.toDate ? t.createdAt.toDate() : new Date();
   return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -4035,16 +4074,16 @@ window.closeStockReport = function() {
 function renderStockReportModal() {
   const t = currentStockTake(); if (!t) return;
   document.getElementById('stockReportTitle').textContent = stockTakeLabel(t);
-  document.getElementById('stockDeleteBtn').style.display = t.id === _stockTakes[0]?.id ? '' : 'none';
+  document.getElementById('stockDeleteBtn').style.display = isLatestEntry('take', t.id) ? '' : 'none';
   document.getElementById('stockReportBody').innerHTML = stockReportHtml(t);
 }
 
-// Only the latest take can be deleted, and doing so rolls the stock back: every item it counted
+// Only the latest entry (take, opening stock, clear or restock) can be deleted, and doing so rolls the stock back: every item it counted
 // goes back to its previous count (base) and gets that take's deliveries put back into `added`,
 // on top of anything added since — so deleting a take made by mistake loses nothing.
 window.deleteLatestStockTake = async function() {
   const t = currentStockTake();
-  if (!t || t.id !== _stockTakes[0]?.id) { toast('Only the latest stock take can be deleted', 'error'); return; }
+  if (!t || !isLatestEntry('take', t.id)) { toast('Only the latest entry can be deleted', 'error'); return; }
   if (!confirm(`Delete the stock take "${t.eventName || 'Stock take'}"?
 Item figures go back to how they were before it was finished.`)) return;
   try {
