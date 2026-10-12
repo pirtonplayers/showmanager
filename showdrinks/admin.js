@@ -3002,6 +3002,8 @@ let _orgs        = [];
 const ORG_LAST_KEY = 'showdrinks_last_org';
 function orgName(id) { return _orgs.find(o => o.id === id)?.name || ''; }
 function orgQtyOf(s, id) { const v = s && s.org ? s.org[id] : undefined; return typeof v === 'number' ? v : 0; }
+// Deliveries to an org since the last stock take (reset by every take).
+function orgAddedOf(s, id) { const v = s && s.orgAdded ? s.orgAdded[id] : undefined; return typeof v === 'number' ? v : 0; }
 function orgOptionsHtml(sel) { return _orgs.map(o => `<option value="${o.id}" ${o.id === sel ? 'selected' : ''}>${escHtml(o.name)}</option>`).join(''); }
 function lastOrg() {
   let v = '';
@@ -3080,24 +3082,36 @@ function renderOrgSummary() {
   const box = document.getElementById('stockOrgSummary');
   if (!box) return;
   if (!_orgs.length) { box.innerHTML = ''; return; }
-  const val = {}; let unassigned = 0, total = 0;
+  // Per organisation: share at the last stock take (previous), deliveries since, and the current
+  // share (= previous + replenishments; usage only comes off at the next take).
+  const cur = {}, rep = {}; let uCur = 0, uRep = 0, tCur = 0, tRep = 0;
   _allMenuItems.filter(i => stockIsTracked(i.id)).forEach(i => {
     const s = _stock[i.id] || {};
     const c = typeof s.costPrice === 'number' ? s.costPrice : 0;
     const oh = stockOnHand(s) ?? (s.added || 0);
-    let assigned = 0;
-    _orgs.forEach(o => { const q = orgQtyOf(s, o.id); assigned += q; val[o.id] = (val[o.id] || 0) + q * c; });
-    unassigned += (oh - assigned) * c;
-    total += oh * c;
+    let assigned = 0, assignedAdd = 0;
+    _orgs.forEach(o => {
+      const q = orgQtyOf(s, o.id), a = orgAddedOf(s, o.id);
+      assigned += q; assignedAdd += a;
+      cur[o.id] = (cur[o.id] || 0) + q * c; rep[o.id] = (rep[o.id] || 0) + a * c;
+    });
+    uCur += (oh - assigned) * c; uRep += ((s.added || 0) - assignedAdd) * c;
+    tCur += oh * c; tRep += (s.added || 0) * c;
   });
-  const money = v => v < -0.005 ? `<span style="color:#dc2626">${fmtCurrency(v)} owed</span>` : fmtCurrency(v);
-  const row = (n, v, b) => `<tr><td>${b ? '<b>' + n + '</b>' : n}</td><td style="text-align:right">${b ? '<b>' + money(v) + '</b>' : money(v)}</td></tr>`;
+  const money = v => v < -0.005 ? `<span style="color:#dc2626">${fmtCurrency(v)}</span>` : fmtCurrency(v);
+  const num = 'style="text-align:right"';
+  const row = (n, c, r, b) => {
+    const cells = [c - r, r, c].map(v => `<td ${num}>${b ? '<b>' + money(v) + '</b>' : money(v)}</td>`).join('');
+    return `<tr><td>${b ? '<b>' + n + '</b>' : n}</td>${cells}</tr>`;
+  };
+  const last = _stockTakes.find(t => !t.cleared);
   box.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="card-body menu-table-scroll" style="padding:0">
-    <table class="menu-grid-table"><thead><tr><th>Organisation</th><th style="text-align:right">Stock value</th></tr></thead><tbody>
-    ${_orgs.map(o => row(escHtml(o.name), val[o.id] || 0)).join('')}
-    ${Math.abs(unassigned) > 0.005 ? row('Unassigned', unassigned) : ''}
-    ${row('Total stock', total, true)}
-    </tbody></table></div></div>`;
+    <table class="menu-grid-table"><thead><tr><th>Organisation</th><th ${num}>Previous${last ? ' (' + escHtml(last.eventName || 'stock take') + ')' : ''}</th><th ${num}>Replenished since</th><th ${num}>Current</th></tr></thead><tbody>
+    ${_orgs.map(o => row(escHtml(o.name), cur[o.id] || 0, rep[o.id] || 0)).join('')}
+    ${Math.abs(uCur) > 0.005 || Math.abs(uRep) > 0.005 ? row('Unassigned', uCur, uRep) : ''}
+    ${row('Total stock', tCur, tRep, true)}
+    </tbody></table></div>
+    <p style="font-size:11px;color:var(--text-muted);margin:0;padding:6px 12px 10px">Values at cost. Negative (red) = owed to the stock. Usage is charged at the next stock take.</p></div>`;
 }
 
 let _stock       = {};
@@ -3412,10 +3426,10 @@ window.confirmStockAdjust = async function() {
   if (_orgs.length && !org) { toast('Pick an organisation', 'error'); return; }
   try {
     const FV = firebase.firestore.FieldValue;
-    await db.collection('showdrinks_stock').doc(id).set({ added: FV.increment(delta), ...(org ? { org: { [org]: FV.increment(delta) } } : {}) }, { merge: true });
+    await db.collection('showdrinks_stock').doc(id).set({ added: FV.increment(delta), ...(org ? { org: { [org]: FV.increment(delta) }, orgAdded: { [org]: FV.increment(delta) } } : {}) }, { merge: true });
     if (org) rememberOrg(org);
     const cur = _stock[id] || {};
-    _stock[id] = { ...cur, added: (cur.added || 0) + delta, ...(org ? { org: { ...(cur.org || {}), [org]: orgQtyOf(cur, org) + delta } } : {}) };
+    _stock[id] = { ...cur, added: (cur.added || 0) + delta, ...(org ? { org: { ...(cur.org || {}), [org]: orgQtyOf(cur, org) + delta }, orgAdded: { ...(cur.orgAdded || {}), [org]: orgAddedOf(cur, org) + delta } } : {}) };
     const cell = document.getElementById('stockOh-' + id);
     if (cell) cell.textContent = stockOnHandLabel(_stock[id]);
     closeStockAdjust();
@@ -3459,12 +3473,13 @@ window.clearAllStock = async function() {
         costPrice: typeof st.costPrice === 'number' ? st.costPrice : null, usedCost: null,
         ...(typeof st.restock === 'number' ? { prevRestock: st.restock } : {}),
         ...(st.org && Object.keys(st.org).length ? { prevOrg: st.org } : {}),
+        ...(st.orgAdded && Object.keys(st.orgAdded).length ? { prevOrgAdded: st.orgAdded } : {}),
       };
     });
     await db.collection('showdrinks_stockTakes').add({ createdAt: FV.serverTimestamp(), eventName: 'Stock cleared', cleared: true, lines });
     for (let i = 0; i < _allMenuItems.length; i += 400) {
       const batch = db.batch();
-      _allMenuItems.slice(i, i + 400).forEach(it => batch.set(db.collection('showdrinks_stock').doc(it.id), { base: 0, added: 0, restock: FV.delete(), org: FV.delete() }, { merge: true }));
+      _allMenuItems.slice(i, i + 400).forEach(it => batch.set(db.collection('showdrinks_stock').doc(it.id), { base: 0, added: 0, restock: FV.delete(), org: FV.delete(), orgAdded: FV.delete() }, { merge: true }));
       await batch.commit();
     }
     _stockCounts = {}; saveStockDraft();
@@ -3565,6 +3580,7 @@ window.finishStockTake = async function() {
       itemId: id, name: item.name || '', category: item.category || '',
       opening, added, counted, used, costPrice: cost,
       ...(orgOpen ? { prevOrgQty, newTotal } : {}),
+      ...(s.orgAdded && Object.keys(s.orgAdded).length ? { prevOrgAdded: s.orgAdded } : {}),
       usedCost: used !== null && cost !== null ? Math.round(used * cost * 100) / 100 : null,
       minStock: min,
       restockTo: stockRestockLevel(s),
@@ -3599,7 +3615,7 @@ window.confirmStockFinish = async function() {
         : _stockOpening ? { org: { [orgId]: l.counted } }
         : l.used !== null ? { org: { [orgId]: firebase.firestore.FieldValue.increment(-l.used) } } : {};
       batch.set(db.collection('showdrinks_stock').doc(id),
-        { base: l.newTotal ?? l.counted, added: 0, restock: firebase.firestore.FieldValue.delete(), ...orgPatch }, { merge: true });
+        { base: l.newTotal ?? l.counted, added: 0, restock: firebase.firestore.FieldValue.delete(), orgAdded: firebase.firestore.FieldValue.delete(), ...orgPatch }, { merge: true });
     });
     await batch.commit();
     closeStockFinish();
@@ -3711,6 +3727,7 @@ Item figures go back to how they were before it was finished.`)) return;
         base: typeof l.opening === 'number' ? l.opening : FV.delete(),
         added: FV.increment(l.added || 0),
         ...(typeof l.prevRestock === 'number' ? { restock: l.prevRestock } : {}),
+        ...(l.prevOrgAdded ? { orgAdded: Object.fromEntries(Object.entries(l.prevOrgAdded).map(([k, v]) => [k, FV.increment(v)])) } : {}),
         // Organisation shares go back too: a clear restores them all, opening stock restores that
         // organisation's old share, a normal take gives back the usage it charged.
         ...(t.cleared ? { org: l.prevOrg || FV.delete() }
@@ -3847,11 +3864,11 @@ window.receiveRestock = async function() {
     const batch = db.batch();
     const qty = {};
     rows.forEach(i => { qty[i.id] = restockQty(i.id); });
-    rows.forEach(i => batch.set(db.collection('showdrinks_stock').doc(i.id), { added: FV.increment(qty[i.id]), restock: FV.delete(), ...(org ? { org: { [org]: FV.increment(qty[i.id]) } } : {}) }, { merge: true }));
+    rows.forEach(i => batch.set(db.collection('showdrinks_stock').doc(i.id), { added: FV.increment(qty[i.id]), restock: FV.delete(), ...(org ? { org: { [org]: FV.increment(qty[i.id]) }, orgAdded: { [org]: FV.increment(qty[i.id]) } } : {}) }, { merge: true }));
     await batch.commit();
     rows.forEach(i => {
       const st = { ..._stock[i.id], added: ((_stock[i.id] || {}).added || 0) + qty[i.id] };
-      if (org) st.org = { ...(st.org || {}), [org]: orgQtyOf(_stock[i.id], org) + qty[i.id] };
+      if (org) { st.org = { ...(st.org || {}), [org]: orgQtyOf(_stock[i.id], org) + qty[i.id] }; st.orgAdded = { ...(st.orgAdded || {}), [org]: orgAddedOf(_stock[i.id], org) + qty[i.id] }; }
       delete st.restock;
       _stock[i.id] = st;
     });
