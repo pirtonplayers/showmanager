@@ -3214,11 +3214,11 @@ function itemLedger(id) {
     const l = (t.lines || []).find(x => x.itemId === id);
     if (!l) return;
     const after = typeof l.newTotal === 'number' ? l.newTotal : (l.counted || 0);
-    ev.push({ t: ms(t), kind: t.opening ? 'open' : 'take', date: stockTakeDate(t), name: t.eventName || (t.opening ? 'Opening stock' : 'Stock take'), sub: t.orgName || '', after, used: l.used, click: `openStockTake('${t.id}')` });
+    ev.push({ t: ms(t), kind: t.opening ? 'open' : 'take', date: stockTakeDate(t), name: t.eventName || (t.opening ? 'Opening stock' : 'Stock take'), sub: t.orgName || '', after, used: l.used, price: l.costPrice, click: `openStockTake('${t.id}')` });
   });
   _deliveries.forEach(d => {
     (d.items || []).filter(i => i.itemId === id).forEach(i => {
-      ev.push({ t: ms(d), kind: 'add', date: stockTakeDate(d), name: i.qty < 0 ? 'Stock removed' : 'Restock', sub: d.orgName || '', qty: i.qty, click: `openDelivery('${d.id}')` });
+      ev.push({ t: ms(d), kind: 'add', date: stockTakeDate(d), name: i.qty < 0 ? 'Stock removed' : 'Restock', sub: d.orgName || '', qty: i.qty, price: i.cost, click: `openDelivery('${d.id}')` });
     });
   });
   ev.sort((a, b) => a.t - b.t);
@@ -3229,7 +3229,7 @@ function itemLedger(id) {
     else if (e.kind === 'add') { bal += e.qty; val = sgn(e.qty); }
     else if (e.kind === 'open') { bal = e.after; val = 'counted ' + fmtQty(e.after); }
     else { val = e.used === null || e.used === undefined ? 'counted ' + fmtQty(e.after) : 'used ' + fmtQty(e.used); bal = e.after; }
-    return { date: e.date, name: e.name, sub: e.sub || '', val, bal, click: e.click };
+    return { date: e.date, name: e.name, sub: e.sub || '', val, bal, price: e.price, click: e.click };
   }).reverse();
   const s = _stock[id] || {};
   const now = stockOnHand(s) ?? (s.added || 0);
@@ -3266,8 +3266,8 @@ function renderItemMovements() {
       const pages = Math.max(1, Math.ceil(led.length / size));
       _itemPage = Math.min(Math.max(0, _itemPage), pages - 1);
       const slice = led.slice(_itemPage * size, (_itemPage + 1) * size);
-      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th><th>Organisation</th><th>Event</th><th style="text-align:right">Movement</th><th style="text-align:right">Balance</th></tr></thead><tbody>
-        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:130px')}>${escHtml(r.date)}</td><td ${td}>${escHtml(r.sub)}</td><td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.note ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.note)}</span>` : ''}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtQty(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
+      html += `<tr><td colspan="2" style="padding:0;background:rgba(0,0,0,.025)"><table class="menu-grid-table" style="width:100%"><thead><tr><th>Date</th><th>Organisation</th><th>Event</th><th>Item</th><th style="text-align:right">Price</th><th style="text-align:right">Movement</th><th style="text-align:right">Balance</th></tr></thead><tbody>
+        ${slice.length ? slice.map(r => `<tr ${r.click ? `style="cursor:pointer" onclick="${r.click}"` : ''}><td ${td.replace('font-size:13px', 'font-size:13px;white-space:nowrap;min-width:130px')}>${escHtml(r.date)}</td><td ${td}>${escHtml(r.sub)}</td><td ${td}><div class="stmt-clip" style="max-width:200px">${escHtml(r.name)}</div>${r.note ? `<span style="font-size:11px;color:var(--text-muted)">${escHtml(r.note)}</span>` : ''}</td><td ${td}>${escHtml(i.name || '')}</td><td ${td} align="right">${typeof r.price === 'number' ? fmtCurrency(r.price) : '—'}</td><td ${td} align="right">${r.val}</td><td ${td} align="right"><b${neg(r.bal)}>${fmtQty(r.bal)}</b></td></tr>`).join('') : `<tr><td colspan="7" style="padding:16px;text-align:center;color:var(--text-muted)">Nothing recorded yet.</td></tr>`}
         </tbody></table>
         ${pages > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:8px"><button class="btn btn-secondary btn-sm" ${_itemPage === 0 ? 'disabled' : ''} onclick="itemMovementPage(-1)">‹ Newer</button><span style="font-size:13px">Page ${_itemPage + 1} of ${pages}</span><button class="btn btn-secondary btn-sm" ${_itemPage >= pages - 1 ? 'disabled' : ''} onclick="itemMovementPage(1)">Older ›</button></div>` : ''}
       </td></tr>`;
