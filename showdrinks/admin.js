@@ -3969,7 +3969,6 @@ window.confirmStockFinish = async function() {
     _stockReportId = takeRef.id;
     _stockView = 'reports';
     await loadStockTab();
-    openStockTake(takeRef.id);
     toast('Stock take saved', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
