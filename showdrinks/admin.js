@@ -3193,6 +3193,7 @@ let _stockTakes  = [];
 let _stockCat    = null;
 let _stockCounts = {};   // itemId -> number — the in-progress count, kept in localStorage too
 let _stockView   = 'count';
+let _reportTab   = 'takes';   // Reports screen tab: takes | orgs | deliveries
 let _stockReportId = null;
 let _restockIds  = null;   // item ids shown on the Restock page (null = recompute on next render)
 const STOCK_DRAFT_KEY = 'showdrinks_stock_draft';
@@ -3254,6 +3255,7 @@ window.setStockView = function(v) {
   }
   renderStockTab();
 };
+window.setReportTab = function(t) { _reportTab = t; renderStockTab(); };
 window.setStockCat  = function(c) { _stockCat = c; renderStockTab(); };
 
 // Level a restock tops an item up to: restockTo if set, never below minStock.
@@ -3290,11 +3292,12 @@ function stockOnHandLabel(s) {
 function renderStockTab() {
   document.getElementById('stockCountView').style.display   = _stockView === 'count' ? '' : 'none';
   document.querySelectorAll('.stock-menu-view').forEach(b => b.classList.toggle('active', b.dataset.view === _stockView));
-  const rep = ['orgs', 'takes', 'deliveries'].includes(_stockView);
+  const rep = _stockView === 'reports';
   document.getElementById('stockReportsView').style.display = rep ? '' : 'none';
-  document.getElementById('stockOrgSummary').style.display = _stockView === 'orgs' ? '' : 'none';
-  document.getElementById('stockTakesSection').style.display = _stockView === 'takes' ? '' : 'none';
-  document.getElementById('stockDeliveriesSection').style.display = _stockView === 'deliveries' ? '' : 'none';
+  document.getElementById('stockOrgSummary').style.display = _reportTab === 'orgs' ? '' : 'none';
+  document.getElementById('stockTakesSection').style.display = _reportTab === 'takes' ? '' : 'none';
+  document.getElementById('stockDeliveriesSection').style.display = _reportTab === 'deliveries' ? '' : 'none';
+  document.querySelectorAll('#stockReportTabs button').forEach(b => { const on = b.dataset.rtab === _reportTab; b.classList.toggle('btn-primary', on); b.classList.toggle('btn-secondary', !on); });
   document.getElementById('stockRestockView').style.display = _stockView === 'restock' ? '' : 'none';
   renderStockCount();   // also keeps the ⋯ menu's Start/Finish/Cancel items current on every view
   if (rep) { renderOrgSummary(); renderStockReports(); renderDeliveries(); }
@@ -3571,7 +3574,7 @@ window.clearAllStock = async function() {
     _stockCounts = {}; saveStockDraft();
     _stockOpening = false; _stockOrg = '';
     _stockTaking = null; saveStockSession();
-    _stockView = 'takes';
+    _stockView = 'reports'; _reportTab = 'takes';
     await loadStockTab();
     toast('All stock reset to 0', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
@@ -3710,7 +3713,7 @@ window.confirmStockFinish = async function() {
     _stockOpening = false; _stockOrg = '';
     _stockTaking = null; saveStockSession();
     _stockReportId = takeRef.id;
-    _stockView = 'takes';
+    _stockView = 'reports'; _reportTab = 'takes';
     await loadStockTab();
     openStockTake(takeRef.id);
     toast('Stock take saved', 'success');

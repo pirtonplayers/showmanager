@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.122"></script>
+  <script src="../shared/embed.js?v=1.1.123"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.122">
+  <link rel="stylesheet" href="style.css?v=1.1.123">
 </head>
 <body>
 
@@ -378,9 +378,7 @@
           <button class="btn btn-secondary btn-sm" onclick="toggleStockActions(event)" aria-label="Stock actions" title="Stock actions">⋯</button>
           <div id="stockActionsDropdown" class="dropdown-menu">
             <button class="menu-item stock-menu-view" data-view="count" onclick="setStockView('count')">Stock</button>
-            <button class="menu-item stock-menu-view" data-view="orgs" onclick="setStockView('orgs')">Organisations</button>
-            <button class="menu-item stock-menu-view" data-view="takes" onclick="setStockView('takes')">Stock takes</button>
-            <button class="menu-item stock-menu-view" data-view="deliveries" onclick="setStockView('deliveries')">Replenishments</button>
+            <button class="menu-item stock-menu-view" data-view="reports" onclick="setStockView('reports')">Reports</button>
             <button class="menu-item stock-menu-view" data-view="restock" onclick="setStockView('restock')">Restock</button>
             <div id="stockCountActions">
               <div class="dropdown-divider"></div>
@@ -420,6 +418,11 @@
       <label id="stockNonZeroLabel" style="display:flex;align-items:center;gap:6px;font-size:13px;margin:10px 0 0"><input type="checkbox" id="stockNonZero" onchange="renderStockCount()"> Show non-zero only</label>
     </div>
     <div id="stockReportsView" style="display:none">
+      <div id="stockReportTabs" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" data-rtab="takes" onclick="setReportTab('takes')">Stock takes</button>
+        <button class="btn btn-secondary btn-sm" data-rtab="orgs" onclick="setReportTab('orgs')">Organisations</button>
+        <button class="btn btn-secondary btn-sm" data-rtab="deliveries" onclick="setReportTab('deliveries')">Replenishments</button>
+      </div>
       <div id="stockOrgSummary"></div>
       <div id="stockTakesSection">
       <div class="card">
@@ -432,7 +435,6 @@
       </div>
       </div>
       <div id="stockDeliveriesSection">
-      <h3 style="margin:0 0 8px;font-size:15px">Replenishments</h3>
       <div class="card">
         <div class="card-body menu-table-scroll" style="padding:0">
           <table class="menu-grid-table">
@@ -1135,11 +1137,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.122"></script>
-<script src="../shared/firebase-config.js?v=1.1.122"></script>
-<script src="../shared/auth.js?v=1.1.122"></script>
-<script src="../shared/suite-nav.js?v=1.1.122"></script>
-<script src="admin.js?v=1.1.122"></script>
+<script src="../shared/version.js?v=1.1.123"></script>
+<script src="../shared/firebase-config.js?v=1.1.123"></script>
+<script src="../shared/auth.js?v=1.1.123"></script>
+<script src="../shared/suite-nav.js?v=1.1.123"></script>
+<script src="admin.js?v=1.1.123"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
