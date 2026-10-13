@@ -916,6 +916,7 @@ function openModal(title, ctx) {
       document.getElementById('editCost').value = st.costPrice ?? '';
       document.getElementById('editMinStock').value = st.minStock ?? '';
       document.getElementById('editRestockTo').value = st.restockTo ?? '';
+      document.getElementById('editZeroCost').checked = !!st.zeroCost;
     };
     fillStock(ctx.id ? (_stock[ctx.id] || {}) : {});
     if (ctx.id && !_stock[ctx.id]) {
@@ -985,7 +986,7 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
         });
         itemId = ref.id;
       }
-      const stockFields = { costPrice, minStock, restockTo };
+      const stockFields = { costPrice, minStock, restockTo, zeroCost: document.getElementById('editZeroCost').checked };
       await db.collection('showdrinks_stock').doc(itemId).set(stockFields, { merge: true });
       _stock[itemId] = { ..._stock[itemId], ...stockFields };
       await loadMenuItems();
@@ -3594,7 +3595,7 @@ function renderStockCount() {
     }
     return `<tr>
       <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
-      <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"><label style="display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;color:var(--text-muted);margin-top:3px;white-space:nowrap"><input type="checkbox" ${s.zeroCost ? 'checked' : ''} onchange="saveStockZeroCost('${i.id}',this.checked)"> zero cost</label></td>
+      <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
       <td class="col-edit"><input type="number" min="0" step="any" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
       <td class="col-edit"><input type="number" min="0" step="any" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>
       <td class="col-edit" style="text-align:center" id="stockOh-${i.id}">${stockOnHandLabel(s)}</td>
