@@ -4232,7 +4232,7 @@ Item figures go back to how they were before it was finished.`)) return;
 function suggestedRestock(id) {
   const s = _stock[id] || {};
   if (typeof s.minStock !== 'number') return 0;
-  const now = stockOnHand(s) ?? 0;
+  const now = stockOnHand(s) ?? (s.added || 0);   // never counted: whatever has been added so far
   return now < s.minStock ? Math.max(0, Math.ceil(stockRestockLevel(s) - now)) : 0;   // ordered in whole units
 }
 
@@ -4247,13 +4247,14 @@ function renderStockRestock() {
   document.getElementById('stockRestockBody').innerHTML = items.length ? items.map(i => {
     const st = _stock[i.id] || {};
     const cost = st.costPrice;
-    const nowQty = stockOnHand(st);
+    const nowQty = stockOnHand(st) ?? (st.added || 0);
     return `<tr>
       <td>${escHtml(i.name || '')}<br><span style="color:var(--text-muted);font-size:11px">Now ${fmtQty(nowQty)} · Min ${st.minStock ?? '—'}<br>Restock level ${stockRestockLevel(st) ?? '—'}</span><br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}${typeof cost === 'number' ? ' · ' + fmtCurrency(cost) + ' each' : ''}</span></td>
       <td style="white-space:nowrap;text-align:right">
         <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepRestock('${i.id}',-1)" aria-label="Minus one">−</button>
         <input type="number" min="0" step="1" class="stock-input" id="restockQty-${i.id}" value="${restockQty(i.id)}" onchange="setRestock('${i.id}',this.value)" style="width:64px;text-align:center" aria-label="Quantity to order">
         <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepRestock('${i.id}',1)" aria-label="Plus one">+</button>
+        <button type="button" class="icon-btn" onclick="removeRestockItem('${i.id}')" title="Remove from restock list" aria-label="Remove from restock list" style="vertical-align:middle;margin-left:4px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
       </td>
     </tr>`;
   }).join('') : '<tr><td colspan="2" style="color:var(--text-muted);padding:20px;text-align:center">Nothing to restock. Items counted below their minimum appear here automatically, or use + Add item.</td></tr>';
@@ -4276,6 +4277,16 @@ window.recalcRestock = async function() {
     renderStockRestock();
     toast('Restock list recalculated', 'success');
   } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+
+// Takes one item off the restock list. Its quantity is saved as 0 so the suggestion doesn't bring
+// it straight back; Recalculate (or finishing a stock take) puts it back in play.
+window.removeRestockItem = async function(id) {
+  if (_restockIds) _restockIds.delete(id);
+  _stock[id] = { ..._stock[id], restock: 0 };
+  renderStockRestock();
+  try { await db.collection('showdrinks_stock').doc(id).set({ restock: 0 }, { merge: true }); }
+  catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
 window.setRestock = async function(id, raw) {
