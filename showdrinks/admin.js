@@ -3594,7 +3594,7 @@ function renderStockCount() {
     }
     return `<tr>
       <td>${escHtml(i.name || '')}${_stockCat === 'all' ? `<br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}</span>` : ''}</td>
-      <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"></td>
+      <td class="col-edit"><input type="number" min="0" step="0.01" class="stock-input" value="${s.costPrice ?? ''}" onchange="saveStockField('${i.id}','costPrice',this.value)" aria-label="Cost price"><label style="display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;color:var(--text-muted);margin-top:3px;white-space:nowrap"><input type="checkbox" ${s.zeroCost ? 'checked' : ''} onchange="saveStockZeroCost('${i.id}',this.checked)"> zero cost</label></td>
       <td class="col-edit"><input type="number" min="0" step="any" class="stock-input" value="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','minStock',this.value)" aria-label="Minimum stock"></td>
       <td class="col-edit"><input type="number" min="0" step="any" class="stock-input" id="stockRestockTo-${i.id}" value="${s.restockTo ?? ''}" placeholder="${s.minStock ?? ''}" onchange="saveStockField('${i.id}','restockTo',this.value)" aria-label="Restock up to"></td>
       <td class="col-edit" style="text-align:center" id="stockOh-${i.id}">${stockOnHandLabel(s)}</td>
@@ -3625,6 +3625,7 @@ function renderStockCount() {
 
 // Event name comes from a dropdown of all shows (current one preselected), or "Other" to type one.
 window.startStockTake = function() {
+  if (blockForCosts('A stock take', null)) return;
   if (_stockView !== 'count') setStockView('count');
   document.getElementById('stockEventName').value = '';
   document.getElementById('stockEventOrgWrap').style.display = _orgs.length ? '' : 'none';
@@ -3644,6 +3645,7 @@ function orgHoldsStock(id) {
   });
 }
 window.startOpeningStock = async function() {
+  if (blockForCosts('Opening stock', null)) return;
   if (_orgs.length ? _orgs.every(o => orgHoldsStock(o.id)) : orgHoldsStock('')) {
     toast(_orgs.length ? 'Every organisation already holds stock, so there is none to set opening stock for.' : 'Opening stock can only be set when there is no stock.', 'error');
     return;
@@ -3677,6 +3679,31 @@ window.confirmStockEvent = function() {
 
 // Restock level (`restockTo`) is what a restock tops an item up to: it starts out equal to Min
 // (blank = follow Min) and may be set higher, never lower. Raising Min past it drags it up too.
+// An item with no cost (0 or blank) must be marked "zero cost" on purpose; until then stock
+// takes, opening stock, restocks and stock additions are blocked so usage is never valued at £0 by
+// accident. Returns the names of the offending stock items among `ids` (default: every stock item).
+function stockCostProblems(ids) {
+  const set = ids ? new Set(ids) : null;
+  return _allMenuItems.filter(i => stockIsTracked(i.id) && (!set || set.has(i.id))).filter(i => {
+    const st = _stock[i.id] || {};
+    return !st.zeroCost && !(typeof st.costPrice === 'number' && st.costPrice > 0);
+  }).map(i => i.name || '(unnamed)').sort((a, b) => a.localeCompare(b));
+}
+// true when blocked (and tells the user which items need a cost or "zero cost" ticked)
+function blockForCosts(what, ids) {
+  const bad = stockCostProblems(ids);
+  if (!bad.length) return false;
+  const shown = bad.slice(0, 12).join('\n');
+  alert(what + ' needs a cost on every stock item. Enter a cost, or tick "zero cost" if the item really is free.\n\n'
+    + shown + (bad.length > 12 ? '\n…and ' + (bad.length - 12) + ' more' : ''));
+  return true;
+}
+window.saveStockZeroCost = async function(id, on) {
+  _stock[id] = { ...(_stock[id] || {}), zeroCost: !!on };
+  try { await db.collection('showdrinks_stock').doc(id).set({ zeroCost: !!on }, { merge: true }); }
+  catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
+
 window.saveStockField = async function(id, field, raw) {
   let v = raw === '' ? null : Number(raw);
   if (v !== null && (!isFinite(v) || v < 0)) { toast('Enter a number, 0 or more', 'error'); return; }
@@ -3752,6 +3779,7 @@ let _stockAdjustId = null;
 let _stockAdjustStep = 1;
 
 window.openStockAdjust = function(id) {
+  if (blockForCosts('Adding stock', [id])) return;
   const item = _allMenuItems.find(i => i.id === id);
   _stockAdjustId = id;
   _stockAdjustStep = item?.frac ? 0.25 : 1;
@@ -4262,6 +4290,7 @@ window.printRestock = function() {
 window.receiveRestock = async function() {
   const rows = _allMenuItems.filter(i => stockIsTracked(i.id) && restockQty(i.id) > 0);
   if (!rows.length) { toast('Nothing on the restock list', 'error'); return; }
+  if (blockForCosts('Adding the restock to stock', rows.map(i => i.id))) return;
   const org = await pickOrg('Receive restock', `Add ${rows.length} item(s) to stock as deliveries and clear the restock list? This cannot be undone from here. Which organisation is the delivery for?`);
   if (org === null) return;
   try {
