@@ -4318,14 +4318,23 @@ window.openRestockAdd = function() {
   document.getElementById('restockAddItem').innerHTML = Object.keys(byCat).map(c =>
     `<optgroup label="${escHtml(c)}">${byCat[c].map(i => `<option value="${i.id}">${escHtml(i.name || '')}</option>`).join('')}</optgroup>`).join('');
   document.getElementById('restockAddQty').value = 1;
+  restockAddItemChanged();
   document.getElementById('restockAddModal').style.display = 'flex';
+};
+
+// The quantity box steps (and its arrows move) by a quarter for items counted in quarters.
+window.restockAddItemChanged = function() {
+  const q = document.getElementById('restockAddQty');
+  const st = stockStepFor(document.getElementById('restockAddItem').value);
+  q.step = st; q.min = st;
 };
 
 window.closeRestockAdd = function() { document.getElementById('restockAddModal').style.display = 'none'; };
 
 window.confirmRestockAdd = async function() {
   const id = document.getElementById('restockAddItem').value;
-  const qty = Math.round(Number(document.getElementById('restockAddQty').value));
+  const q = stockStepFor(id) === 0.25 ? 4 : 1;   // quarters for items counted in quarters
+  const qty = Math.round(Number(document.getElementById('restockAddQty').value) * q) / q;
   if (!id || !(qty > 0)) { toast('Pick an item and a quantity above 0', 'error'); return; }
   if (!_restockIds) _restockIds = new Set();
   _restockIds.add(id);
@@ -4342,7 +4351,7 @@ window.printRestock = function() {
   const body = rows.map(i => {
     const q = restockQty(i.id), c = (_stock[i.id] || {}).costPrice;
     if (typeof c === 'number') total += q * c;
-    return `<tr><td ${td}>${escHtml(i.category || '')}</td><td ${td}>${escHtml(i.name || '')}</td><td ${td}><b>${q}</b></td><td ${td}>${typeof c === 'number' ? fmtCurrency(q * c) : '—'}</td></tr>`;
+    return `<tr><td ${td}>${escHtml(i.category || '')}</td><td ${td}>${escHtml(i.name || '')}</td><td ${td}><b>${fmtQty(q)}</b></td><td ${td}>${typeof c === 'number' ? fmtCurrency(q * c) : '—'}</td></tr>`;
   }).join('');
   printHtml(`<!doctype html><title>Restock list</title><body style="font-family:sans-serif;padding:16px"><h2>Restock list — ${new Date().toLocaleDateString('en-GB')}</h2>
     <table style="border-collapse:collapse;width:100%"><tr><th style="text-align:left">Category</th><th style="text-align:left">Item</th><th style="text-align:left">Order</th><th style="text-align:left">Est. cost</th></tr>${body}
