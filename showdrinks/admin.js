@@ -3804,8 +3804,11 @@ window.setStockCount = function(id, raw) {
   saveStockDraft();
 };
 
+// Items counted in quarters (frac) step by a quarter, everything else by one.
+function stockStepFor(id) { return _allMenuItems.find(i => i.id === id)?.frac ? 0.25 : 1; }
+
 window.stepStockCount = function(id, d) {
-  const v = Math.max(0, stockCountFor(id) + d);
+  const v = Math.max(0, Math.round((stockCountFor(id) + d * stockStepFor(id)) * 4) / 4);
   _stockCounts[id] = v;
   saveStockDraft();
   const el = document.getElementById('stockCount-' + id);
@@ -4259,7 +4262,7 @@ function renderStockRestock() {
       <td>${escHtml(i.name || '')}<br><span style="color:var(--text-muted);font-size:11px">Now ${fmtQty(nowQty)} · Min ${st.minStock ?? '—'}<br>Restock level ${stockRestockLevel(st) ?? '—'}</span><br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}${typeof cost === 'number' ? ' · ' + fmtCurrency(cost) + ' each' : ''}</span></td>
       <td style="white-space:nowrap;text-align:right">
         <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepRestock('${i.id}',-1)" aria-label="Minus one">−</button>
-        <input type="number" min="0" step="1" class="stock-input" id="restockQty-${i.id}" value="${restockQty(i.id)}" onchange="setRestock('${i.id}',this.value)" style="width:64px;text-align:center" aria-label="Quantity to order">
+        <input type="number" min="0" step="${stockStepFor(i.id)}" class="stock-input" id="restockQty-${i.id}" value="${restockQty(i.id)}" onchange="setRestock('${i.id}',this.value)" style="width:64px;text-align:center" aria-label="Quantity to order">
         <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepRestock('${i.id}',1)" aria-label="Plus one">+</button>
         <button type="button" class="icon-btn" onclick="removeRestockItem('${i.id}')" title="Remove from restock list" aria-label="Remove from restock list" style="vertical-align:middle;margin-left:4px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
       </td>
@@ -4297,7 +4300,9 @@ window.removeRestockItem = async function(id) {
 };
 
 window.setRestock = async function(id, raw) {
-  const v = Math.max(0, Math.round(Number(raw)) || 0);
+  // whole units, or quarters for items counted in quarters
+  const q = stockStepFor(id) === 0.25 ? 4 : 1;
+  const v = Math.max(0, Math.round((Number(raw) || 0) * q) / q);
   _stock[id] = { ..._stock[id], restock: v };
   const el = document.getElementById('restockQty-' + id);
   if (el) el.value = v;
@@ -4305,7 +4310,7 @@ window.setRestock = async function(id, raw) {
   catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
-window.stepRestock = function(id, d) { setRestock(id, restockQty(id) + d); };
+window.stepRestock = function(id, d) { setRestock(id, restockQty(id) + d * stockStepFor(id)); };
 
 window.openRestockAdd = function() {
   const byCat = {};
