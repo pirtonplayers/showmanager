@@ -3832,15 +3832,39 @@ window.openStockAdjust = function(id) {
   _stockAdjustId = id;
   _stockAdjustStep = item?.frac ? 0.25 : 1;
   document.getElementById('stockAdjustName').textContent = item?.name || '';
-  document.getElementById('stockAdjustQty').value = 0;
+  _stockAdjustVal = 0;
+  showStockAdjustQty();
   document.getElementById('stockAdjustOrgWrap').style.display = _orgs.length ? '' : 'none';
   document.getElementById('stockAdjustOrg').innerHTML = orgOptionsHtml(lastOrg());
   document.getElementById('stockAdjustModal').style.display = 'flex';
 };
 
+// The quantity is kept as a number and shown as whole units plus ¼ ½ ¾ (2½, -¼), never decimals.
+let _stockAdjustVal = 0;
+function showStockAdjustQty() { document.getElementById('stockAdjustQty').value = _stockAdjustVal === 0 ? '0' : fmtQty(_stockAdjustVal); }
+// Accepts 2, 2.5, 2½, 1 ¼, -¼ (also 1/2, 3/4).
+function parseQty(str) {
+  let t = String(str).trim().replace(/\s+/g, ' ');
+  if (!t) return 0;
+  const sign = /^[-−–]/.test(t) ? -1 : 1;
+  t = t.replace(/^[-−–+]\s*/, '');
+  const glyph = { '¼': 0.25, '½': 0.5, '¾': 0.75 };
+  let total = 0;
+  for (const part of t.split(' ')) {
+    let m;
+    if ((m = part.match(/^(\d*\.?\d*)([¼½¾])$/))) total += (m[1] ? parseFloat(m[1]) : 0) + glyph[m[2]];
+    else if ((m = part.match(/^(\d+)\/(\d+)$/))) total += m[2] === '0' ? 0 : parseInt(m[1], 10) / parseInt(m[2], 10);
+    else total += parseFloat(part) || 0;
+  }
+  return sign * total;
+}
+window.setStockAdjustQty = function(raw) {
+  _stockAdjustVal = Math.round(parseQty(raw) * 4) / 4;
+  showStockAdjustQty();
+};
 window.stepStockAdjust = function(d) {
-  const el = document.getElementById('stockAdjustQty');
-  el.value = (parseFloat(el.value) || 0) + d * _stockAdjustStep;
+  _stockAdjustVal = Math.round((_stockAdjustVal + d * _stockAdjustStep) * 4) / 4;
+  showStockAdjustQty();
 };
 
 window.closeStockAdjust = function() {
@@ -3850,7 +3874,7 @@ window.closeStockAdjust = function() {
 
 window.confirmStockAdjust = async function() {
   const id = _stockAdjustId;
-  const delta = Math.round((parseFloat(document.getElementById('stockAdjustQty').value) || 0) * 4) / 4;
+  const delta = _stockAdjustVal;
   if (!id) return;
   if (!delta) { toast('Use + or − to enter a quantity first', 'error'); return; }
   const org = _orgs.length ? document.getElementById('stockAdjustOrg').value : '';
