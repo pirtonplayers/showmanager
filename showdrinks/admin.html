@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.156"></script>
+  <script src="../shared/embed.js?v=1.1.157"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.156">
+  <link rel="stylesheet" href="style.css?v=1.1.157">
 </head>
 <body>
 
@@ -60,6 +60,7 @@
     <div class="dropdown-divider"></div>
     <button class="tab-btn" data-tab="show">Show &amp; Sessions</button>
     <button class="tab-btn" data-tab="locations">Locations</button>
+    <button class="tab-btn" data-action="orgs" id="orgsMenuBtn" onclick="openOrgsFromMenu()">Organisations</button>
     <button class="tab-btn" data-tab="pos">POS Layout</button>
     <button class="tab-btn" data-tab="settings">Settings &amp; QR</button>
   </div>
@@ -86,6 +87,7 @@
     <div class="dropdown-divider"></div>
     <button class="tab-btn active" data-tab="show">Show &amp; Sessions</button>
     <button class="tab-btn" data-tab="locations">Locations</button>
+    <button class="tab-btn" data-action="orgs" id="orgsMenuBtnSidebar" onclick="openOrgsFromMenu()">Organisations</button>
     <button class="tab-btn" data-tab="pos">POS Layout</button>
     <button class="tab-btn" data-tab="settings">Settings &amp; QR</button>
   </div>
@@ -334,16 +336,13 @@
         <div style="position:relative">
           <button class="btn btn-secondary btn-sm" onclick="toggleMenuActions(event)" aria-label="Price list actions" title="Price list actions">⋯</button>
           <div id="menuActionsDropdown" class="dropdown-menu">
-            <button class="btn btn-secondary btn-sm" onclick="openAddMenuItemModal()">+ Add Item</button>
-            <button class="btn btn-secondary btn-sm" onclick="openBuyNowCats()">Buy Now categories…</button>
-            <button class="btn btn-secondary btn-sm" onclick="openPrintMenuModal()">🖨 Print Price List</button>
-            <button class="btn btn-secondary btn-sm" onclick="exportMenuCsv()">⬇ Extract to CSV</button>
+            <button class="menu-item" onclick="openAddMenuItemModal()">Add item</button>
+            <button class="menu-item" onclick="openBuyNowCats()">Buy Now categories…</button>
+            <button class="menu-item" onclick="openPrintMenuModal()">Print price list</button>
+            <button class="menu-item" onclick="exportMenuCsv()">Extract to CSV</button>
           </div>
         </div>
       </div>
-      <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0">
-        The whole Price List can be cleared in bulk from Settings &amp; QR → Danger Zone.
-      </p>
       <div id="menuCategoryBar" class="cat-bar menu-cat-bar" style="display:none"></div>
     </div>
     <div class="card">
@@ -379,19 +378,13 @@
         <div style="position:relative" id="stockActionsWrap">
           <button class="btn btn-secondary btn-sm" onclick="toggleStockActions(event)" aria-label="Stock actions" title="Stock actions">⋯</button>
           <div id="stockActionsDropdown" class="dropdown-menu">
-            <button class="menu-item stock-menu-view" data-view="count" onclick="setStockView('count')">Stock</button>
-            <button class="menu-item stock-menu-view" data-view="reports" onclick="setStockView('reports')">Stock movements</button>
-            <button class="menu-item stock-menu-view" data-view="restock" onclick="setStockView('restock')">Restock</button>
             <div id="stockCountActions">
-              <div class="dropdown-divider"></div>
               <button class="menu-item" onclick="addStockItem()">Add item</button>
               <button class="menu-item" id="stockStartBtn" onclick="startStockTake()">Start stock take</button>
               <button class="menu-item" id="stockOpeningBtn" onclick="startOpeningStock()">Set opening stock</button>
               <button class="menu-item" id="stockFinishBtn" onclick="finishStockTake()" style="display:none">Finish stock take</button>
               <button class="menu-item" id="stockCancelBtn" onclick="cancelStockTake()" style="display:none">Cancel stock take</button>
-              <button class="menu-item" onclick="openOrgs()">Organisations…</button>
               <button class="menu-item" onclick="printStockList()">Print stock list</button>
-              <button class="menu-item" onclick="clearAllStock()">Clear all stock</button>
             </div>
             <div class="dropdown-divider"></div>
             <button class="menu-item" onclick="window.open('stock-help.html', '_blank')">Help</button>
@@ -445,6 +438,11 @@
         </div>
       </div>
     </div>
+      <nav class="stock-footer" id="stockFooter" aria-label="Stock views">
+      <button type="button" class="stock-menu-view" data-view="count" onclick="setStockView('count')"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg><span class="lbl">Stock list</span></button>
+      <button type="button" class="stock-menu-view" data-view="reports" onclick="setStockView('reports')"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span class="lbl">Stock movements</span></button>
+      <button type="button" class="stock-menu-view" data-view="restock" onclick="setStockView('restock')"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="lbl">Restock</span></button>
+    </nav>
   </div>
 
   <!-- ── LOCATIONS ── -->
@@ -731,7 +729,11 @@
         <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
           Permanently deletes every tab's sales history — member names are kept. There's no undo.
         </p>
-        <button class="btn btn-danger btn-sm" id="clearAllTabsBtn">Clear Sales History</button>
+        <button class="btn btn-danger btn-sm" id="clearAllTabsBtn" style="margin-bottom:16px">Clear Sales History</button>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+          Sets every item's stock to 0 and permanently deletes all stock takes, opening stock and restocks (the whole of Stock movements). Costs, Min and Restock levels are kept. There's no undo.
+        </p>
+        <button class="btn btn-danger btn-sm" onclick="clearAllStock()">Clear All Stock</button>
       </div>
     </div>
   </div>
@@ -1124,11 +1126,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.156"></script>
-<script src="../shared/firebase-config.js?v=1.1.156"></script>
-<script src="../shared/auth.js?v=1.1.156"></script>
-<script src="../shared/suite-nav.js?v=1.1.156"></script>
-<script src="admin.js?v=1.1.156"></script>
+<script src="../shared/version.js?v=1.1.157"></script>
+<script src="../shared/firebase-config.js?v=1.1.157"></script>
+<script src="../shared/auth.js?v=1.1.157"></script>
+<script src="../shared/suite-nav.js?v=1.1.157"></script>
+<script src="admin.js?v=1.1.157"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

@@ -157,6 +157,14 @@ function activateApp(key) {
 }
 
 function activateTab(key, tabId) {
+  // An action entry (e.g. Organisations) opens something inside the app but is not a screen: it
+  // must not become the remembered tab or the highlighted one.
+  const act = APP_SUBNAV[key]?.find(t => t.id === tabId);
+  if (act?.action) {
+    const fr = frames[key];
+    if (fr?.contentWindow) fr.contentWindow.postMessage({ source: 'showmanager-shell', type: 'activateTab', selector: act.selector }, '*');
+    return;
+  }
   lastTab[key] = tabId;
   const tab = APP_SUBNAV[key]?.find(t => t.id === tabId);
   const frame = frames[key];

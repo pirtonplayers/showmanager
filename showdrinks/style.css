@@ -549,3 +549,11 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 /* Long item text in the statement modal: one line with …, tap/hover to see it all */
 .stmt-clip { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .stmt-clip.open { white-space: normal; overflow: visible; }
+
+/* Stock tab: the three views (Stock list / Stock movements / Restock) live in a footer that stays
+   at the bottom of the screen while the page scrolls. */
+.stock-footer { position: sticky; bottom: 0; z-index: 20; display: flex; background: var(--surface); border-top: 1px solid var(--border); margin: 16px -24px -24px; padding: 0 8px; box-shadow: 0 -2px 6px rgba(0,0,0,.05); }
+.stock-footer button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 10px; border: none; background: none; color: var(--text-muted); font-size: 12px; font-weight: 600; cursor: pointer; border-top: 2px solid transparent; }
+.stock-footer button.active { color: var(--primary); border-top-color: var(--primary); }
+.stock-footer button:hover { color: var(--primary); }
+@media (max-width: 600px) { .stock-footer { margin-left: -16px; margin-right: -16px; } }

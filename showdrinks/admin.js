@@ -67,6 +67,7 @@ function activateAdminTab(tabId, navTabId) {
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (!btn.dataset.tab) return;   // action / sign-out buttons have their own handlers
     activateAdminTab(btn.dataset.tab);
     if (btn.dataset.tab === 'orders') loadOrders();
     if (btn.dataset.tab === 'tabs') loadShowTabs();
@@ -3042,6 +3043,15 @@ function renderOrgsList() {
       <button class="btn btn-danger btn-sm" onclick="deleteOrg('${o.id}')">Delete</button>
     </div>`).join('') : '<p style="color:var(--text-muted);margin:0">No organisations yet.</p>';
 }
+// From the Bar Manager menu: the organisations are loaded with the stock data, so make sure that
+// has happened before showing them (otherwise the list would look empty and invite duplicates).
+let _orgsLoaded = false;
+window.openOrgsFromMenu = async function() {
+  document.getElementById('mainMenuDropdown')?.classList.remove('open');
+  document.body.classList.remove('menu-open');
+  if (!_orgsLoaded) await loadStockTab();
+  openOrgs();
+};
 window.openOrgs = function() { renderOrgsList(); document.getElementById('orgsModal').style.display = 'flex'; };
 window.closeOrgs = function() { document.getElementById('orgsModal').style.display = 'none'; renderStockTab(); };
 window.addOrg = async function() {
@@ -3444,7 +3454,8 @@ document.addEventListener('DOMContentLoaded', () => updateStockMenuLabels());
 // Menu labels say "Resume stock take" while a count is in progress.
 function updateStockMenuLabels() {
   const label = _stockTaking ? 'Resume stock take' : 'Stock';
-  document.querySelectorAll('.tab-btn[data-tab="stock"], .stock-menu-view[data-view="count"]').forEach(b => { b.textContent = label; });
+  document.querySelectorAll('.tab-btn[data-tab="stock"]').forEach(b => { b.textContent = label; });
+  document.querySelectorAll('.stock-menu-view[data-view="count"] .lbl').forEach(b => { b.textContent = _stockTaking ? 'Resume stock take' : 'Stock list'; });
 }
 function saveStockSession() {
   updateStockMenuLabels();
@@ -3472,7 +3483,7 @@ async function loadStockTab() {
     ]);
     const [stockR, takesR, orgR, delR] = results;
     if (delR.status === 'fulfilled') _deliveries = delR.value.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (orgR.status === 'fulfilled') { _orgs = orgR.value.docs.map(d => ({ id: d.id, name: d.data().name || '' })); sortOrgs(); }
+    if (orgR.status === 'fulfilled') { _orgs = orgR.value.docs.map(d => ({ id: d.id, name: d.data().name || '' })); sortOrgs(); _orgsLoaded = true; }
     if (stockR.status === 'fulfilled') { _stock = {}; stockR.value.docs.forEach(d => { _stock[d.id] = d.data(); }); }
     if (takesR.status === 'fulfilled') _stockTakes = takesR.value.docs.map(d => ({ id: d.id, ...d.data() }));
     const failed = results.find(r => r.status === 'rejected');
@@ -3603,7 +3614,7 @@ function renderStockCount() {
   document.getElementById('stockNonZeroLabel').style.display = 'flex';
   document.getElementById('stockNonStockLabel').style.display = counting ? 'none' : 'flex';
   document.getElementById('stockHeader').classList.toggle('stock-taking', counting);
-  document.getElementById('stockTitle').textContent = counting ? 'Stock take in progress' : _stockView === 'reports' ? 'Stock movements' : 'Stock';
+  document.getElementById('stockTitle').textContent = counting ? 'Stock take in progress' : _stockView === 'reports' ? 'Stock movements' : _stockView === 'restock' ? 'Restock' : 'Stock list';
   document.getElementById('stockTable').classList.toggle('counting', counting);
   document.getElementById('stockStartBtn').style.display = counting ? 'none' : '';
   document.getElementById('stockOpeningBtn').style.display = counting ? 'none' : '';
