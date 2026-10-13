@@ -3824,7 +3824,7 @@ window.openStockAdjust = function(id) {
   if (blockForCosts('Adding stock', [id], () => openStockAdjust(id))) return;
   const item = _allMenuItems.find(i => i.id === id);
   _stockAdjustId = id;
-  _stockAdjustStep = item?.frac ? 0.25 : 1;
+  _stockAdjustStep = 1;   // stock added / removed is in whole units (quarters are for counts only)
   document.getElementById('stockAdjustName').textContent = item?.name || '';
   _stockAdjustVal = 0;
   showStockAdjustQty();
@@ -3833,7 +3833,7 @@ window.openStockAdjust = function(id) {
   document.getElementById('stockAdjustModal').style.display = 'flex';
 };
 
-// The quantity is kept as a number and shown as whole units plus ¼ ½ ¾ (2½, -¼), never decimals.
+// The quantity is kept as a whole number of units.
 let _stockAdjustVal = 0;
 function showStockAdjustQty() { document.getElementById('stockAdjustQty').value = _stockAdjustVal === 0 ? '0' : fmtQty(_stockAdjustVal); }
 // Accepts 2, 2.5, 2½, 1 ¼, -¼ (also 1/2, 3/4).
@@ -3853,11 +3853,11 @@ function parseQty(str) {
   return sign * total;
 }
 window.setStockAdjustQty = function(raw) {
-  _stockAdjustVal = Math.round(parseQty(raw) * 4) / 4;
+  _stockAdjustVal = Math.round(parseQty(raw));
   showStockAdjustQty();
 };
 window.stepStockAdjust = function(d) {
-  _stockAdjustVal = Math.round((_stockAdjustVal + d * _stockAdjustStep) * 4) / 4;
+  _stockAdjustVal = Math.round(_stockAdjustVal + d * _stockAdjustStep);
   showStockAdjustQty();
 };
 
@@ -4318,9 +4318,8 @@ window.removeRestockItem = async function(id) {
 };
 
 window.setRestock = async function(id, raw) {
-  // whole units, or quarters for items counted in quarters
-  const q = stockStepFor(id) === 0.25 ? 4 : 1;
-  const v = Math.max(0, Math.round((typeof raw === 'number' ? raw : parseQty(raw)) * q) / q);
+  // restock quantities are whole units (only stock take counts use quarters)
+  const v = Math.max(0, Math.round(typeof raw === 'number' ? raw : parseQty(raw)));
   _stock[id] = { ..._stock[id], restock: v };
   const el = document.getElementById('restockQty-' + id);
   if (el) el.value = fmtQty(v);
@@ -4328,7 +4327,7 @@ window.setRestock = async function(id, raw) {
   catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
 
-window.stepRestock = function(id, d) { setRestock(id, restockQty(id) + d * stockStepFor(id)); };
+window.stepRestock = function(id, d) { setRestock(id, restockQty(id) + d); };
 
 window.openRestockAdd = function() {
   const byCat = {};
@@ -4341,27 +4340,17 @@ window.openRestockAdd = function() {
 };
 
 // The quantity box steps (and its arrows move) by a quarter for items counted in quarters.
-let _restockAddVal = 1;
-function showRestockAddQty() { document.getElementById('restockAddQty').value = fmtQty(_restockAddVal); }
-window.restockAddItemChanged = function() {
-  // snap what is there to the new item's unit (whole units, or quarters)
-  const q = stockStepFor(document.getElementById('restockAddItem').value) === 0.25 ? 4 : 1;
-  _restockAddVal = Math.max(1 / q, Math.round(_restockAddVal * q) / q);
-  showRestockAddQty();
-};
-window.setRestockAddQty = function(raw) { _restockAddVal = parseQty(raw); restockAddItemChanged(); };
-window.stepRestockAdd = function(d) {
-  const st = stockStepFor(document.getElementById('restockAddItem').value);
-  _restockAddVal = Math.max(st, Math.round((_restockAddVal + d * st) * 4) / 4);
-  showRestockAddQty();
-};
+let _restockAddVal = 1;   // whole units
+function showRestockAddQty() { document.getElementById('restockAddQty').value = _restockAddVal; }
+window.restockAddItemChanged = function() { showRestockAddQty(); };
+window.setRestockAddQty = function(raw) { _restockAddVal = Math.max(1, Math.round(parseQty(raw)) || 1); showRestockAddQty(); };
+window.stepRestockAdd = function(d) { _restockAddVal = Math.max(1, _restockAddVal + d); showRestockAddQty(); };
 
 window.closeRestockAdd = function() { document.getElementById('restockAddModal').style.display = 'none'; };
 
 window.confirmRestockAdd = async function() {
   const id = document.getElementById('restockAddItem').value;
-  const q = stockStepFor(id) === 0.25 ? 4 : 1;   // quarters for items counted in quarters
-  const qty = Math.round(_restockAddVal * q) / q;
+  const qty = Math.round(_restockAddVal);
   if (!id || !(qty > 0)) { toast('Pick an item and a quantity above 0', 'error'); return; }
   if (!_restockIds) _restockIds = new Set();
   _restockIds.add(id);
