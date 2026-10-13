@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.161"></script>
+  <script src="../shared/embed.js?v=1.1.162"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowDrinks Admin</title>
-  <link rel="stylesheet" href="style.css?v=1.1.161">
+  <link rel="stylesheet" href="style.css?v=1.1.162">
 </head>
 <body>
 
@@ -920,6 +920,21 @@
   </div>
 </div>
 
+<!-- Stock actions that need every stock item costed: lists the items missing a cost so they can be fixed in place. -->
+<div id="costFixModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:215;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:520px;margin:20px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="card-header"><h2>Costs needed</h2></div>
+    <div class="card-body" style="overflow-y:auto">
+      <p id="costFixMsg" style="font-size:13px;margin:0 0 12px"></p>
+      <table class="menu-grid-table" style="width:100%"><thead><tr><th>Item</th><th style="width:110px">Cost £</th><th style="width:90px;text-align:center">Zero cost</th></tr></thead><tbody id="costFixBody"></tbody></table>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--border)">
+      <button class="btn btn-secondary" onclick="costFixCancel()">Cancel</button>
+      <button class="btn btn-primary" onclick="costFixUpdate()">Update</button>
+    </div>
+  </div>
+</div>
+
 <div id="orgPickModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:210;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:340px;margin:20px">
     <div class="card-header"><h2 id="orgPickTitle">Organisation</h2></div>
@@ -1129,11 +1144,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.161"></script>
-<script src="../shared/firebase-config.js?v=1.1.161"></script>
-<script src="../shared/auth.js?v=1.1.161"></script>
-<script src="../shared/suite-nav.js?v=1.1.161"></script>
-<script src="admin.js?v=1.1.161"></script>
+<script src="../shared/version.js?v=1.1.162"></script>
+<script src="../shared/firebase-config.js?v=1.1.162"></script>
+<script src="../shared/auth.js?v=1.1.162"></script>
+<script src="../shared/suite-nav.js?v=1.1.162"></script>
+<script src="admin.js?v=1.1.162"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.

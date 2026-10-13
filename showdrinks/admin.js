@@ -3626,7 +3626,7 @@ function renderStockCount() {
 
 // Event name comes from a dropdown of all shows (current one preselected), or "Other" to type one.
 window.startStockTake = function() {
-  if (blockForCosts('A stock take', null)) return;
+  if (blockForCosts('A stock take', null, () => startStockTake())) return;
   if (_stockView !== 'count') setStockView('count');
   document.getElementById('stockEventName').value = '';
   document.getElementById('stockEventOrgWrap').style.display = _orgs.length ? '' : 'none';
@@ -3646,7 +3646,7 @@ function orgHoldsStock(id) {
   });
 }
 window.startOpeningStock = async function() {
-  if (blockForCosts('Opening stock', null)) return;
+  if (blockForCosts('Opening stock', null, () => startOpeningStock())) return;
   if (_orgs.length ? _orgs.every(o => orgHoldsStock(o.id)) : orgHoldsStock('')) {
     toast(_orgs.length ? 'Every organisation already holds stock, so there is none to set opening stock for.' : 'Opening stock can only be set when there is no stock.', 'error');
     return;
@@ -3690,15 +3690,53 @@ function stockCostProblems(ids) {
     return !st.zeroCost && !(typeof st.costPrice === 'number' && st.costPrice > 0);
   }).map(i => i.name || '(unnamed)').sort((a, b) => a.localeCompare(b));
 }
-// true when blocked (and tells the user which items need a cost or "zero cost" ticked)
-function blockForCosts(what, ids) {
-  const bad = stockCostProblems(ids);
+// true when blocked: shows a window listing the items missing a cost (a cost box and a zero cost
+// tickbox each). Update saves them and then runs `retry` so the action carries straight on.
+let _costFix = null;
+function blockForCosts(what, ids, retry) {
+  const set = ids ? new Set(ids) : null;
+  const bad = _allMenuItems.filter(i => stockIsTracked(i.id) && (!set || set.has(i.id))).filter(i => {
+    const st = _stock[i.id] || {};
+    return !st.zeroCost && !(typeof st.costPrice === 'number' && st.costPrice > 0);
+  }).sort((x, y) => (x.name || '').localeCompare(y.name || ''));
   if (!bad.length) return false;
-  const shown = bad.slice(0, 12).join('\n');
-  alert(what + ' needs a cost on every stock item. Enter a cost, or tick "zero cost" if the item really is free.\n\n'
-    + shown + (bad.length > 12 ? '\n…and ' + (bad.length - 12) + ' more' : ''));
+  _costFix = { ids: bad.map(i => i.id), retry };
+  document.getElementById('costFixMsg').textContent = what + ' needs a cost on every stock item. Enter a cost, or tick Zero cost if the item really is free.';
+  document.getElementById('costFixBody').innerHTML = bad.map(i => `<tr>
+    <td>${escHtml(i.name || '')}<br><span style="color:var(--text-muted);font-size:11px">${escHtml(i.category || '')}</span></td>
+    <td><input type="number" min="0" step="0.01" class="stock-input" id="costFixCost-${i.id}" value="${(_stock[i.id] || {}).costPrice ?? ''}" oninput="document.getElementById('costFixZero-${i.id}').checked = false" aria-label="Cost"></td>
+    <td style="text-align:center"><input type="checkbox" id="costFixZero-${i.id}" onchange="if (this.checked) document.getElementById('costFixCost-${i.id}').value = ''" aria-label="Zero cost"></td>
+  </tr>`).join('');
+  document.getElementById('costFixModal').style.display = 'flex';
   return true;
 }
+window.costFixCancel = function() { document.getElementById('costFixModal').style.display = 'none'; _costFix = null; };
+window.costFixUpdate = async function() {
+  if (!_costFix) return;
+  const updates = [];
+  for (const id of _costFix.ids) {
+    const zero = document.getElementById('costFixZero-' + id).checked;
+    const raw = document.getElementById('costFixCost-' + id).value;
+    const cost = raw === '' ? null : Number(raw);
+    if (!zero && !(cost !== null && isFinite(cost) && cost > 0)) {
+      toast('Every item needs a cost above 0, or Zero cost ticked', 'error');
+      document.getElementById('costFixCost-' + id).focus();
+      return;
+    }
+    updates.push({ id, patch: zero ? { zeroCost: true, ...(cost !== null && isFinite(cost) && cost >= 0 ? { costPrice: cost } : {}) } : { zeroCost: false, costPrice: cost } });
+  }
+  const retry = _costFix.retry;
+  try {
+    const batch = db.batch();
+    updates.forEach(u => batch.set(db.collection('showdrinks_stock').doc(u.id), u.patch, { merge: true }));
+    await batch.commit();
+    updates.forEach(u => { _stock[u.id] = { ...(_stock[u.id] || {}), ...u.patch }; });
+    costFixCancel();
+    if (document.getElementById('tab-stock').classList.contains('active')) renderStockTab();
+    toast('Costs updated', 'success');
+    if (retry) retry();
+  } catch (e) { toast('Failed: ' + e.message, 'error'); }
+};
 window.saveStockZeroCost = async function(id, on) {
   _stock[id] = { ...(_stock[id] || {}), zeroCost: !!on };
   try { await db.collection('showdrinks_stock').doc(id).set({ zeroCost: !!on }, { merge: true }); }
@@ -3780,7 +3818,7 @@ let _stockAdjustId = null;
 let _stockAdjustStep = 1;
 
 window.openStockAdjust = function(id) {
-  if (blockForCosts('Adding stock', [id])) return;
+  if (blockForCosts('Adding stock', [id], () => openStockAdjust(id))) return;
   const item = _allMenuItems.find(i => i.id === id);
   _stockAdjustId = id;
   _stockAdjustStep = item?.frac ? 0.25 : 1;
@@ -4291,7 +4329,7 @@ window.printRestock = function() {
 window.receiveRestock = async function() {
   const rows = _allMenuItems.filter(i => stockIsTracked(i.id) && restockQty(i.id) > 0);
   if (!rows.length) { toast('Nothing on the restock list', 'error'); return; }
-  if (blockForCosts('Adding the restock to stock', rows.map(i => i.id))) return;
+  if (blockForCosts('Adding the restock to stock', rows.map(i => i.id), () => receiveRestock())) return;
   const org = await pickOrg('Receive restock', `Add ${rows.length} item(s) to stock as deliveries and clear the restock list? This cannot be undone from here. Which organisation is the delivery for?`);
   if (org === null) return;
   try {
