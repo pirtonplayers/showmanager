@@ -3784,19 +3784,18 @@ function stockCountCell(i) {
   const minus = `<button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepStockCount('${id}',-1)" aria-label="Minus one">−</button>`;
   const plus = `<button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepStockCount('${id}',1)" aria-label="Plus one">+</button>`;
   if (i.frac) {
-    let whole = Math.floor(v + 1e-9), f = Math.round((v - whole) * 4) / 4;
-    if (f >= 1) { whole += 1; f = 0; }
-    const opts = [0, 0.25, 0.5, 0.75].map(x => `<option value="${x}" ${x === f ? 'selected' : ''}>${x === 0 ? '0' : fmtQty(x)}</option>`).join('');
-    return `<td class="col-count" style="white-space:nowrap">${minus}<input type="number" min="0" step="1" class="stock-input" id="stockCount-${id}" value="${whole}" oninput="setStockCountFrac('${id}')" style="width:46px" aria-label="Whole units">${plus}<select class="stock-input" id="stockFrac-${id}" onchange="setStockCountFrac('${id}')" style="width:56px" aria-label="Fraction">${opts}</select></td>`;
+    // One box, shown as whole units plus ¼ ½ ¾ (2½); + / − move by a quarter, typing is parsed too.
+    return `<td class="col-count" style="white-space:nowrap">${minus}<input type="text" inputmode="decimal" class="stock-input" id="stockCount-${id}" value="${v === 0 ? '0' : fmtQty(v)}" onchange="setStockCountText('${id}',this.value)" style="width:64px;text-align:center" aria-label="Counted">${plus}</td>`;
   }
   return `<td class="col-count" style="white-space:nowrap">${minus}<input type="number" min="0" step="1" class="stock-input" id="stockCount-${id}" value="${v}" oninput="setStockCount('${id}',this.value)" style="width:56px" aria-label="Counted">${plus}</td>`;
 }
 
-window.setStockCountFrac = function(id) {
-  const whole = Math.max(0, parseInt(document.getElementById('stockCount-' + id).value, 10) || 0);
-  const f = parseFloat(document.getElementById('stockFrac-' + id).value) || 0;
-  _stockCounts[id] = whole + f;
+window.setStockCountText = function(id, raw) {
+  const v = Math.max(0, Math.round(parseQty(raw) * 4) / 4);
+  _stockCounts[id] = v;
   saveStockDraft();
+  const el = document.getElementById('stockCount-' + id);
+  if (el) el.value = v === 0 ? '0' : fmtQty(v);
 };
 
 window.setStockCount = function(id, raw) {
@@ -3812,12 +3811,7 @@ window.stepStockCount = function(id, d) {
   _stockCounts[id] = v;
   saveStockDraft();
   const el = document.getElementById('stockCount-' + id);
-  const fr = document.getElementById('stockFrac-' + id);
-  if (fr) {
-    const whole = Math.floor(v + 1e-9);
-    if (el) el.value = whole;
-    fr.value = String(Math.round((v - whole) * 4) / 4);
-  } else if (el) el.value = v;
+  if (el) el.value = stockStepFor(id) === 0.25 ? (v === 0 ? '0' : fmtQty(v)) : v;
 };
 
 // Deliveries/top-ups (+) or write-offs (−) at any time — goes in `added`, which the usage sum
@@ -4286,7 +4280,7 @@ function renderStockRestock() {
       <td>${escHtml(i.name || '')}<br><span style="color:var(--text-muted);font-size:11px">Now ${fmtQty(nowQty)} · Min ${st.minStock ?? '—'}<br>Restock level ${stockRestockLevel(st) ?? '—'}</span><br><span style="color:var(--text-muted);font-size:10px">${escHtml(i.category || '')}${typeof cost === 'number' ? ' · ' + fmtCurrency(cost) + ' each' : ''}</span></td>
       <td style="white-space:nowrap;text-align:right">
         <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepRestock('${i.id}',-1)" aria-label="Minus one">−</button>
-        <input type="number" min="0" step="${stockStepFor(i.id)}" class="stock-input" id="restockQty-${i.id}" value="${restockQty(i.id)}" onchange="setRestock('${i.id}',this.value)" style="width:64px;text-align:center" aria-label="Quantity to order">
+        <input type="text" inputmode="decimal" class="stock-input" id="restockQty-${i.id}" value="${fmtQty(restockQty(i.id))}" onchange="setRestock('${i.id}',this.value)" style="width:64px;text-align:center" aria-label="Quantity to order">
         <button type="button" class="btn btn-secondary btn-sm stock-step" onclick="stepRestock('${i.id}',1)" aria-label="Plus one">+</button>
         <button type="button" class="icon-btn" onclick="removeRestockItem('${i.id}')" title="Remove from restock list" aria-label="Remove from restock list" style="vertical-align:middle;margin-left:4px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
       </td>
@@ -4326,10 +4320,10 @@ window.removeRestockItem = async function(id) {
 window.setRestock = async function(id, raw) {
   // whole units, or quarters for items counted in quarters
   const q = stockStepFor(id) === 0.25 ? 4 : 1;
-  const v = Math.max(0, Math.round((Number(raw) || 0) * q) / q);
+  const v = Math.max(0, Math.round((typeof raw === 'number' ? raw : parseQty(raw)) * q) / q);
   _stock[id] = { ..._stock[id], restock: v };
   const el = document.getElementById('restockQty-' + id);
-  if (el) el.value = v;
+  if (el) el.value = fmtQty(v);
   try { await db.collection('showdrinks_stock').doc(id).set({ restock: v }, { merge: true }); }
   catch (e) { toast('Failed: ' + e.message, 'error'); }
 };
@@ -4341,16 +4335,25 @@ window.openRestockAdd = function() {
   _allMenuItems.filter(i => stockIsTracked(i.id)).forEach(i => { (byCat[i.category || 'Uncategorised'] ||= []).push(i); });
   document.getElementById('restockAddItem').innerHTML = Object.keys(byCat).map(c =>
     `<optgroup label="${escHtml(c)}">${byCat[c].map(i => `<option value="${i.id}">${escHtml(i.name || '')}</option>`).join('')}</optgroup>`).join('');
-  document.getElementById('restockAddQty').value = 1;
+  _restockAddVal = 1;
   restockAddItemChanged();
   document.getElementById('restockAddModal').style.display = 'flex';
 };
 
 // The quantity box steps (and its arrows move) by a quarter for items counted in quarters.
+let _restockAddVal = 1;
+function showRestockAddQty() { document.getElementById('restockAddQty').value = fmtQty(_restockAddVal); }
 window.restockAddItemChanged = function() {
-  const q = document.getElementById('restockAddQty');
+  // snap what is there to the new item's unit (whole units, or quarters)
+  const q = stockStepFor(document.getElementById('restockAddItem').value) === 0.25 ? 4 : 1;
+  _restockAddVal = Math.max(1 / q, Math.round(_restockAddVal * q) / q);
+  showRestockAddQty();
+};
+window.setRestockAddQty = function(raw) { _restockAddVal = parseQty(raw); restockAddItemChanged(); };
+window.stepRestockAdd = function(d) {
   const st = stockStepFor(document.getElementById('restockAddItem').value);
-  q.step = st; q.min = st;
+  _restockAddVal = Math.max(st, Math.round((_restockAddVal + d * st) * 4) / 4);
+  showRestockAddQty();
 };
 
 window.closeRestockAdd = function() { document.getElementById('restockAddModal').style.display = 'none'; };
@@ -4358,7 +4361,7 @@ window.closeRestockAdd = function() { document.getElementById('restockAddModal')
 window.confirmRestockAdd = async function() {
   const id = document.getElementById('restockAddItem').value;
   const q = stockStepFor(id) === 0.25 ? 4 : 1;   // quarters for items counted in quarters
-  const qty = Math.round(Number(document.getElementById('restockAddQty').value) * q) / q;
+  const qty = Math.round(_restockAddVal * q) / q;
   if (!id || !(qty > 0)) { toast('Pick an item and a quantity above 0', 'error'); return; }
   if (!_restockIds) _restockIds = new Set();
   _restockIds.add(id);
