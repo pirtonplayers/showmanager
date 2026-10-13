@@ -557,5 +557,9 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 .stock-footer button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 10px; border: none; background: none; color: var(--text-muted); font-size: 12px; font-weight: 600; cursor: pointer; border-top: 2px solid transparent; }
 .stock-footer button.active { color: var(--primary); border-top-color: var(--primary); }
 .stock-footer button:hover { color: var(--primary); }
-@media (min-width: 900px) { .stock-footer { left: 220px; } body.sidebar-collapsed .stock-footer { left: 0; } }
-.embedded .stock-footer { left: 0 !important; }
+/* Desktop: the bar spans the same width as the list card above (.admin-content: 1400px max, 24px padding, 220px side menu), with the three buttons spread across that. */
+@media (min-width: 900px) {
+  .stock-footer { left: 220px; right: auto; width: min(1400px, calc(100vw - 220px)); padding-left: 24px; padding-right: 24px; box-sizing: border-box; }
+  body.sidebar-collapsed .stock-footer { left: 0; width: min(1400px, 100vw); }
+}
+.embedded .stock-footer { left: 0 !important; width: min(1400px, 100vw) !important; }
