@@ -3518,8 +3518,14 @@ function stockRestockLevel(s) {
   return Math.max(min, typeof s.restockTo === 'number' ? s.restockTo : 0);
 }
 
+// The stock level for every purpose: the last count (if any) plus everything added since. An item
+// that was never counted but has had stock added still has an on-hand figure; null only means the
+// item has no stock figures at all.
 function stockOnHand(s) {
-  return s && typeof s.base === 'number' ? s.base + (s.added || 0) : null;
+  if (!s) return null;
+  const hasBase = typeof s.base === 'number';
+  if (!hasBase && !s.added) return null;
+  return (hasBase ? s.base : 0) + (s.added || 0);
 }
 
 // Quantities as whole units plus ¼ ½ ¾ (bottles are counted in quarters): 2.5 → "2½", 0.25 → "¼".
@@ -3986,10 +3992,11 @@ window.finishStockTake = async function() {
     const item = _allMenuItems.find(i => i.id === id);
     const s = _stock[id] || {};
     const counted = stockCountFor(id);
-    const hasBase = typeof s.base === 'number';
-    const opening = hasBase ? s.base : null;
+    const onHand = stockOnHand(s);   // last count + added since; an uncounted item with additions still has a level
+    const hasBase = onHand !== null;
+    const opening = hasBase ? (typeof s.base === 'number' ? s.base : 0) : null;
     const added = s.added || 0;
-    const used = hasBase && !_stockOpening ? opening + added - counted : null;
+    const used = hasBase && !_stockOpening ? onHand - counted : null;
     // Opening stock for an organisation counts only that organisation's share: the total becomes
     // (old total - its old share + the new count).
     const orgOpen = _stockOpening && !!_stockOrg;
