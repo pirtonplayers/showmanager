@@ -343,6 +343,7 @@ function switchShowSubtab(id) {
   document.querySelectorAll('.show-subtab-btn[data-subtab]').forEach(b => b.classList.toggle('active', b.dataset.subtab === id));
   updatePullTasksBtnVisibility();
   if (id === 'paylinks') loadPayLinks();
+  if (id === 'payments') loadPayments();
 }
 // "Pull in tasks" lives beside Save changes (outside the sub-tab panels) but only makes sense on
 // the Plan sub-tab, and only for someone who can edit the plan on a real (non-template) show.
@@ -2844,37 +2845,67 @@ async function loadPayLinks() {
   const list = document.getElementById('payLinksList');
   if (!currentShowId) { list.innerHTML = ''; return; }
   try {
-    const [linkSnap, paySnap] = await Promise.all([
-      db.collection('showdrinks_payLinks').where('showId', '==', currentShowId).get(),
-      db.collection('showdrinks_payments').where('showId', '==', currentShowId).where('paymentStatus', '==', 'paid').get(),
-    ]);
-    const totals = {};
-    paySnap.docs.forEach(d => {
-      const p = d.data();
-      if (p.test) return; // test payments never count toward a link's totals
-      const t = totals[p.linkId] || (totals[p.linkId] = { n: 0, sum: 0, names: [] });
-      t.n++; t.sum += Number(p.amount) || 0; t.names.push(p.payerName);
-    });
+    const linkSnap = await db.collection('showdrinks_payLinks').where('showId', '==', currentShowId).get();
     payLinks = linkSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.title.localeCompare(b.title));
-    list.innerHTML = payLinks.length ? payLinks.map(l => {
-      const t = totals[l.id] || { n: 0, sum: 0, names: [] };
-      return `<div class="card" style="margin-bottom:12px"><div class="card-body">
-        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+    list.innerHTML = payLinks.length ? payLinks.map(l => `<div class="card" style="margin-bottom:12px"><div class="card-body">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px">
           <strong>${escapeHtml(l.title)}${l.active === false ? ' <span style="color:var(--text-muted)">(inactive)</span>' : ''}${l.testMode ? ' <span style="color:#b45309">(TEST)</span>' : ''}</strong>
           <span>${fmtGbp(l.amount)}</span>
         </div>
-        <div style="font-size:13px;color:var(--text-muted);margin:4px 0 10px">${t.n} paid · ${fmtGbp(t.sum)}${t.n ? ' — ' + escapeHtml(t.names.join(', ')) : ''}</div>
         <button class="btn btn-primary btn-sm" data-pl-qr="${l.id}">QR / Link</button>
         <button class="btn btn-secondary btn-sm" data-pl-edit="${l.id}">Edit</button>
         <button class="btn btn-secondary btn-sm" data-pl-del="${l.id}">Delete</button>
-      </div></div>`;
-    }).join('') : '<p style="color:var(--text-muted)">No payment links for this show yet.</p>';
+      </div></div>`).join('') : '<p style="color:var(--text-muted)">No payment links for this show yet.</p>';
   } catch (e) {
     console.error(e);
     list.innerHTML = '';
     showToast('Could not load payment links', 'error');
   }
 }
+
+// ── Payments sub-tab: everything paid (or attempted) through this show's payment links ──
+let showPayments = [];
+
+async function loadPayments() {
+  const body = document.getElementById('paymentsTableBody');
+  if (!currentShowId) { body.innerHTML = ''; return; }
+  try {
+    const snap = await db.collection('showdrinks_payments').where('showId', '==', currentShowId).get();
+    showPayments = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    const real = showPayments.filter(p => !p.test && p.paymentStatus === 'paid');
+    document.getElementById('paymentsSummary').textContent =
+      `${real.length} paid · ${fmtGbp(real.reduce((n, p) => n + (Number(p.amount) || 0), 0))} (test payments not counted)`;
+    body.innerHTML = showPayments.length ? showPayments.map(p => {
+      const when = p.createdAt?.toDate ? p.createdAt.toDate().toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      const status = p.paymentStatus === 'paid' ? 'Paid' : 'Not completed';
+      return `<tr>
+        <td>${when}</td><td>${escapeHtml(p.payerName)}</td><td>${escapeHtml(p.linkTitle)}</td>
+        <td class="amount-cell">${fmtGbp(p.amount)}</td>
+        <td>${status}${p.test ? ' <span style="color:#b45309;font-weight:700">TEST</span>' : ''}</td>
+        <td>${p.test ? `<button class="icon-btn" data-pay-del="${p.id}" title="Delete test payment" aria-label="Delete test payment">${ICON_TRASH}</button>` : ''}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="6" style="color:var(--text-muted);padding:16px">No payments for this show yet.</td></tr>';
+  } catch (e) {
+    console.error(e);
+    body.innerHTML = '';
+    showToast('Could not load payments', 'error');
+  }
+}
+
+document.getElementById('refreshPaymentsBtn').addEventListener('click', loadPayments);
+document.getElementById('paymentsTableBody').addEventListener('click', async e => {
+  const b = e.target.closest('[data-pay-del]');
+  if (!b) return;
+  const p = showPayments.find(x => x.id === b.dataset.payDel);
+  if (!p || !p.test) return;
+  if (!confirm(`Delete this test payment (${p.payerName} – ${p.linkTitle}, ${fmtGbp(p.amount)})? This cannot be undone.`)) return;
+  try {
+    await db.collection('showdrinks_payments').doc(p.id).delete();
+    await loadPayments();
+    showToast('Test payment deleted', 'success');
+  } catch (err) { showToast('Could not delete: ' + err.message, 'error'); }
+});
 
 document.getElementById('payLinksList').addEventListener('click', e => {
   const b = e.target.closest('button');

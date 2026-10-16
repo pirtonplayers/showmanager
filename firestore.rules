@@ -93,6 +93,8 @@ service cloud.firestore {
     match /showdrinks_payments/{id} {
       allow read: if hasAccess('showdrinksAdmin') || hasAccess('showplanner');
       allow write: if hasAccess('showdrinksAdmin');
+      // ShowPlanner's Payments sub-tab can clear out test payments (never real ones).
+      allow delete: if hasAccess('showplanner') && resource.data.test == true;
     }
     match /showdrinks_menuItems/{id} {
       allow read: if true;

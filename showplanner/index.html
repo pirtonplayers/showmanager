@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.177"></script>
+  <script src="../shared/embed.js?v=1.1.178"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#6d28d9">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowPlanner</title>
-  <link rel="manifest" href="manifest.json?v=1.1.177">
-  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.1.177">
-  <link rel="stylesheet" href="style.css?v=1.1.177">
+  <link rel="manifest" href="manifest.json?v=1.1.178">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.1.178">
+  <link rel="stylesheet" href="style.css?v=1.1.178">
 </head>
 <body class="theme-showplanner">
 
@@ -211,7 +211,8 @@
         <button class="show-subtab-btn" data-subtab="cast">Cast</button>
         <button class="show-subtab-btn" data-subtab="rehearsals">Rehearsal Schedule</button>
         <button class="show-subtab-btn" data-subtab="budget">Budget</button>
-        <button class="show-subtab-btn" data-subtab="paylinks">Payment Links</button>
+        <button class="show-subtab-btn" data-subtab="payments">Payments</button>
+        <button class="show-subtab-btn" data-subtab="paylinks">Payments Setup</button>
       </div>
 
       <div id="showsubtab-details" class="show-subtab-panel active">
@@ -338,10 +339,27 @@
       </div>
       </div>
 
+  <!-- ── PAYMENTS ── -->
+  <div id="showsubtab-payments" class="show-subtab-panel">
+    <div class="section-header">
+      <h2>Payments</h2>
+      <button class="btn btn-secondary" id="refreshPaymentsBtn">Refresh</button>
+    </div>
+    <p id="paymentsSummary" style="font-size:14px;margin-bottom:12px"></p>
+    <div class="card"><div class="card-body" style="padding:0">
+      <div class="expense-table-wrap">
+        <table class="expense-table">
+          <thead><tr><th>Date</th><th>Name</th><th>Item</th><th style="width:90px">Amount</th><th>Status</th><th style="width:36px"></th></tr></thead>
+          <tbody id="paymentsTableBody"></tbody>
+        </table>
+      </div>
+    </div></div>
+  </div>
+
   <!-- ── PAYMENT LINKS ── -->
   <div id="showsubtab-paylinks" class="show-subtab-panel">
     <div class="section-header">
-      <h2>Payment Links</h2>
+      <h2>Payments Setup</h2>
       <button class="btn btn-primary" id="newPayLinkBtn">+ New link</button>
     </div>
     <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
@@ -735,11 +753,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.177"></script>
-<script src="../shared/load-script.js?v=1.1.177"></script>
-<script src="../shared/firebase-config.js?v=1.1.177"></script>
-<script src="../shared/auth.js?v=1.1.177"></script>
-<script src="../shared/suite-nav.js?v=1.1.177"></script>
-<script src="budget.js?v=1.1.177"></script>
+<script src="../shared/version.js?v=1.1.178"></script>
+<script src="../shared/load-script.js?v=1.1.178"></script>
+<script src="../shared/firebase-config.js?v=1.1.178"></script>
+<script src="../shared/auth.js?v=1.1.178"></script>
+<script src="../shared/suite-nav.js?v=1.1.178"></script>
+<script src="budget.js?v=1.1.178"></script>
 </body>
 </html>
