@@ -2851,6 +2851,7 @@ async function loadPayLinks() {
     const totals = {};
     paySnap.docs.forEach(d => {
       const p = d.data();
+      if (p.test) return; // test payments never count toward a link's totals
       const t = totals[p.linkId] || (totals[p.linkId] = { n: 0, sum: 0, names: [] });
       t.n++; t.sum += Number(p.amount) || 0; t.names.push(p.payerName);
     });
@@ -2859,7 +2860,7 @@ async function loadPayLinks() {
       const t = totals[l.id] || { n: 0, sum: 0, names: [] };
       return `<div class="card" style="margin-bottom:12px"><div class="card-body">
         <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
-          <strong>${escapeHtml(l.title)}${l.active === false ? ' <span style="color:var(--text-muted)">(inactive)</span>' : ''}</strong>
+          <strong>${escapeHtml(l.title)}${l.active === false ? ' <span style="color:var(--text-muted)">(inactive)</span>' : ''}${l.testMode ? ' <span style="color:#b45309">(TEST)</span>' : ''}</strong>
           <span>${fmtGbp(l.amount)}</span>
         </div>
         <div style="font-size:13px;color:var(--text-muted);margin:4px 0 10px">${t.n} paid · ${fmtGbp(t.sum)}${t.n ? ' — ' + escapeHtml(t.names.join(', ')) : ''}</div>
@@ -2895,6 +2896,7 @@ async function openPayLinkEditor(link) {
   document.getElementById('plAmount').value = link?.amount ?? '';
   document.getElementById('plDescription').value = link?.description || '';
   document.getElementById('plActive').checked = link ? link.active !== false : true;
+  document.getElementById('plTest').checked = !!link?.testMode;
   document.getElementById('plMerchantCode').value = '';
   document.getElementById('plApiKey').value = '';
   document.getElementById('payLinkEditor').style.display = '';
@@ -2928,6 +2930,7 @@ document.getElementById('savePayLinkBtn').addEventListener('click', async () => 
       title, amount, showId: currentShowId,
       description: document.getElementById('plDescription').value.trim(),
       active: document.getElementById('plActive').checked,
+      testMode: document.getElementById('plTest').checked,
     }, { merge: true });
     await db.collection('showdrinks_secrets').doc('paylink_' + ref.id).set({ sumupMerchantCode: merchantCode, sumupApiKey: apiKey });
     closePayLinkEditor();

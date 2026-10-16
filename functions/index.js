@@ -741,10 +741,21 @@ exports.createPaymentLinkCheckout = onCall({ region: 'europe-west1' }, async (re
   const amount = Number(Number(link.amount || 0).toFixed(2));
   if (!(amount > 0)) throw new HttpsError('failed-precondition', 'This payment link has no amount set.');
 
+  const paymentRef = db.collection('showdrinks_payments').doc();
+
+  // Test links never touch SumUp: the payment page walks through a pretend checkout and calls
+  // verifyPaymentLinkPayment with a testOutcome, which only a test payment accepts.
+  if (link.testMode) {
+    await paymentRef.set({
+      linkId, showId: link.showId || null, linkTitle: link.title, payerName: name, amount,
+      paymentStatus: 'pending', test: true, createdAt: FieldValue.serverTimestamp(),
+    });
+    return { test: true, paymentId: paymentRef.id, linkId };
+  }
+
   const { merchantCode, apiKey } = await payLinkCredentials(linkId);
   if (!merchantCode || !apiKey) throw new HttpsError('failed-precondition', 'SumUp is not configured for this link.');
 
-  const paymentRef = db.collection('showdrinks_payments').doc();
   const res = await fetch('https://api.sumup.com/v0.1/checkouts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -783,7 +794,15 @@ exports.verifyPaymentLinkPayment = onCall({ region: 'europe-west1' }, async (req
   if (!paymentDoc.exists) throw new HttpsError('not-found', 'Payment not found.');
   const p = paymentDoc.data();
   const info = { title: p.linkTitle, amount: p.amount, linkId: p.linkId };
-  if (p.paymentStatus === 'paid') return { paid: true, ...info };
+  if (p.paymentStatus === 'paid') return { paid: true, test: !!p.test, ...info };
+
+  if (p.test) {
+    if (request.data?.testOutcome === 'paid') {
+      await paymentRef.update({ paymentStatus: 'paid', paidAt: FieldValue.serverTimestamp() });
+      return { paid: true, test: true, ...info };
+    }
+    return { paid: false, test: true, ...info };
+  }
 
   const { apiKey } = await payLinkCredentials(p.linkId);
   if (!apiKey) throw new HttpsError('failed-precondition', 'SumUp is not configured.');

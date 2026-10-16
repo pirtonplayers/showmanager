@@ -1558,6 +1558,7 @@ async function showPayLinkForm(linkId) {
   payLinkShell(`
     <div class="pwa-section-title">${escHtml(link.title)}</div>
     <div style="font-size:34px;font-weight:900;color:var(--primary);margin:4px 0 16px">£${Number(link.amount).toFixed(2)}</div>
+    ${link.testMode ? '<div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:#b45309;background:#fef3c7;padding:6px 12px;border-radius:999px;text-align:center;margin-bottom:14px">TEST LINK — NO MONEY TAKEN</div>' : ''}
     ${link.description ? `<p style="color:var(--text-muted);font-size:14px;margin-bottom:16px">${escHtml(link.description)}</p>` : ''}
     <div class="form-group">
       <label for="payLinkName">Your name</label>
@@ -1572,6 +1573,7 @@ async function showPayLinkForm(linkId) {
     btn.disabled = true; btn.textContent = 'Redirecting to SumUp…';
     try {
       const result = await createPayLinkCheckoutFn({ linkId, payerName: name });
+      if (result.data.test) { showTestPayLinkCheckout(result.data.paymentId, btn, link); return; }
       window.location.href = result.data.hostedCheckoutUrl;
     } catch (e) {
       toast(e.message || 'Could not start SumUp checkout', 'error');
@@ -1580,14 +1582,35 @@ async function showPayLinkForm(linkId) {
   };
 }
 
-async function showPayLinkResult(paymentId) {
+// Stand-in for SumUp's hosted checkout on a test link: nothing is charged, but the payment is
+// recorded (flagged test) and the same result screen follows, so the whole flow can be walked through.
+function showTestPayLinkCheckout(paymentId, btn, link) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center';
+  ov.innerHTML = `<div style="font-size:12px;font-weight:700;letter-spacing:.1em;color:#b45309;background:#fef3c7;padding:4px 12px;border-radius:999px">TEST PAYMENT — NO MONEY TAKEN</div>
+    <div style="font-size:22px;font-weight:800">Test checkout</div>
+    <div style="color:var(--text-muted)">${escHtml(link.title)} — £${Number(link.amount).toFixed(2)}</div>
+    <button class="btn btn-success btn-full btn-lg" id="testPlOk" style="height:56px;border-radius:12px">Simulate successful payment</button>
+    <button class="btn btn-secondary btn-full btn-lg" id="testPlFail" style="height:56px;border-radius:12px">Simulate failed / abandoned payment</button>`;
+  document.body.appendChild(ov);
+  const finish = async outcome => {
+    ov.querySelectorAll('button').forEach(b => b.disabled = true);
+    await showPayLinkResult(paymentId, outcome);
+    ov.remove();
+  };
+  document.getElementById('testPlOk').onclick = () => finish('paid');
+  document.getElementById('testPlFail').onclick = () => finish('failed');
+}
+
+async function showPayLinkResult(paymentId, testOutcome) {
   let r = null;
-  try { r = (await verifyPayLinkPaymentFn({ paymentId })).data; } catch (e) { console.error(e); }
+  try { r = (await verifyPayLinkPaymentFn({ paymentId, testOutcome })).data; } catch (e) { console.error(e); }
   history.replaceState({}, '', window.location.pathname);
   if (r && r.paid) {
     payLinkShell(`<div style="text-align:center"><div style="font-size:56px">✅</div>
       <div class="pwa-section-title">Payment received</div>
-      <p style="color:var(--text-muted)">${escHtml(r.title)} — £${Number(r.amount).toFixed(2)}. Thank you!</p></div>`);
+      <p style="color:var(--text-muted)">${escHtml(r.title)} — £${Number(r.amount).toFixed(2)}. Thank you!</p>
+      ${r.test ? '<p style="font-size:12px;font-weight:700;color:#b45309">TEST — no money was taken</p>' : ''}</div>`);
   } else {
     const again = r && r.linkId ? `<a class="btn btn-primary btn-full" href="?pay=${encodeURIComponent(r.linkId)}">Try again</a>` : '';
     payLinkShell(`<div style="text-align:center"><div style="font-size:56px">⚠️</div>
