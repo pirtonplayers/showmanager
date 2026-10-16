@@ -78,7 +78,10 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     // .menu-sticky-header is display:none (0 height) whenever this isn't the active tab, so
     // whatever updateMenuTheadStickyTop() computed while loadMenuItems() ran at app init is
     // wrong until it's recomputed with the panel actually visible.
-    if (btn.dataset.tab === 'menu') updateMenuTheadStickyTop();
+    if (btn.dataset.tab === 'menu') {
+      updateMenuTheadStickyTop();
+      loadMenuItems().then(updateMenuTheadStickyTop).catch(e => toast('Could not load prices: ' + e.message, 'error'));
+    }
   });
 });
 
@@ -354,7 +357,7 @@ function startsWithSpecialChar(name) {
 async function loadMenuItems() {
   await loadBuyNowCats();
   // Fetch all, sort client-side by category then name (special-char-prefixed names last)
-  const snap = await db.collection('showdrinks_menuItems').get();
+  const snap = await db.collection('showdrinks_menuItems').get({ source: 'server' });
   _allMenuItems = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => {
       const ca = (a.category || '').toLowerCase(), cb = (b.category || '').toLowerCase();
@@ -4420,6 +4423,52 @@ window.exportStockCsv = function() {
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 
+// Every top-level dataset in one go — used at start-up and by the menu's "Reload data" button
+// (data occasionally fails to appear on first load, esp. prices and stock; this forces a fresh
+// read from the server). Each load is independent, so one failing doesn't blank the rest.
+async function loadAllData() {
+  // loadOrders() included since Orders is the default tab now — otherwise it'd sit empty
+  // until the user clicked away and back (every other tab's own data only loads on click).
+  // Both loadLocations() and loadOrders() (which itself reads locations, to fill in each
+  // order's collection point) touch showdrinks_locations — showdrinksAdmin-only in
+  // firestore.rules — so a tabs-only account (no showdrinksAdmin) would reject on that
+  // permission-denied read. Neither is needed for Bar Tabs POS anyway, so skip both (and the
+  // stock tab) in that restricted view.
+  const loads = [loadShows(), loadMenuItems(), loadSettings()];
+  if (!_tabsOnlyMode) loads.push(loadLocations(), loadOrders());
+  const results = await Promise.allSettled(loads);
+  // Stock is laid out against the price list's items, so it goes after the menu has loaded.
+  if (!_tabsOnlyMode) await loadStockTab();
+  const failed = results.find(r => r.status === 'rejected');
+  if (failed) throw failed.reason;
+}
+
+window.reloadAllData = async function() {
+  document.getElementById('mainMenuDropdown')?.classList.remove('open');
+  document.body.classList.remove('menu-open');
+  toast('Reloading data…', 'info');
+  try {
+    await loadAllData();
+    toast('Data reloaded', 'success');
+  } catch (e) {
+    console.error(e);
+    toast('Could not reload some data: ' + e.message, 'error');
+  }
+};
+
+async function init() {
+  if (typeof APP_VERSION !== 'undefined') {
+    document.getElementById('headerVersion').textContent = 'v' + APP_VERSION;
+  }
+  try {
+    await loadAllData();
+    toast('Data reloaded', 'success');
+  } catch (e) {
+    console.error(e);
+    toast('Could not reload some data: ' + e.message, 'error');
+  }
+};
+
 async function init() {
   if (typeof APP_VERSION !== 'undefined') {
     document.getElementById('headerVersion').textContent = 'v' + APP_VERSION;
@@ -4432,11 +4481,9 @@ async function init() {
     // firestore.rules — so a tabs-only account (no showdrinksAdmin) would have Promise.all
     // reject on that permission-denied read and never reach the tabs screen at all. Neither is
     // needed for Bar Tabs POS anyway, so skip both in that restricted view.
-    const loads = [loadShows(), loadMenuItems(), loadSettings()];
-    if (!_tabsOnlyMode) loads.push(loadLocations(), loadOrders());
-    await Promise.all(loads);
+    await loadAllData();
   } catch(e) {
-    document.getElementById('headerShowName').textContent = 'Firebase not configured';
-    toast('Firebase not configured – edit firebase-config.js', 'error');
+    console.error(e);
+    toast('Some data did not load (' + e.message + ') – open the menu and choose Reload data', 'error');
   }
 }

@@ -38,6 +38,7 @@ const APP_SUBNAV = {
     { id: 'show', label: 'Show & Sessions', selector: '[data-tab="show"]', separatorBefore: true },
     { id: 'locations', label: 'Locations', selector: '[data-tab="locations"]' },
     { id: 'orgs', label: 'Organisations', selector: '#orgsMenuBtn', action: true },
+    { id: 'reload', label: '↻ Reload data', selector: '#reloadDataBtn', action: true },
     { id: 'pos', label: 'POS Layout', selector: '[data-tab="pos"]' },
     { id: 'settings', label: 'Settings & QR', selector: '[data-tab="settings"]' },
   ],

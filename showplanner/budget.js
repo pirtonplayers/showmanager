@@ -2867,6 +2867,7 @@ async function loadPayLinks() {
 
 // ── Payments sub-tab: everything paid (or attempted) through this show's payment links ──
 let showPayments = [];
+let shownPayments = []; // the rows currently on screen (respects the unsuccessful-payments checkbox)
 
 async function loadPayments() {
   const body = document.getElementById('paymentsTableBody');
@@ -2880,6 +2881,7 @@ async function loadPayments() {
       `${real.length} paid · ${fmtGbp(real.reduce((n, p) => n + (Number(p.amount) || 0), 0))} (test payments not counted)`;
     // Unsuccessful (abandoned/failed) attempts are hidden unless the checkbox is ticked.
     const shown = showPayments.filter(p => p.paymentStatus === 'paid' || document.getElementById('showFailedPayments').checked);
+    shownPayments = shown;
     body.innerHTML = shown.length ? shown.map(p => {
       const when = p.createdAt?.toDate ? p.createdAt.toDate().toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       const status = p.paymentStatus === 'paid' ? 'Paid' : 'Not completed';
@@ -2898,6 +2900,22 @@ async function loadPayments() {
 }
 
 document.getElementById('refreshPaymentsBtn').addEventListener('click', loadPayments);
+document.getElementById('exportPaymentsBtn').addEventListener('click', () => {
+  if (!shownPayments.length) { showToast('No payments to export', 'error'); return; }
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const rows = [['Date', 'Name', 'Item', 'Amount', 'Status', 'Test']];
+  shownPayments.forEach(p => rows.push([
+    p.createdAt?.toDate ? p.createdAt.toDate().toLocaleString('en-GB') : '',
+    p.payerName, p.linkTitle, Number(p.amount || 0).toFixed(2),
+    p.paymentStatus === 'paid' ? 'Paid' : 'Not completed', p.test ? 'Yes' : '',
+  ]));
+  const csv = '\ufeff' + rows.map(r => r.map(q).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `payments-${(currentShow?.name || 'show').replace(/[^\w]+/g, '-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
 document.getElementById('showFailedPayments').addEventListener('change', loadPayments);
 document.getElementById('paymentsTableBody').addEventListener('click', async e => {
   const b = e.target.closest('[data-pay-del]');
