@@ -145,15 +145,21 @@ let allTemplates = [];      // [{id, ...data}] — task-checklist templates (sho
 let currentTemplate = null; // working copy of the template doc currently open in its editor
 let currentTemplateId = null;
 let collapsedTemplateChildren = new Set(); // local UI-only state — which tasks have their sub-task cards hidden
-let showEditorDirty = false; // any pending edit to the OPEN show not yet written by Save changes
-function markDirty() { showEditorDirty = true; }
+let showEditorDirty = false; // any edit to the OPEN show not yet written to Firestore
+let autosaveTimer = null;
+// Every edit schedules an autosave a moment after the last change (there is no Save button).
+function markDirty() {
+  showEditorDirty = true;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => saveShow(), 1200);
+}
 // Text/number/select edits inside the editor (or the two modals that feed it — Add income/spend
 // item, Assign role) mark dirty generically; the handful of pure button actions with no typed
 // input of their own (generate/add/remove performance, add/remove role, remove income/spend
 // line) call markDirty() explicitly at their own call sites below. The Task modal is deliberately
 // excluded — task edits commit to Firestore immediately on their own, never part of this show
-// doc's pending Save changes.
-function isShowEditorScoped(el) { return !!el.closest('#tab-editor, #addItemModal, #assignRoleModal'); }
+// doc's autosave. Likewise the Payments / Payments Setup sub-tabs, which save as you go.
+function isShowEditorScoped(el) { return !!el.closest('#tab-editor, #addItemModal, #assignRoleModal') && !el.closest('#showsubtab-payments, #showsubtab-paylinks'); }
 document.addEventListener('input', (e) => { if (e.target.matches('input, textarea, select') && isShowEditorScoped(e.target)) markDirty(); });
 document.addEventListener('change', (e) => { if (e.target.matches('input, textarea, select') && isShowEditorScoped(e.target)) markDirty(); });
 window.addEventListener('beforeunload', (e) => {
@@ -318,7 +324,11 @@ function switchTab(tab) {
 }
 function confirmLeaveEditor() {
   if (!showEditorDirty) return true;
-  return confirm('You have unsaved changes on this show. Leave without saving?');
+  // Flush any pending autosave now — saveShow captures the show's data synchronously, so it is
+  // safe to carry on and swap the editor out straight away. Only a show with no name can't be
+  // saved, and that still needs asking about.
+  if (currentShow?.name?.trim()) { saveShow(); return true; }
+  return confirm('This show has no name so it cannot be saved. Leave without saving?');
 }
 document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -341,14 +351,10 @@ function switchShowSubtab(id) {
   document.getElementById('showsubtab-' + id).classList.add('active');
   document.querySelectorAll('.show-subtab-btn[data-subtab]').forEach(b => b.classList.toggle('active', b.dataset.subtab === id));
   updatePullTasksBtnVisibility();
-  // Payments / Payments Setup save themselves as you go (nothing for Save changes to do there).
-  const selfSaving = id === 'payments' || id === 'paylinks';
-  document.getElementById('saveShowBtn').style.display = selfSaving ? 'none' : '';
-  document.getElementById('saveStatusText').style.display = selfSaving ? 'none' : '';
   if (id === 'paylinks') loadPayLinks();
   if (id === 'payments') loadPayments();
 }
-// "Pull in tasks" lives beside Save changes (outside the sub-tab panels) but only makes sense on
+// "Pull in tasks" lives in the show page's ⋯ menu (outside the sub-tab panels) but only makes sense on
 // the Plan sub-tab, and only for someone who can edit the plan on a real (non-template) show.
 function updatePullTasksBtnVisibility() {
   const onPlan = document.getElementById('showsubtab-plan').classList.contains('active');
@@ -364,6 +370,7 @@ async function openShow(id) {
   currentShowId = id;
   currentShow = withDefaults({ id: doc.id, ...doc.data() });
   showEditorDirty = false;
+  clearTimeout(autosaveTimer);
   await loadCurrentShowTasks();
   collapseAllTasks();
   renderEditor();
@@ -667,7 +674,7 @@ async function initGroupSortable(kind) {
 }
 
 // Assignments are written the moment they're picked (just that one entry, merged into the show's
-// map) rather than waiting for Save changes — the rest of the editor stays a pending edit.
+// map) rather than waiting for the editor's debounced autosave.
 async function saveAssignmentNow(field, itemId, selected) {
   try {
     await db.collection('showplanner_shows').doc(currentShowId).set({
@@ -1926,42 +1933,47 @@ document.getElementById('rehExportBtn').addEventListener('click', async () => {
 
 // ── Save / Template / Delete ────────────────────────────────────────────
 
-document.getElementById('saveShowBtn').addEventListener('click', async () => {
+// Autosave (see markDirty). The payload is built synchronously, before any await, so the data
+// written is the show as it was when the save started even if the editor is swapped straight after.
+async function saveShow() {
+  clearTimeout(autosaveTimer);
   const statusEl = document.getElementById('saveStatusText');
-  if (!currentShow.name?.trim()) { showToast('Enter a show name', 'error'); return; }
+  if (!currentShow || !currentShowId) return;
+  if (!currentShow.name?.trim()) { statusEl.textContent = 'Enter a show name to save'; return; }
   if (!currentShow.isTemplate && currentUserCanEditPlan()) {
     const checked = new Set(Array.from(document.querySelectorAll('#planAccessList input:checked')).map(cb => cb.value));
     const map = {};
     allShowplannerUsers.forEach(u => { map[u.id] = checked.has(u.id) ? 'edit' : 'read'; });
     currentShow.planAccess = map;
   }
+  const showId = currentShowId;
+  const payload = {
+    name: currentShow.name.trim(),
+    roles: currentShow.roles || [],
+    roleAssignments: currentShow.roleAssignments || {},
+    cast: currentShow.cast || [],
+    castAssignments: currentShow.castAssignments || {},
+    rehearsals: currentShow.rehearsals || [],
+    planAccess: currentShow.planAccess || {},
+    planTemplateId: currentShow.planTemplateId || null,
+    isTemplate: currentShow.isTemplate === true,
+    copiedFrom: currentShow.copiedFrom || null,
+    fixedParams: currentShow.fixedParams,
+    income: currentShow.income,
+    spend: currentShow.spend,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+  showEditorDirty = false;
   statusEl.textContent = 'Saving…';
   try {
-    await db.collection('showplanner_shows').doc(currentShowId).set({
-      name: currentShow.name.trim(),
-      roles: currentShow.roles || [],
-      roleAssignments: currentShow.roleAssignments || {},
-      cast: currentShow.cast || [],
-      castAssignments: currentShow.castAssignments || {},
-      rehearsals: currentShow.rehearsals || [],
-      planAccess: currentShow.planAccess || {},
-      planTemplateId: currentShow.planTemplateId || null,
-      isTemplate: currentShow.isTemplate === true,
-      copiedFrom: currentShow.copiedFrom || null,
-      fixedParams: currentShow.fixedParams,
-      income: currentShow.income,
-      spend: currentShow.spend,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-    statusEl.textContent = 'Saved ' + new Date().toLocaleTimeString('en-GB');
-    showToast('Saved', 'success');
-    showEditorDirty = false;
-    await loadShows();
+    await db.collection('showplanner_shows').doc(showId).set(payload, { merge: true });
+    if (showId === currentShowId && !showEditorDirty) statusEl.textContent = 'Saved ' + new Date().toLocaleTimeString('en-GB');
   } catch (err) {
-    statusEl.textContent = '';
-    showToast(err.message, 'error');
+    if (showId === currentShowId) showEditorDirty = true; // keep the unsaved-changes guard
+    statusEl.textContent = 'Not saved';
+    showToast('Could not save: ' + err.message, 'error');
   }
-});
+}
 
 // Only one show is ever the template — same "Set as Current" pattern showdrinks uses for its
 // shows, applied here to isTemplate instead.

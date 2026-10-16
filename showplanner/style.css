@@ -747,9 +747,6 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
 #rehearsalTable .reh-called-btn { font-size: 12px; padding: 3px 6px; }
 #rehearsalTable .grid-del-btn { padding: 0 6px; }
 
-/* Show editor: every control in one bar, stuck to the bottom of the viewport. */
-.show-action-bar { position: sticky; bottom: 0; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 24px -4px 0; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -2px 8px rgba(0,0,0,.08); }
-
 /* ⋯ menu at the top right of the show page. */
 .show-menu { position: absolute; right: 0; top: 36px; z-index: 120; min-width: 210px; padding: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); }
 .show-menu button { display: flex; align-items: center; gap: 6px; width: 100%; padding: 10px 12px; border: none; border-radius: 6px; background: none; font-size: 14px; font-weight: 500; color: var(--text); text-align: left; cursor: pointer; }
