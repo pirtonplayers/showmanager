@@ -1445,6 +1445,13 @@ async function init() {
     if (el) el.textContent = 'v' + APP_VERSION;
   }
 
+  // Payment links (ShowPlanner → show → Payment Links): a QR/URL to pay one fixed-price item, e.g.
+  // a rehearsal sub. Independent of ordering, so handled before anything about the bar's current
+  // show or the ordering QR gate is loaded — it always shows a plain Pirton Players header.
+  const earlyParams = new URLSearchParams(window.location.search);
+  if (earlyParams.get('sumup') === 'return' && earlyParams.get('payment')) { await showPayLinkResult(earlyParams.get('payment')); return; }
+  if (earlyParams.get('pay')) { await showPayLinkForm(earlyParams.get('pay')); return; }
+
   try {
     const [showSnap, menuSnap, settingsDoc, posSnap, catDoc] = await Promise.all([
       db.collection('showdrinks_shows').where('isCurrent', '==', true).limit(1).get(),
@@ -1486,11 +1493,6 @@ async function init() {
     // Either way (paid or still pending — a customer who backed out without paying, say) the
     // order status screen is the right place to land: it'll just show whatever's actually true.
     const params = new URLSearchParams(window.location.search);
-
-    // Payment links (admin → Payment Links): a QR/URL to pay one fixed-price item, e.g. a
-    // rehearsal sub. Handled before the ordering QR gate below — they're separate from ordering.
-    if (params.get('sumup') === 'return' && params.get('payment')) { await showPayLinkResult(params.get('payment')); return; }
-    if (params.get('pay')) { await showPayLinkForm(params.get('pay')); return; }
     if (params.get('sumup') === 'return' && params.get('ref')) {
       const orderId = params.get('ref');
       try {
@@ -1539,6 +1541,8 @@ async function init() {
 // ── Payment links ──────────────────────────────────────────────────────────
 
 function payLinkShell(html) {
+  document.getElementById('heroShowName').textContent = 'Pirton Players';
+  document.title = 'Pirton Players';
   document.body.classList.add('sub-screen');
   document.getElementById('homeContent').innerHTML =
     '<div style="max-width:420px;margin:0 auto;padding:8px 0">' + html + '</div>';
@@ -1554,7 +1558,6 @@ async function showPayLinkForm(linkId) {
     payLinkShell('<div class="pwa-section-title">This payment link is no longer valid</div>');
     return;
   }
-  document.title = link.title;
   payLinkShell(`
     <div class="pwa-section-title">${escHtml(link.title)}</div>
     <div style="font-size:34px;font-weight:900;color:var(--primary);margin:4px 0 16px">£${Number(link.amount).toFixed(2)}</div>

@@ -704,8 +704,8 @@ exports.verifySumupPayment = onCall({ region: 'europe-west1' }, async (request) 
 // A payment link (showdrinks_payLinks/{id}: title, amount) is a fixed-price single item — a
 // rehearsal sub, say — that anyone can pay via a QR/URL (showdrinks/index.html?pay=<id>). Each
 // link can carry its own SumUp merchant code/API key (showdrinks_secrets/paylink_<id>, admin-only),
-// so subs can go to a different SumUp profile than the bar; blank falls back to the same
-// show/system defaults the bar uses. Each attempt is a showdrinks_payments doc (admin-readable).
+// so subs can go to a different SumUp profile than the bar; blank falls back to the system
+// default (never the bar's current show). Each attempt is a showdrinks_payments doc (admin-readable).
 
 async function payLinkCredentials(linkId) {
   const secretDoc = await db.collection('showdrinks_secrets').doc('paylink_' + linkId).get();
@@ -713,7 +713,18 @@ async function payLinkCredentials(linkId) {
   if (secret.sumupMerchantCode && secret.sumupApiKey) {
     return { merchantCode: secret.sumupMerchantCode, apiKey: secret.sumupApiKey };
   }
-  return sumupCredentials();
+  // System default only — payment links deliberately ignore the bar's current show (and its
+  // per-show SumUp override), which has nothing to do with a rehearsal sub.
+  const [systemSecretDoc, settingsDoc] = await Promise.all([
+    db.collection('showdrinks_secrets').doc('system').get(),
+    db.collection('showdrinks_config').doc('settings').get(),
+  ]);
+  const systemSecret = systemSecretDoc.exists ? systemSecretDoc.data() : {};
+  const settings = settingsDoc.exists ? settingsDoc.data() : {};
+  return {
+    merchantCode: systemSecret.sumupMerchantCode || settings.sumupMerchantCode,
+    apiKey: systemSecret.sumupApiKey || settings.sumupApiKey,
+  };
 }
 
 exports.createPaymentLinkCheckout = onCall({ region: 'europe-west1' }, async (request) => {
