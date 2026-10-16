@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowDrinks</title>
-  <link rel="manifest" href="manifest.json?v=1.1.175">
-  <link rel="stylesheet" href="style.css?v=1.1.175">
+  <link rel="manifest" href="manifest.json?v=1.1.176">
+  <link rel="stylesheet" href="style.css?v=1.1.176">
   <style>
     .pwa-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--primary); }
     .pwa-content { flex: 1; background: var(--bg); border-radius: 24px 24px 0 0; margin-top: 8px; padding: 24px 20px 40px; overflow-y: auto; }
@@ -250,6 +250,7 @@
     .poi-ready-line { font-size:16px; font-weight:700; color:var(--success); }
     .status-icon-wrap.collected { background:#f1f5f9; }
   </style>
+  <style>html.paylink #heroBasketBtn, html.paylink #heroVersion { display:none !important; }</style>
 </head>
 <body>
 
@@ -281,6 +282,17 @@
       <path class="pph-5" d="M96.816,41.153c.173,3.383-2.22,6.255-5.344,6.414-3.123.159-5.794-2.455-5.967-5.838-.173-3.384,2.22-6.255,5.344-6.414,3.123-.159,5.794,2.455,5.967,5.838Z"/>
     </svg>
     <h1 id="heroShowName">ShowDrinks</h1>
+    <script>
+      // Payment-link visits (?pay=… / return from SumUp ?payment=…) never show ShowDrinks: set the
+      // Pirton Players header and compact hero synchronously, before first paint (order.js then
+      // renders the pay form into the home screen).
+      if (/[?&](pay|payment)=/.test(location.search)) {
+        document.documentElement.classList.add('paylink');
+        document.getElementById('heroShowName').textContent = 'Pirton Players';
+        document.title = 'Pirton Players';
+        document.body.classList.add('sub-screen');
+      }
+    </script>
     <p style="font-size:11px;opacity:.4;margin-top:4px" id="heroVersion"></p>
     <button type="button" id="heroBasketBtn" onclick="goToListBasket()" title="View basket">
       <span class="hero-basket-row">
@@ -410,9 +422,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.175"></script>
-<script src="../shared/firebase-config.js?v=1.1.175"></script>
-<script src="order.js?v=1.1.175"></script>
+<script src="../shared/version.js?v=1.1.176"></script>
+<script src="../shared/firebase-config.js?v=1.1.176"></script>
+<script src="order.js?v=1.1.176"></script>
 <script>
   document.addEventListener('gesturestart', e => e.preventDefault());
   // A pinch is 2+ simultaneous touch points — this is the reliable cross-browser check.
