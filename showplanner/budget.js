@@ -2876,10 +2876,12 @@ async function loadPayments() {
     const real = showPayments.filter(p => !p.test && p.paymentStatus === 'paid');
     document.getElementById('paymentsSummary').textContent =
       `${real.length} paid · ${fmtGbp(real.reduce((n, p) => n + (Number(p.amount) || 0), 0))} (test payments not counted)`;
-    body.innerHTML = showPayments.length ? showPayments.map(p => {
+    // Unsuccessful (abandoned/failed) attempts are hidden unless the checkbox is ticked.
+    const shown = showPayments.filter(p => p.paymentStatus === 'paid' || document.getElementById('showFailedPayments').checked);
+    body.innerHTML = shown.length ? shown.map(p => {
       const when = p.createdAt?.toDate ? p.createdAt.toDate().toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       const status = p.paymentStatus === 'paid' ? 'Paid' : 'Not completed';
-      return `<tr>
+      return `<tr${p.paymentStatus === 'paid' ? '' : ' style="color:#dc2626"'}>
         <td>${when}</td><td>${escapeHtml(p.payerName)}</td><td>${escapeHtml(p.linkTitle)}</td>
         <td class="amount-cell">${fmtGbp(p.amount)}</td>
         <td>${status}${p.test ? ' <span style="color:#b45309;font-weight:700">TEST</span>' : ''}</td>
@@ -2894,6 +2896,7 @@ async function loadPayments() {
 }
 
 document.getElementById('refreshPaymentsBtn').addEventListener('click', loadPayments);
+document.getElementById('showFailedPayments').addEventListener('change', loadPayments);
 document.getElementById('paymentsTableBody').addEventListener('click', async e => {
   const b = e.target.closest('[data-pay-del]');
   if (!b) return;

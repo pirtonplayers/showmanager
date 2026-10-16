@@ -1540,7 +1540,6 @@ async function init() {
 function payLinkShell(html) {
   document.getElementById('heroShowName').textContent = 'Pirton Players';
   document.title = 'Pirton Players';
-  document.body.classList.add('sub-screen');
   document.getElementById('homeContent').innerHTML =
     '<div style="max-width:420px;margin:0 auto;padding:8px 0">' + html + '</div>';
 }
