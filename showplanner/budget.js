@@ -188,7 +188,6 @@ function renderShowsList() {
         ${s.isTemplate ? '<div class="item-sub">Used to start new shows</div>' : ''}
       </div>
       <div class="item-actions">
-        <button class="icon-btn" data-open-show="${s.id}" title="Open" aria-label="Open">${ICON_EDIT}</button>
         <button class="icon-btn" data-copy-show="${s.id}" title="Copy" aria-label="Copy">${ICON_COPY}</button>
         <button class="icon-btn icon-btn-danger" data-delete-show="${s.id}" ${s.isTemplate ? 'disabled title="Make another show the template first"' : 'title="Delete" aria-label="Delete"'}>${ICON_TRASH}</button>
       </div>
@@ -197,8 +196,8 @@ function renderShowsList() {
   }).join('');
 }
 
-// The row itself also carries data-open-show (see above) so clicking anywhere on a row opens it,
-// same as the Open button — Copy/Delete are checked first so they keep doing their own thing.
+// The row itself carries data-open-show (see above) so tapping anywhere on a show card opens it —
+// Copy/Delete are checked first so they keep doing their own thing.
 document.getElementById('showsList').addEventListener('click', async (e) => {
   const copyBtn = e.target.closest('[data-copy-show]');
   if (copyBtn) { openNewShowModal(copyBtn.getAttribute('data-copy-show')); return; }
