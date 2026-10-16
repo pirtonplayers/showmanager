@@ -342,6 +342,8 @@ function switchShowSubtab(id) {
   document.getElementById('showsubtab-' + id).classList.add('active');
   document.querySelectorAll('.show-subtab-btn[data-subtab]').forEach(b => b.classList.toggle('active', b.dataset.subtab === id));
   updatePullTasksBtnVisibility();
+  // Payments / Payments Setup save themselves as you go (nothing for Save changes to do there).
+  document.getElementById('saveShowBtn').parentElement.style.display = (id === 'payments' || id === 'paylinks') ? 'none' : '';
   if (id === 'paylinks') loadPayLinks();
   if (id === 'payments') loadPayments();
 }
