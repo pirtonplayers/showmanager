@@ -1405,33 +1405,30 @@ function goHomeFromStatus() {
 document.getElementById('newOrderBtn').addEventListener('click', goHomeFromStatus);
 document.getElementById('notSentHomeBtn').addEventListener('click', goHomeFromStatus);
 
-// ── Service Worker update banner ───────────────────────────────────────────
+// ── Service Worker auto-update ─────────────────────────────────────────────
+// No "new version" prompt: as soon as a new worker is installed it's told to take over and the
+// controllerchange handler reloads the page, so the app always runs the latest version. Updates
+// are also re-checked whenever the app comes back to the foreground (installed PWAs can sit
+// open for days).
 
 function initServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('sw.js').then(reg => {
-    if (reg.waiting) showUpdateBanner(reg.waiting);
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
     reg.addEventListener('updatefound', () => {
       const sw = reg.installing;
       sw.addEventListener('statechange', () => {
-        if (sw.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(sw);
+        if (sw.state === 'installed' && navigator.serviceWorker.controller) sw.postMessage('SKIP_WAITING');
       });
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
     });
   }).catch(e => console.warn('SW failed', e));
 
   let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!reloading) { reloading = true; window.location.reload(); }
-  });
-}
-
-function showUpdateBanner(sw) {
-  const banner = document.getElementById('updateBanner');
-  if (!banner) return;
-  banner.classList.add('visible');
-  document.getElementById('updateBtn').addEventListener('click', () => {
-    banner.querySelector('span').textContent = 'Updating…';
-    sw.postMessage('SKIP_WAITING');
   });
 }
 
