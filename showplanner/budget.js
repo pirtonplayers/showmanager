@@ -3020,9 +3020,10 @@ async function showPayLinkQr(id) {
   box.innerHTML = '';
   new QRCode(box, { text: payLinkQrUrl, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
   const card = document.getElementById('payLinkQrCard');
-  card.style.display = '';
-  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  card.style.display = 'flex';
 }
+document.getElementById('payLinkQrCloseBtn').addEventListener('click', () => { document.getElementById('payLinkQrCard').style.display = 'none'; });
+document.getElementById('payLinkQrCard').addEventListener('click', e => { if (e.target.id === 'payLinkQrCard') e.target.style.display = 'none'; });
 
 document.getElementById('copyPayLinkBtn').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(payLinkQrUrl); showToast('Link copied', 'success'); }
