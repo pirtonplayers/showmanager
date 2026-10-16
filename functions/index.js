@@ -793,7 +793,8 @@ exports.verifyPaymentLinkPayment = onCall({ region: 'europe-west1' }, async (req
   const paymentDoc = await paymentRef.get();
   if (!paymentDoc.exists) throw new HttpsError('not-found', 'Payment not found.');
   const p = paymentDoc.data();
-  const info = { title: p.linkTitle, amount: p.amount, linkId: p.linkId };
+  const linkDoc = await db.collection('showdrinks_payLinks').doc(p.linkId).get();
+  const info = { title: p.linkTitle, amount: p.amount, linkId: p.linkId, message: linkDoc.exists ? (linkDoc.data().successMessage || '') : '' };
   if (p.paymentStatus === 'paid') return { paid: true, test: !!p.test, ...info };
 
   if (p.test) {

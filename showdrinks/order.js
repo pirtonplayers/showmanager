@@ -1610,6 +1610,7 @@ async function showPayLinkResult(paymentId, testOutcome) {
     payLinkShell(`<div style="text-align:center"><div style="font-size:56px">✅</div>
       <div class="pwa-section-title">Payment received</div>
       <p style="color:var(--text-muted)">${escHtml(r.title)} — £${Number(r.amount).toFixed(2)}. Thank you!</p>
+      ${r.message ? `<p style="margin-top:14px;white-space:pre-line">${escHtml(r.message)}</p>` : ''}
       ${r.test ? '<p style="font-size:12px;font-weight:700;color:#b45309">TEST — no money was taken</p>' : ''}</div>`);
   } else {
     const again = r && r.linkId ? `<a class="btn btn-primary btn-full" href="?pay=${encodeURIComponent(r.linkId)}">Try again</a>` : '';

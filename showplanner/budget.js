@@ -2928,6 +2928,7 @@ async function openPayLinkEditor(link) {
   document.getElementById('plDescription').value = link?.description || '';
   document.getElementById('plActive').checked = link ? link.active !== false : true;
   document.getElementById('plTest').checked = !!link?.testMode;
+  document.getElementById('plSuccessMessage').value = link?.successMessage || '';
   document.getElementById('plMerchantCode').value = '';
   document.getElementById('plApiKey').value = '';
   document.getElementById('payLinkEditor').style.display = '';
@@ -2962,6 +2963,7 @@ document.getElementById('savePayLinkBtn').addEventListener('click', async () => 
       description: document.getElementById('plDescription').value.trim(),
       active: document.getElementById('plActive').checked,
       testMode: document.getElementById('plTest').checked,
+      successMessage: document.getElementById('plSuccessMessage').value.trim(),
     }, { merge: true });
     await db.collection('showdrinks_secrets').doc('paylink_' + ref.id).set({ sumupMerchantCode: merchantCode, sumupApiKey: apiKey });
     closePayLinkEditor();
