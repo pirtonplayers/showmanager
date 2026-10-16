@@ -1542,6 +1542,11 @@ function payLinkShell(html) {
   document.title = 'Pirton Players';
   document.getElementById('homeContent').innerHTML =
     '<div style="max-width:420px;margin:0 auto;padding:8px 0">' + html + '</div>';
+  // The browser keeps (or restores, on return from SumUp) the previous scroll position, which
+  // can leave the logo hidden under the address bar — always start at the top.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+  requestAnimationFrame(() => window.scrollTo(0, 0));
 }
 
 async function showPayLinkForm(linkId) {
