@@ -75,6 +75,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'pos') loadPosGrids();
     if (btn.dataset.tab === 'stock') loadStockTab();
     if (btn.dataset.tab === 'show') renderShowsList();
+    if (btn.dataset.tab === 'paylinks') loadPayLinks();
     // .menu-sticky-header is display:none (0 height) whenever this isn't the active tab, so
     // whatever updateMenuTheadStickyTop() computed while loadMenuItems() ran at app init is
     // wrong until it's recomputed with the panel actually visible.
@@ -1444,6 +1445,152 @@ document.getElementById('downloadQrBtn').addEventListener('click', () => {
   link.download = 'showdrinks-qr.png';
   link.href = canvas.toDataURL('image/png');
   link.click();
+});
+
+// ── Payment links ──────────────────────────────────────────────────────────
+// Fixed-price single items (rehearsal subs...) paid through SumUp via a QR/URL —
+// order.js's showPayLinkForm handles the customer side (?pay=<id>). Credentials for a link's own
+// SumUp profile go in showdrinks_secrets/paylink_<id> (admin-only), never on the public link doc.
+
+let _payLinks = [];
+let _payLinkEditId = null;
+let _payLinkQrUrl = '';
+
+function payLinkUrl(id) {
+  const base = window.location.origin + window.location.pathname.replace('admin.html', '');
+  return base.replace(/\/$/, '') + '/index.html?pay=' + encodeURIComponent(id);
+}
+
+async function loadPayLinks() {
+  const list = document.getElementById('payLinksList');
+  try {
+    const [linkSnap, paySnap] = await Promise.all([
+      db.collection('showdrinks_payLinks').get(),
+      db.collection('showdrinks_payments').where('paymentStatus', '==', 'paid').get(),
+    ]);
+    const totals = {};
+    paySnap.docs.forEach(d => {
+      const p = d.data();
+      const t = totals[p.linkId] || (totals[p.linkId] = { n: 0, sum: 0, names: [] });
+      t.n++; t.sum += Number(p.amount) || 0; t.names.push(p.payerName);
+    });
+    _payLinks = linkSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.title.localeCompare(b.title));
+    list.innerHTML = _payLinks.length ? _payLinks.map(l => {
+      const t = totals[l.id] || { n: 0, sum: 0, names: [] };
+      return `<div class="card" style="margin-bottom:12px"><div class="card-body">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <strong>${escHtml(l.title)}${l.active === false ? ' <span style="color:var(--text-muted)">(inactive)</span>' : ''}</strong>
+          <span>${fmtCurrency(l.amount)}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text-muted);margin:4px 0 10px">${t.n} paid · ${fmtCurrency(t.sum)}${t.n ? ' — ' + escHtml(t.names.join(', ')) : ''}</div>
+        <button class="btn btn-primary btn-sm" onclick="showPayLinkQr('${l.id}')">QR / Link</button>
+        <button class="btn btn-secondary btn-sm" onclick="editPayLink('${l.id}')">Edit</button>
+        <button class="btn btn-secondary btn-sm" onclick="deletePayLink('${l.id}')">Delete</button>
+      </div></div>`;
+    }).join('') : '<p style="color:var(--text-muted)">No payment links yet.</p>';
+  } catch (e) {
+    console.error(e);
+    list.innerHTML = '';
+    toast('Could not load payment links', 'error');
+  }
+}
+
+function closePayLinkEditor() {
+  document.getElementById('payLinkEditor').style.display = 'none';
+  _payLinkEditId = null;
+}
+
+async function openPayLinkEditor(link) {
+  _payLinkEditId = link ? link.id : null;
+  document.getElementById('payLinkEditorTitle').textContent = link ? 'Edit payment link' : 'New payment link';
+  document.getElementById('plTitle').value = link?.title || '';
+  document.getElementById('plAmount').value = link?.amount ?? '';
+  document.getElementById('plDescription').value = link?.description || '';
+  document.getElementById('plActive').checked = link ? link.active !== false : true;
+  document.getElementById('plMerchantCode').value = '';
+  document.getElementById('plApiKey').value = '';
+  document.getElementById('payLinkEditor').style.display = '';
+  if (link) {
+    try {
+      const sec = await db.collection('showdrinks_secrets').doc('paylink_' + link.id).get();
+      if (sec.exists) {
+        document.getElementById('plMerchantCode').value = sec.data().sumupMerchantCode || '';
+        document.getElementById('plApiKey').value = sec.data().sumupApiKey || '';
+      }
+    } catch (e) { console.error(e); }
+  }
+}
+
+document.getElementById('newPayLinkBtn').addEventListener('click', () => openPayLinkEditor(null));
+document.getElementById('cancelPayLinkBtn').addEventListener('click', closePayLinkEditor);
+window.editPayLink = id => openPayLinkEditor(_payLinks.find(l => l.id === id));
+
+document.getElementById('savePayLinkBtn').addEventListener('click', async () => {
+  const title = document.getElementById('plTitle').value.trim();
+  const amount = Math.round(parseFloat(document.getElementById('plAmount').value) * 100) / 100;
+  if (!title) { toast('Enter an item name', 'error'); return; }
+  if (!(amount > 0)) { toast('Enter a price above £0', 'error'); return; }
+  const merchantCode = document.getElementById('plMerchantCode').value.trim();
+  const apiKey = document.getElementById('plApiKey').value.trim();
+  if (!!merchantCode !== !!apiKey) { toast('Enter both the merchant code and API key, or neither', 'error'); return; }
+  try {
+    const ref = _payLinkEditId
+      ? db.collection('showdrinks_payLinks').doc(_payLinkEditId)
+      : db.collection('showdrinks_payLinks').doc();
+    await ref.set({
+      title, amount,
+      description: document.getElementById('plDescription').value.trim(),
+      active: document.getElementById('plActive').checked,
+    }, { merge: true });
+    await db.collection('showdrinks_secrets').doc('paylink_' + ref.id).set({ sumupMerchantCode: merchantCode, sumupApiKey: apiKey });
+    closePayLinkEditor();
+    await loadPayLinks();
+    toast('Payment link saved', 'success');
+    showPayLinkQr(ref.id);
+  } catch (e) {
+    console.error(e);
+    toast('Could not save: ' + e.message, 'error');
+  }
+});
+
+window.deletePayLink = async id => {
+  const l = _payLinks.find(x => x.id === id);
+  if (!l || !confirm(`Delete "${l.title}"? Its link and QR code will stop working. Past payments are kept.`)) return;
+  try {
+    await db.collection('showdrinks_payLinks').doc(id).delete();
+    await db.collection('showdrinks_secrets').doc('paylink_' + id).delete();
+    document.getElementById('payLinkQrCard').style.display = 'none';
+    await loadPayLinks();
+  } catch (e) { toast('Could not delete: ' + e.message, 'error'); }
+};
+
+window.showPayLinkQr = async id => {
+  const l = _payLinks.find(x => x.id === id);
+  if (!l) return;
+  try { await loadQrLib(); } catch (e) { toast(e.message, 'error'); return; }
+  _payLinkQrUrl = payLinkUrl(id);
+  document.getElementById('payLinkQrTitle').textContent = `${l.title} — ${fmtCurrency(l.amount)}`;
+  document.getElementById('payLinkQrUrl').textContent = _payLinkQrUrl;
+  const box = document.getElementById('payLinkQr');
+  box.innerHTML = '';
+  new QRCode(box, { text: _payLinkQrUrl, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+  const card = document.getElementById('payLinkQrCard');
+  card.style.display = '';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+};
+
+document.getElementById('copyPayLinkBtn').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(_payLinkQrUrl); toast('Link copied', 'success'); }
+  catch (e) { toast('Could not copy — select and copy the link manually', 'error'); }
+});
+
+document.getElementById('downloadPayLinkQrBtn').addEventListener('click', () => {
+  const canvas = document.querySelector('#payLinkQr canvas');
+  if (!canvas) return;
+  const a = document.createElement('a');
+  a.download = 'payment-link-qr.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
 });
 
 // ── POS Layout ─────────────────────────────────────────────────────────────

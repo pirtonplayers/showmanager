@@ -699,3 +699,94 @@ exports.verifySumupPayment = onCall({ region: 'europe-west1' }, async (request) 
   }
   return { paid: false, status: data.status };
 });
+
+// ── ShowDrinks payment links ─────────────────────────────────────────────
+// A payment link (showdrinks_payLinks/{id}: title, amount) is a fixed-price single item — a
+// rehearsal sub, say — that anyone can pay via a QR/URL (showdrinks/index.html?pay=<id>). Each
+// link can carry its own SumUp merchant code/API key (showdrinks_secrets/paylink_<id>, admin-only),
+// so subs can go to a different SumUp profile than the bar; blank falls back to the same
+// show/system defaults the bar uses. Each attempt is a showdrinks_payments doc (admin-readable).
+
+async function payLinkCredentials(linkId) {
+  const secretDoc = await db.collection('showdrinks_secrets').doc('paylink_' + linkId).get();
+  const secret = secretDoc.exists ? secretDoc.data() : {};
+  if (secret.sumupMerchantCode && secret.sumupApiKey) {
+    return { merchantCode: secret.sumupMerchantCode, apiKey: secret.sumupApiKey };
+  }
+  return sumupCredentials();
+}
+
+exports.createPaymentLinkCheckout = onCall({ region: 'europe-west1' }, async (request) => {
+  const { linkId, payerName } = request.data || {};
+  if (!linkId || typeof linkId !== 'string') throw new HttpsError('invalid-argument', 'linkId is required.');
+  const name = typeof payerName === 'string' ? payerName.trim().slice(0, 80) : '';
+  if (!name) throw new HttpsError('invalid-argument', 'Please enter your name.');
+
+  const linkDoc = await db.collection('showdrinks_payLinks').doc(linkId).get();
+  if (!linkDoc.exists || linkDoc.data().active === false) {
+    throw new HttpsError('not-found', 'This payment link is no longer active.');
+  }
+  const link = linkDoc.data();
+  const amount = Number(Number(link.amount || 0).toFixed(2));
+  if (!(amount > 0)) throw new HttpsError('failed-precondition', 'This payment link has no amount set.');
+
+  const { merchantCode, apiKey } = await payLinkCredentials(linkId);
+  if (!merchantCode || !apiKey) throw new HttpsError('failed-precondition', 'SumUp is not configured for this link.');
+
+  const paymentRef = db.collection('showdrinks_payments').doc();
+  const res = await fetch('https://api.sumup.com/v0.1/checkouts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      checkout_reference: 'link-' + paymentRef.id,
+      amount,
+      currency: 'GBP',
+      merchant_code: merchantCode,
+      description: `${link.title} – ${name}`,
+      redirect_url: `${SHOWDRINKS_ORDER_URL}?sumup=return&payment=${encodeURIComponent(paymentRef.id)}`,
+      hosted_checkout: { enabled: true },
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.hosted_checkout_url) {
+    console.error('SumUp payment-link checkout creation failed', res.status, data);
+    throw new HttpsError('internal', data.message || 'Could not start SumUp checkout.');
+  }
+
+  await paymentRef.set({
+    linkId, linkTitle: link.title, payerName: name, amount,
+    paymentStatus: 'pending', sumupCheckoutId: data.id,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  return { hostedCheckoutUrl: data.hosted_checkout_url, linkId };
+});
+
+// Same rule as verifySumupPayment: the return URL only means "they're back"; the real status
+// always comes from SumUp's own API.
+exports.verifyPaymentLinkPayment = onCall({ region: 'europe-west1' }, async (request) => {
+  const paymentId = request.data?.paymentId;
+  if (!paymentId || typeof paymentId !== 'string') throw new HttpsError('invalid-argument', 'paymentId is required.');
+
+  const paymentRef = db.collection('showdrinks_payments').doc(paymentId);
+  const paymentDoc = await paymentRef.get();
+  if (!paymentDoc.exists) throw new HttpsError('not-found', 'Payment not found.');
+  const p = paymentDoc.data();
+  const info = { title: p.linkTitle, amount: p.amount, linkId: p.linkId };
+  if (p.paymentStatus === 'paid') return { paid: true, ...info };
+
+  const { apiKey } = await payLinkCredentials(p.linkId);
+  if (!apiKey) throw new HttpsError('failed-precondition', 'SumUp is not configured.');
+  const res = await fetch(`https://api.sumup.com/v0.1/checkouts/${p.sumupCheckoutId}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error('SumUp payment-link status check failed', res.status, data);
+    throw new HttpsError('internal', 'Could not confirm payment status with SumUp.');
+  }
+  if (data.status === 'PAID') {
+    await paymentRef.update({ paymentStatus: 'paid', paidAt: FieldValue.serverTimestamp() });
+    return { paid: true, ...info };
+  }
+  return { paid: false, status: data.status, ...info };
+});

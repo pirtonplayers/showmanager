@@ -81,6 +81,16 @@ service cloud.firestore {
     match /showdrinks_secrets/{doc} {
       allow read, write: if hasAccess('showdrinksAdmin');
     }
+    // Payment links (fixed-price single items, e.g. rehearsal subs): the PWA reads title/amount
+    // publicly; their SumUp credentials live in showdrinks_secrets/paylink_<id>. Payments are
+    // written only by Cloud Functions (admin SDK) and read by the admin UI.
+    match /showdrinks_payLinks/{id} {
+      allow read: if true;
+      allow write: if hasAccess('showdrinksAdmin');
+    }
+    match /showdrinks_payments/{id} {
+      allow read, write: if hasAccess('showdrinksAdmin');
+    }
     match /showdrinks_menuItems/{id} {
       allow read: if true;
       allow write: if hasAccess('showdrinksAdmin');

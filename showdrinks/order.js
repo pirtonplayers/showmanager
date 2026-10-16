@@ -5,6 +5,8 @@
 // createSumupCheckout/verifySumupPayment.
 const createSumupCheckoutFn = firebase.app().functions('europe-west1').httpsCallable('createSumupCheckout');
 const verifySumupPaymentFn  = firebase.app().functions('europe-west1').httpsCallable('verifySumupPayment');
+const createPayLinkCheckoutFn = firebase.app().functions('europe-west1').httpsCallable('createPaymentLinkCheckout');
+const verifyPayLinkPaymentFn  = firebase.app().functions('europe-west1').httpsCallable('verifyPaymentLinkPayment');
 
 // ── localStorage ───────────────────────────────────────────────────────────
 
@@ -1484,6 +1486,11 @@ async function init() {
     // Either way (paid or still pending — a customer who backed out without paying, say) the
     // order status screen is the right place to land: it'll just show whatever's actually true.
     const params = new URLSearchParams(window.location.search);
+
+    // Payment links (admin → Payment Links): a QR/URL to pay one fixed-price item, e.g. a
+    // rehearsal sub. Handled before the ordering QR gate below — they're separate from ordering.
+    if (params.get('sumup') === 'return' && params.get('payment')) { await showPayLinkResult(params.get('payment')); return; }
+    if (params.get('pay')) { await showPayLinkForm(params.get('pay')); return; }
     if (params.get('sumup') === 'return' && params.get('ref')) {
       const orderId = params.get('ref');
       try {
@@ -1527,6 +1534,66 @@ async function init() {
   }
 
   renderHomeScreen();
+}
+
+// ── Payment links ──────────────────────────────────────────────────────────
+
+function payLinkShell(html) {
+  document.body.classList.add('sub-screen');
+  document.getElementById('homeContent').innerHTML =
+    '<div style="max-width:420px;margin:0 auto;padding:8px 0">' + html + '</div>';
+}
+
+async function showPayLinkForm(linkId) {
+  let link = null;
+  try {
+    const doc = await db.collection('showdrinks_payLinks').doc(linkId).get();
+    if (doc.exists && doc.data().active !== false) link = doc.data();
+  } catch (e) { console.error(e); }
+  if (!link) {
+    payLinkShell('<div class="pwa-section-title">This payment link is no longer valid</div>');
+    return;
+  }
+  document.title = link.title;
+  payLinkShell(`
+    <div class="pwa-section-title">${escHtml(link.title)}</div>
+    <div style="font-size:34px;font-weight:900;color:var(--primary);margin:4px 0 16px">£${Number(link.amount).toFixed(2)}</div>
+    ${link.description ? `<p style="color:var(--text-muted);font-size:14px;margin-bottom:16px">${escHtml(link.description)}</p>` : ''}
+    <div class="form-group">
+      <label for="payLinkName">Your name</label>
+      <input type="text" id="payLinkName" class="form-control" autocomplete="name" maxlength="80">
+    </div>
+    <button class="btn btn-primary btn-full btn-lg" id="payLinkBtn" style="height:52px;border-radius:12px;background:#00b4d8">💳 Pay £${Number(link.amount).toFixed(2)} with SumUp</button>
+    <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:8px">You'll be taken to a secure payment page.</p>`);
+  const btn = document.getElementById('payLinkBtn');
+  btn.onclick = async () => {
+    const name = document.getElementById('payLinkName').value.trim();
+    if (!name) { toast('Please enter your name', 'error'); return; }
+    btn.disabled = true; btn.textContent = 'Redirecting to SumUp…';
+    try {
+      const result = await createPayLinkCheckoutFn({ linkId, payerName: name });
+      window.location.href = result.data.hostedCheckoutUrl;
+    } catch (e) {
+      toast(e.message || 'Could not start SumUp checkout', 'error');
+      btn.disabled = false; btn.textContent = `💳 Pay £${Number(link.amount).toFixed(2)} with SumUp`;
+    }
+  };
+}
+
+async function showPayLinkResult(paymentId) {
+  let r = null;
+  try { r = (await verifyPayLinkPaymentFn({ paymentId })).data; } catch (e) { console.error(e); }
+  history.replaceState({}, '', window.location.pathname);
+  if (r && r.paid) {
+    payLinkShell(`<div style="text-align:center"><div style="font-size:56px">✅</div>
+      <div class="pwa-section-title">Payment received</div>
+      <p style="color:var(--text-muted)">${escHtml(r.title)} — £${Number(r.amount).toFixed(2)}. Thank you!</p></div>`);
+  } else {
+    const again = r && r.linkId ? `<a class="btn btn-primary btn-full" href="?pay=${encodeURIComponent(r.linkId)}">Try again</a>` : '';
+    payLinkShell(`<div style="text-align:center"><div style="font-size:56px">⚠️</div>
+      <div class="pwa-section-title">Payment not completed</div>
+      <p style="color:var(--text-muted);margin-bottom:16px">We couldn't confirm a payment, so you haven't been charged.</p>${again}</div>`);
+  }
 }
 
 init();
