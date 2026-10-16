@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <!-- Runs before anything else paints — see shared/embed.js — so this page's own header/
        sidebar never flash into view when it's loaded inside the showmanager shell's iframe. -->
-  <script src="../shared/embed.js?v=1.1.185"></script>
+  <script src="../shared/embed.js?v=1.1.186"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#6d28d9">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ShowPlanner</title>
-  <link rel="manifest" href="manifest.json?v=1.1.185">
-  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.1.185">
-  <link rel="stylesheet" href="style.css?v=1.1.185">
+  <link rel="manifest" href="manifest.json?v=1.1.186">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=1.1.186">
+  <link rel="stylesheet" href="style.css?v=1.1.186">
 </head>
 <body class="theme-showplanner">
 
@@ -190,13 +190,6 @@
     <div id="tab-editor" class="tab-panel">
       <div class="section-header no-print">
         <h2 id="editorTitle">Show budget</h2>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-sm" id="backToShowsBtn">← All shows</button>
-          <button class="btn btn-secondary btn-sm" id="setTemplateBtn">Make this the template</button>
-          <button class="btn btn-secondary btn-sm" id="exportExcelBtn">⬇ Export to Excel</button>
-          <button class="btn btn-secondary btn-sm" id="printBtn">🖨 Print / PDF</button>
-          <button class="btn btn-danger btn-sm" id="deleteShowBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>
-        </div>
       </div>
 
       <div class="print-header" style="display:none">
@@ -457,10 +450,16 @@
       <div class="summary-grid" id="forecastCards"></div>
       </div>
 
-      <div class="no-print" style="margin:20px 0 60px">
-        <button class="btn btn-primary" id="saveShowBtn">Save changes</button>
-        <button class="btn btn-secondary" id="planAddTasksBtn" style="margin-left:8px">Pull in tasks</button>
-        <span id="saveStatusText" class="muted" style="margin-left:10px"></span>
+      <!-- All the show's controls live in this one sticky bar at the bottom of the page. -->
+      <div class="no-print show-action-bar">
+        <button class="btn btn-primary btn-sm" id="saveShowBtn">Save changes</button>
+        <button class="btn btn-secondary btn-sm" id="planAddTasksBtn">Pull in tasks</button>
+        <button class="btn btn-secondary btn-sm" id="backToShowsBtn">← All shows</button>
+        <button class="btn btn-secondary btn-sm" id="setTemplateBtn">Make this the template</button>
+        <button class="btn btn-secondary btn-sm" id="exportExcelBtn">⬇ Export to Excel</button>
+        <button class="btn btn-secondary btn-sm" id="printBtn">🖨 Print / PDF</button>
+        <button class="btn btn-danger btn-sm" id="deleteShowBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>
+        <span id="saveStatusText" class="muted"></span>
       </div>
     </div>
 
@@ -763,11 +762,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-<script src="../shared/version.js?v=1.1.185"></script>
-<script src="../shared/load-script.js?v=1.1.185"></script>
-<script src="../shared/firebase-config.js?v=1.1.185"></script>
-<script src="../shared/auth.js?v=1.1.185"></script>
-<script src="../shared/suite-nav.js?v=1.1.185"></script>
-<script src="budget.js?v=1.1.185"></script>
+<script src="../shared/version.js?v=1.1.186"></script>
+<script src="../shared/load-script.js?v=1.1.186"></script>
+<script src="../shared/firebase-config.js?v=1.1.186"></script>
+<script src="../shared/auth.js?v=1.1.186"></script>
+<script src="../shared/suite-nav.js?v=1.1.186"></script>
+<script src="budget.js?v=1.1.186"></script>
 </body>
 </html>
