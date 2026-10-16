@@ -39,7 +39,6 @@ const APP_SUBNAV = {
     { id: 'locations', label: 'Locations', selector: '[data-tab="locations"]' },
     { id: 'orgs', label: 'Organisations', selector: '#orgsMenuBtn', action: true },
     { id: 'pos', label: 'POS Layout', selector: '[data-tab="pos"]' },
-    { id: 'paylinks', label: 'Payment Links', selector: '[data-tab="paylinks"]' },
     { id: 'settings', label: 'Settings & QR', selector: '[data-tab="settings"]' },
   ],
   budget: [

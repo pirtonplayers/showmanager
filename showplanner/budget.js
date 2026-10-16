@@ -342,6 +342,7 @@ function switchShowSubtab(id) {
   document.getElementById('showsubtab-' + id).classList.add('active');
   document.querySelectorAll('.show-subtab-btn[data-subtab]').forEach(b => b.classList.toggle('active', b.dataset.subtab === id));
   updatePullTasksBtnVisibility();
+  if (id === 'paylinks') loadPayLinks();
 }
 // "Pull in tasks" lives beside Save changes (outside the sub-tab panels) but only makes sense on
 // the Plan sub-tab, and only for someone who can edit the plan on a real (non-template) show.
@@ -2808,3 +2809,173 @@ function showUpdateBanner() {
 
 initServiceWorker();
 document.getElementById('headerVersion').textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '';
+
+// ── Payment links (show sub-tab) ─────────────────────────────────────────
+// A QR/URL to pay one fixed-price item through SumUp (rehearsal subs...). Each link belongs to
+// the open show (showId) and can carry its own SumUp merchant code/API key, kept in
+// showdrinks_secrets/paylink_<id> (never on the public link doc). The customer side is
+// showdrinks/order.js's showPayLinkForm (?pay=<id>); payments are recorded by Cloud Functions.
+
+let payLinks = [];
+let payLinkEditId = null;
+let payLinkQrUrl = '';
+let qrLibPromise = null;
+
+function loadQrLib() {
+  if (window.QRCode) return Promise.resolve();
+  if (qrLibPromise) return qrLibPromise;
+  qrLibPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.onload = resolve;
+    s.onerror = () => { qrLibPromise = null; reject(new Error('Could not load QR code library')); };
+    document.head.appendChild(s);
+  });
+  return qrLibPromise;
+}
+
+function fmtGbp(n) { return '£' + Number(n || 0).toFixed(2); }
+function payLinkUrl(id) {
+  const u = new URL('../showdrinks/index.html', window.location.href);
+  return u.origin + u.pathname + '?pay=' + encodeURIComponent(id);
+}
+
+async function loadPayLinks() {
+  const list = document.getElementById('payLinksList');
+  if (!currentShowId) { list.innerHTML = ''; return; }
+  try {
+    const [linkSnap, paySnap] = await Promise.all([
+      db.collection('showdrinks_payLinks').where('showId', '==', currentShowId).get(),
+      db.collection('showdrinks_payments').where('showId', '==', currentShowId).where('paymentStatus', '==', 'paid').get(),
+    ]);
+    const totals = {};
+    paySnap.docs.forEach(d => {
+      const p = d.data();
+      const t = totals[p.linkId] || (totals[p.linkId] = { n: 0, sum: 0, names: [] });
+      t.n++; t.sum += Number(p.amount) || 0; t.names.push(p.payerName);
+    });
+    payLinks = linkSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.title.localeCompare(b.title));
+    list.innerHTML = payLinks.length ? payLinks.map(l => {
+      const t = totals[l.id] || { n: 0, sum: 0, names: [] };
+      return `<div class="card" style="margin-bottom:12px"><div class="card-body">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <strong>${escapeHtml(l.title)}${l.active === false ? ' <span style="color:var(--text-muted)">(inactive)</span>' : ''}</strong>
+          <span>${fmtGbp(l.amount)}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text-muted);margin:4px 0 10px">${t.n} paid · ${fmtGbp(t.sum)}${t.n ? ' — ' + escapeHtml(t.names.join(', ')) : ''}</div>
+        <button class="btn btn-primary btn-sm" data-pl-qr="${l.id}">QR / Link</button>
+        <button class="btn btn-secondary btn-sm" data-pl-edit="${l.id}">Edit</button>
+        <button class="btn btn-secondary btn-sm" data-pl-del="${l.id}">Delete</button>
+      </div></div>`;
+    }).join('') : '<p style="color:var(--text-muted)">No payment links for this show yet.</p>';
+  } catch (e) {
+    console.error(e);
+    list.innerHTML = '';
+    showToast('Could not load payment links', 'error');
+  }
+}
+
+document.getElementById('payLinksList').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.plQr) showPayLinkQr(b.dataset.plQr);
+  if (b.dataset.plEdit) openPayLinkEditor(payLinks.find(l => l.id === b.dataset.plEdit));
+  if (b.dataset.plDel) deletePayLink(b.dataset.plDel);
+});
+
+function closePayLinkEditor() {
+  document.getElementById('payLinkEditor').style.display = 'none';
+  payLinkEditId = null;
+}
+
+async function openPayLinkEditor(link) {
+  payLinkEditId = link ? link.id : null;
+  document.getElementById('payLinkEditorTitle').textContent = link ? 'Edit payment link' : 'New payment link';
+  document.getElementById('plTitle').value = link?.title || '';
+  document.getElementById('plAmount').value = link?.amount ?? '';
+  document.getElementById('plDescription').value = link?.description || '';
+  document.getElementById('plActive').checked = link ? link.active !== false : true;
+  document.getElementById('plMerchantCode').value = '';
+  document.getElementById('plApiKey').value = '';
+  document.getElementById('payLinkEditor').style.display = '';
+  if (link) {
+    try {
+      const sec = await db.collection('showdrinks_secrets').doc('paylink_' + link.id).get();
+      if (sec.exists) {
+        document.getElementById('plMerchantCode').value = sec.data().sumupMerchantCode || '';
+        document.getElementById('plApiKey').value = sec.data().sumupApiKey || '';
+      }
+    } catch (e) { console.error(e); }
+  }
+}
+
+document.getElementById('newPayLinkBtn').addEventListener('click', () => openPayLinkEditor(null));
+document.getElementById('cancelPayLinkBtn').addEventListener('click', closePayLinkEditor);
+
+document.getElementById('savePayLinkBtn').addEventListener('click', async () => {
+  const title = document.getElementById('plTitle').value.trim();
+  const amount = Math.round(parseFloat(document.getElementById('plAmount').value) * 100) / 100;
+  if (!title) { showToast('Enter an item name', 'error'); return; }
+  if (!(amount > 0)) { showToast('Enter a price above £0', 'error'); return; }
+  const merchantCode = document.getElementById('plMerchantCode').value.trim();
+  const apiKey = document.getElementById('plApiKey').value.trim();
+  if (!!merchantCode !== !!apiKey) { showToast('Enter both the merchant code and API key, or neither', 'error'); return; }
+  try {
+    const ref = payLinkEditId
+      ? db.collection('showdrinks_payLinks').doc(payLinkEditId)
+      : db.collection('showdrinks_payLinks').doc();
+    await ref.set({
+      title, amount, showId: currentShowId,
+      description: document.getElementById('plDescription').value.trim(),
+      active: document.getElementById('plActive').checked,
+    }, { merge: true });
+    await db.collection('showdrinks_secrets').doc('paylink_' + ref.id).set({ sumupMerchantCode: merchantCode, sumupApiKey: apiKey });
+    closePayLinkEditor();
+    await loadPayLinks();
+    showToast('Payment link saved', 'success');
+    showPayLinkQr(ref.id);
+  } catch (e) {
+    console.error(e);
+    showToast('Could not save: ' + e.message, 'error');
+  }
+});
+
+async function deletePayLink(id) {
+  const l = payLinks.find(x => x.id === id);
+  if (!l || !confirm(`Delete "${l.title}"? Its link and QR code will stop working. Past payments are kept.`)) return;
+  try {
+    await db.collection('showdrinks_payLinks').doc(id).delete();
+    await db.collection('showdrinks_secrets').doc('paylink_' + id).delete();
+    document.getElementById('payLinkQrCard').style.display = 'none';
+    await loadPayLinks();
+  } catch (e) { showToast('Could not delete: ' + e.message, 'error'); }
+}
+
+async function showPayLinkQr(id) {
+  const l = payLinks.find(x => x.id === id);
+  if (!l) return;
+  try { await loadQrLib(); } catch (e) { showToast(e.message, 'error'); return; }
+  payLinkQrUrl = payLinkUrl(id);
+  document.getElementById('payLinkQrTitle').textContent = `${l.title} — ${fmtGbp(l.amount)}`;
+  document.getElementById('payLinkQrUrl').textContent = payLinkQrUrl;
+  const box = document.getElementById('payLinkQr');
+  box.innerHTML = '';
+  new QRCode(box, { text: payLinkQrUrl, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+  const card = document.getElementById('payLinkQrCard');
+  card.style.display = '';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+document.getElementById('copyPayLinkBtn').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(payLinkQrUrl); showToast('Link copied', 'success'); }
+  catch (e) { showToast('Could not copy — select and copy the link manually', 'error'); }
+});
+
+document.getElementById('downloadPayLinkQrBtn').addEventListener('click', () => {
+  const canvas = document.querySelector('#payLinkQr canvas');
+  if (!canvas) return;
+  const a = document.createElement('a');
+  a.download = 'payment-link-qr.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+});

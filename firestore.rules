@@ -79,17 +79,20 @@ service cloud.firestore {
     // kept out of showdrinks_config/showdrinks_shows because those are publicly readable. Only the
     // admin UI and Cloud Functions (admin SDK, bypasses rules) ever touch this.
     match /showdrinks_secrets/{doc} {
-      allow read, write: if hasAccess('showdrinksAdmin');
+      allow read, write: if hasAccess('showdrinksAdmin') ||
+        (doc.matches('paylink_.*') && hasAccess('showplanner')); // payment links are managed from ShowPlanner
     }
     // Payment links (fixed-price single items, e.g. rehearsal subs): the PWA reads title/amount
-    // publicly; their SumUp credentials live in showdrinks_secrets/paylink_<id>. Payments are
+    // publicly; their SumUp credentials live in showdrinks_secrets/paylink_<id>. Managed from ShowPlanner's
+    // show "Payment Links" sub-tab. Payments are
     // written only by Cloud Functions (admin SDK) and read by the admin UI.
     match /showdrinks_payLinks/{id} {
       allow read: if true;
-      allow write: if hasAccess('showdrinksAdmin');
+      allow write: if hasAccess('showdrinksAdmin') || hasAccess('showplanner');
     }
     match /showdrinks_payments/{id} {
-      allow read, write: if hasAccess('showdrinksAdmin');
+      allow read: if hasAccess('showdrinksAdmin') || hasAccess('showplanner');
+      allow write: if hasAccess('showdrinksAdmin');
     }
     match /showdrinks_menuItems/{id} {
       allow read: if true;

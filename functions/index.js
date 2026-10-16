@@ -754,7 +754,7 @@ exports.createPaymentLinkCheckout = onCall({ region: 'europe-west1' }, async (re
   }
 
   await paymentRef.set({
-    linkId, linkTitle: link.title, payerName: name, amount,
+    linkId, showId: link.showId || null, linkTitle: link.title, payerName: name, amount,
     paymentStatus: 'pending', sumupCheckoutId: data.id,
     createdAt: FieldValue.serverTimestamp(),
   });
