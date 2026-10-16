@@ -3040,3 +3040,15 @@ document.getElementById('downloadPayLinkQrBtn').addEventListener('click', () => 
   a.href = canvas.toDataURL('image/png');
   a.click();
 });
+
+// ── ⋯ menu on the show page ──
+(function () {
+  const menu = document.getElementById('showMenu');
+  document.getElementById('showMenuBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    menu.style.display = menu.style.display === 'none' ? '' : 'none';
+  });
+  // Any pick (the buttons keep their own handlers) or a tap elsewhere closes it.
+  menu.addEventListener('click', () => { menu.style.display = 'none'; });
+  document.addEventListener('click', () => { menu.style.display = 'none'; });
+})();
