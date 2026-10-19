@@ -24,9 +24,9 @@ const SMTP_FROM = defineSecret('SMTP_FROM');
 const SMTP_SECRETS = [SMTP_USER, SMTP_PASS, SMTP_FROM];
 const SSO_SECRET = defineSecret('SSO_SECRET');
 
-const EXPENSES_ADMIN_URL = 'https://antonjung.github.io/showmanager/expenses/admin.html';
-const PORTAL_URL = 'https://antonjung.github.io/showmanager/index.html';
-const SHOWDRINKS_ORDER_URL = 'https://antonjung.github.io/showmanager/showdrinks/index.html';
+const EXPENSES_ADMIN_URL = 'https://pirtonplayers.github.io/showmanager/expenses/admin.html';
+const PORTAL_URL = 'https://pirtonplayers.github.io/showmanager/index.html';
+const SHOWDRINKS_ORDER_URL = 'https://pirtonplayers.github.io/showmanager/showdrinks/index.html';
 
 function transporter() {
   return nodemailer.createTransport({

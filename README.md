@@ -59,7 +59,7 @@ back there instead of managing users itself.
    budget:true}`, `mustChangePassword: false`. They can now sign in at `/` and create everyone
    else from Users.
 5. **Hosting**: static site, no build step — push to GitHub with Pages enabled on `main` / root.
-   `https://antonjung.github.io/showmanager/`.
+   `https://pirtonplayers.github.io/showmanager/`.
 6. **PWA icons**: `icons/icon.svg` (and each app's own `icons/icon.svg`) need converting to
    `icon-192.png`/`icon-512.png` (any SVG-to-PNG tool) — expenses already ships its full PNG set;
    showdrinks and budget currently ship the SVG source only.
