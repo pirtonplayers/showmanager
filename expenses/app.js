@@ -647,7 +647,10 @@ function updateTravelCost() {
     miles > 0 && pence > 0 ? `Cost: £${travelCost(miles, pence).toFixed(2)}` : '';
 }
 document.getElementById('expenseTypeSelect').addEventListener('change', syncExpenseType);
-document.getElementById('milesInput').addEventListener('input', updateTravelCost);
+document.getElementById('milesInput').addEventListener('input', (e) => {
+  e.target.value = e.target.value.replace(/\D/g, ''); // whole miles only
+  updateTravelCost();
+});
 document.getElementById('penceInput').addEventListener('input', updateTravelCost);
 
 function closeExpenseModal() {
@@ -766,7 +769,7 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
 
   if (!showId) { statusEl.textContent = 'Please select a show.'; return; }
   if (isTravel) {
-    if (!(miles > 0) || !(pencePerMile > 0)) { statusEl.textContent = 'Please enter the miles and pence per mile.'; return; }
+    if (!Number.isInteger(miles) || !(miles > 0) || !(pencePerMile > 0)) { statusEl.textContent = 'Please enter the miles and pence per mile.'; return; }
     if (!reason) { statusEl.textContent = 'Please give a reason for travel.'; return; }
   }
   if (!description) { statusEl.textContent = 'Please describe the expense.'; return; }
