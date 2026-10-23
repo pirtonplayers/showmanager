@@ -52,9 +52,10 @@ service cloud.firestore {
     // extra receipt photo after the fact) — everything else (amount, paid, description...) stays
     // locked to expensesAdmin even for the doc's own owner. A receipt is mandatory on every
     // expense — receiptPaths must be a non-empty array — enforced here too, not just in app.js's
-    // own form validation, since this is the actual security boundary.
+    // own form validation, since this is the actual security boundary. The one exception is a
+    // mileage claim (isTravel == true), which has no receipt to attach.
     match /expenses/{id} {
-      allow create: if request.resource.data.receiptPaths.size() > 0 && (hasAccess('expensesAdmin') ||
+      allow create: if (request.resource.data.receiptPaths.size() > 0 || request.resource.data.get('isTravel', false) == true) && (hasAccess('expensesAdmin') ||
         (request.auth != null && hasAccess('expenses') && request.resource.data.userEmail == request.auth.token.email));
       allow read: if hasAccess('expensesAdmin') || (request.auth != null && resource.data.userEmail == request.auth.token.email);
       allow update: if hasAccess('expensesAdmin') ||

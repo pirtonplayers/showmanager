@@ -595,17 +595,61 @@ function openExpenseModal(id) {
   document.getElementById('formStatus').textContent = '';
   document.getElementById('expenseModalTitle').textContent = p ? 'Edit expense' : 'Add expense';
   document.getElementById('submitBtn').textContent = p ? 'Save changes' : '+ Add to list';
+  document.getElementById('expenseTypeSelect').value = 'standard';
+  document.getElementById('penceInput').value = 55;
   if (p) {
     document.getElementById('showSelect').value = p.showId;
-    document.getElementById('descInput').value = p.description;
-    document.getElementById('amountInput').value = p.amount;
+    if (p.isTravel) {
+      document.getElementById('expenseTypeSelect').value = 'travel';
+      document.getElementById('milesInput').value = p.miles;
+      document.getElementById('penceInput').value = p.pencePerMile;
+      document.getElementById('travelReasonInput').value = p.reason || '';
+    } else {
+      document.getElementById('descInput').value = p.description;
+      document.getElementById('amountInput').value = p.amount;
+    }
   } else if (lastSelectedShowId) {
     document.getElementById('showSelect').value = lastSelectedShowId;
   }
+  syncExpenseType();
   renderNewReceiptPreview();
   renderEditingExistingReceipts();
   document.getElementById('expenseModal').style.display = 'flex';
 }
+// Travel (mileage) claims swap the description/amount fields for miles/pence-per-mile/reason and
+// need no receipt. Hidden fields lose `required` so the browser doesn't block submit on them.
+function isTravelSelected() {
+  return document.getElementById('expenseTypeSelect').value === 'travel';
+}
+function travelDescription(miles, pence, reason) {
+  const base = `Travel ${miles} miles @ ${pence}p per mile`;
+  return reason ? `${base} - ${reason}` : base;
+}
+function travelCost(miles, pence) {
+  return Math.round(miles * pence) / 100;
+}
+function syncExpenseType() {
+  const travel = isTravelSelected();
+  document.getElementById('standardFields').style.display = travel ? 'none' : '';
+  document.getElementById('travelFields').style.display = travel ? '' : 'none';
+  document.getElementById('receiptGroup').style.display = travel ? 'none' : '';
+  document.getElementById('descInput').required = !travel;
+  document.getElementById('amountInput').required = !travel;
+  document.getElementById('milesInput').required = travel;
+  document.getElementById('penceInput').required = travel;
+  document.getElementById('travelReasonInput').required = travel;
+  updateTravelCost();
+}
+function updateTravelCost() {
+  const miles = Number(document.getElementById('milesInput').value);
+  const pence = Number(document.getElementById('penceInput').value);
+  document.getElementById('travelCostText').textContent =
+    miles > 0 && pence > 0 ? `Cost: £${travelCost(miles, pence).toFixed(2)}` : '';
+}
+document.getElementById('expenseTypeSelect').addEventListener('change', syncExpenseType);
+document.getElementById('milesInput').addEventListener('input', updateTravelCost);
+document.getElementById('penceInput').addEventListener('input', updateTravelCost);
+
 function closeExpenseModal() {
   document.getElementById('expenseModal').style.display = 'none';
 }
@@ -711,11 +755,20 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
   const showSelect = document.getElementById('showSelect');
   const showId = showSelect.value;
   const showName = showSelect.selectedOptions[0]?.dataset.name || '';
-  const description = document.getElementById('descInput').value.trim();
-  const amount = Number(document.getElementById('amountInput').value);
-  const files = newReceiptFiles;
+  const isTravel = isTravelSelected();
+  const miles = Number(document.getElementById('milesInput').value);
+  const pencePerMile = Number(document.getElementById('penceInput').value);
+  const reason = document.getElementById('travelReasonInput').value.trim();
+  const description = isTravel ? travelDescription(miles, pencePerMile, reason) : document.getElementById('descInput').value.trim();
+  const amount = isTravel ? travelCost(miles, pencePerMile) : Number(document.getElementById('amountInput').value);
+  const files = isTravel ? [] : newReceiptFiles;
+  const travelFields = isTravel ? { isTravel: true, miles, pencePerMile, reason } : { isTravel: false };
 
   if (!showId) { statusEl.textContent = 'Please select a show.'; return; }
+  if (isTravel) {
+    if (!(miles > 0) || !(pencePerMile > 0)) { statusEl.textContent = 'Please enter the miles and pence per mile.'; return; }
+    if (!reason) { statusEl.textContent = 'Please give a reason for travel.'; return; }
+  }
   if (!description) { statusEl.textContent = 'Please describe the expense.'; return; }
   if (!Number.isFinite(amount) || amount <= 0) { statusEl.textContent = 'Please enter a valid amount.'; return; }
   // A receipt is mandatory — newly-picked files count, and so does whatever's already attached
@@ -724,7 +777,7 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
   const existingReceiptCount = editingPendingId
     ? (pendingExpenses.find(x => x.id === editingPendingId)?.receiptPaths.filter(rp => !editingRemovedReceiptPaths.includes(rp)).length || 0)
     : 0;
-  if (!files.length && !existingReceiptCount) { statusEl.textContent = 'Please attach at least one receipt photo.'; return; }
+  if (!isTravel && !files.length && !existingReceiptCount) { statusEl.textContent = 'Please attach at least one receipt photo.'; return; }
   lastSelectedShowId = showId;
 
   const wasEditing = editingPendingId;
@@ -755,11 +808,12 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
       p.showName = showName;
       p.description = description;
       p.amount = amount;
+      Object.assign(p, travelFields);
       p.receiptPaths = p.receiptPaths.filter(rp => !editingRemovedReceiptPaths.includes(rp)).concat(newReceiptPaths);
     } else {
       // Also the fallback if wasEditing was set but that item's gone (submitted/removed from
       // under it) — add it as new rather than silently dropping it.
-      pendingExpenses.push({ id: crypto.randomUUID(), showId, showName, description, amount, receiptPaths: newReceiptPaths });
+      pendingExpenses.push({ id: crypto.randomUUID(), showId, showName, description, amount, ...travelFields, receiptPaths: newReceiptPaths });
     }
     resetExpenseForm();
     closeExpenseModal();
@@ -799,6 +853,7 @@ document.getElementById('submitAllBtn').addEventListener('click', async () => {
           showName: p.showName,
           description: p.description,
           amount: p.amount,
+          isTravel: !!p.isTravel,
           userName: state.name,
           userEmail: state.email,
           receiptPaths: p.receiptPaths,
