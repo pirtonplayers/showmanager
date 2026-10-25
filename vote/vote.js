@@ -26,6 +26,7 @@ function lockBallot(choice) {
   $('ballot').hidden = true;
   $('prompt').hidden = true;
   $('thanks').hidden = false;
+  $('thanks').className = `thanks ${choice === 'guilty' ? 'guilty' : 'not-guilty'}`;
   $('thanks').textContent = `Thank you — your vote (${choice === 'guilty' ? 'Guilty' : 'Not guilty'}) has been recorded.`;
 }
 
@@ -41,6 +42,7 @@ async function castVote(field) {
     }, { merge: true });
     if (TEST_MODE) {
       $('thanks').hidden = false;
+      $('thanks').className = `thanks ${field === 'guilty' ? 'guilty' : 'not-guilty'}`;
       $('thanks').textContent = `Test vote recorded (${field === 'guilty' ? 'Guilty' : 'Not guilty'}). You can vote again.`;
       $('guiltyBtn').disabled = $('notGuiltyBtn').disabled = false;
       return;
