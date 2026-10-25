@@ -92,7 +92,7 @@ bumpApp({
 });
 bumpApp({
   dir: 'vote',
-  assets: ['style.css', 'vote.js', 'results.js', '../shared/firebase-config.js'],
+  assets: ['style.css', 'vote.js', 'results.js', 'logo.svg', '../shared/firebase-config.js'],
   html: ['index.html', 'results.html'],
 });
 bumpApp({
