@@ -23,6 +23,7 @@ const SMTP_PASS = defineSecret('SMTP_PASS');
 const SMTP_FROM = defineSecret('SMTP_FROM');
 const SMTP_SECRETS = [SMTP_USER, SMTP_PASS, SMTP_FROM];
 const SSO_SECRET = defineSecret('SSO_SECRET');
+const VOTE_ADMIN_KEY = defineSecret('VOTE_ADMIN_KEY');
 
 const EXPENSES_ADMIN_URL = 'https://pirtonplayers.github.io/showmanager/expenses/admin.html';
 const PORTAL_URL = 'https://pirtonplayers.github.io/showmanager/index.html';
@@ -820,4 +821,18 @@ exports.verifyPaymentLinkPayment = onCall({ region: 'europe-west1' }, async (req
     return { paid: true, ...info };
   }
   return { paid: false, status: data.status, ...info };
+});
+
+// ── Vote ───────────────────────────────────────────────────────────────────
+// vote_totals is write-only from clients (see firestore.rules); the admin results page (reached by
+// its own QR code, no login) fetches the totals here, proving itself with the VOTE_ADMIN_KEY secret.
+exports.getVoteTotals = onCall({ region: 'europe-west1', secrets: [VOTE_ADMIN_KEY] }, async (request) => {
+  const given = Buffer.from(String(request.data?.key || ''));
+  const expected = Buffer.from(VOTE_ADMIN_KEY.value());
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+    throw new HttpsError('permission-denied', 'Invalid results key.');
+  }
+  const snap = await db.collection('vote_totals').doc('verdict').get();
+  const { guilty = 0, notGuilty = 0 } = snap.data() || {};
+  return { guilty, notGuilty };
 });

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1f2937">
+  <title>Verdict</title>
+  <link rel="stylesheet" href="style.css?v=1.1.194">
+</head>
+<body>
+<main class="vote-card">
+  <h1>Your verdict</h1>
+  <p class="muted" id="prompt">How do you find the defendant?</p>
+  <div id="ballot" class="buttons">
+    <button class="vote-btn guilty" id="guiltyBtn">Guilty</button>
+    <button class="vote-btn not-guilty" id="notGuiltyBtn">Not guilty</button>
+  </div>
+  <p id="thanks" class="thanks" hidden></p>
+  <p id="error" class="error" hidden></p>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="../shared/firebase-config.js?v=1.1.194"></script>
+<script src="vote.js?v=1.1.194"></script>
+</body>
+</html>

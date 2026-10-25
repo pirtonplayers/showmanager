@@ -149,6 +149,27 @@ service cloud.firestore {
       allow read, write: if hasAccess('showdrinksAdmin') || hasAccess('showdrinksTabsPos');
     }
 
+    // ── Vote (guilty / not guilty) ──────────────────────────────────────────
+    // Public, no login, reached by QR code. One WRITE-ONLY totals doc, vote_totals/verdict
+    // {guilty, notGuilty}: nobody can read it from a client (the admin reads it through the
+    // getVoteTotals Cloud Function, which checks a secret key). Anyone can create it (starting at
+    // 1/0) or bump exactly one counter by exactly 1 - nothing else, so a client can't set
+    // arbitrary totals or delete the doc.
+    match /vote_totals/{id} {
+      allow create: if id == 'verdict' &&
+        request.resource.data.keys().hasOnly(['guilty', 'notGuilty']) &&
+        request.resource.data.guilty is int && request.resource.data.notGuilty is int &&
+        request.resource.data.guilty >= 0 && request.resource.data.notGuilty >= 0 &&
+        request.resource.data.guilty + request.resource.data.notGuilty == 1;
+      allow update: if id == 'verdict' &&
+        request.resource.data.keys().hasOnly(['guilty', 'notGuilty']) &&
+        request.resource.data.guilty is int && request.resource.data.notGuilty is int &&
+        request.resource.data.guilty >= resource.data.guilty &&
+        request.resource.data.notGuilty >= resource.data.notGuilty &&
+        request.resource.data.guilty + request.resource.data.notGuilty ==
+          resource.data.guilty + resource.data.notGuilty + 1;
+    }
+
     // ── ShowBudget ───────────────────────────────────────────────────────────
     match /budget_shows/{id} {
       allow read, write: if hasAccess('budget');

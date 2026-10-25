@@ -91,6 +91,11 @@ bumpApp({
   html: ['index.html', 'manifest.json'],
 });
 bumpApp({
+  dir: 'vote',
+  assets: ['style.css', 'vote.js', 'results.js', '../shared/firebase-config.js'],
+  html: ['index.html', 'results.html'],
+});
+bumpApp({
   dir: 'showdrinks', swCache: 'showdrinks',
   assets: [
     'style.css', 'admin.js', 'order.js',
