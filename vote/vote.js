@@ -7,6 +7,9 @@
 
 const totalsRef = db.collection('vote_totals').doc('verdict');
 const VOTED_KEY = 'vote_verdict_cast';
+// ?mode=test lifts the one-vote-per-browser lock so the same device can vote repeatedly. The votes
+// still count in the real totals - delete vote_totals/verdict afterwards to clear them.
+const TEST_MODE = new URLSearchParams(location.search).get('mode') === 'test';
 
 const $ = id => document.getElementById(id);
 
@@ -36,6 +39,12 @@ async function castVote(field) {
       guilty: inc(field === 'guilty' ? 1 : 0),
       notGuilty: inc(field === 'notGuilty' ? 1 : 0),
     }, { merge: true });
+    if (TEST_MODE) {
+      $('thanks').hidden = false;
+      $('thanks').textContent = `Test vote recorded (${field === 'guilty' ? 'Guilty' : 'Not guilty'}). You can vote again.`;
+      $('guiltyBtn').disabled = $('notGuiltyBtn').disabled = false;
+      return;
+    }
     try { localStorage.setItem(VOTED_KEY, field); } catch { /* private mode: vote still counted */ }
     lockBallot(field);
   } catch (err) {
@@ -49,4 +58,4 @@ $('guiltyBtn').addEventListener('click', () => castVote('guilty'));
 $('notGuiltyBtn').addEventListener('click', () => castVote('notGuilty'));
 
 const already = readVoted();
-if (already) lockBallot(already);
+if (already && !TEST_MODE) lockBallot(already);
