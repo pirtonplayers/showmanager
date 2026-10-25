@@ -1,4 +1,4 @@
-:root { --bg: #f3f4f6; --text: #111827; --muted: #6b7280; --guilty: #b91c1c; --not-guilty: #15803d; }
+:root { --bg: #f1f5f9; --text: #111827; --muted: #6b7280; --guilty: #b91c1c; --not-guilty: #15803d; }
 * { box-sizing: border-box; }
 body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
   background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
