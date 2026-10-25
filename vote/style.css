@@ -1,8 +1,8 @@
 :root { --bg: #4f46e5; --text: #ffffff; --muted: rgba(255,255,255,.8); --guilty: #b91c1c; --not-guilty: #15803d; }
 * { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+body { margin: 0; min-height: 100vh; display: flex; align-items: flex-start; justify-content: center;
   background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
-.vote-card { width: 100%; max-width: 480px; margin: 20px; padding: 24px; text-align: center; }
+.vote-card { width: 100%; max-width: 480px; margin: 0 20px; padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: 24px; text-align: center; }
 h1 { margin: 0 0 4px; }
 .muted { color: var(--muted); font-size: 14px; }
 .buttons { display: flex; flex-direction: column; gap: 16px; margin-top: 20px; }
