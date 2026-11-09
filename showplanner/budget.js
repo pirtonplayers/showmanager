@@ -1940,12 +1940,7 @@ async function saveShow() {
   const statusEl = document.getElementById('saveStatusText');
   if (!currentShow || !currentShowId) return;
   if (!currentShow.name?.trim()) { statusEl.textContent = 'Enter a show name to save'; return; }
-  if (!currentShow.isTemplate && currentUserCanEditPlan()) {
-    const checked = new Set(Array.from(document.querySelectorAll('#planAccessList input:checked')).map(cb => cb.value));
-    const map = {};
-    allShowplannerUsers.forEach(u => { map[u.id] = checked.has(u.id) ? 'edit' : 'read'; });
-    currentShow.planAccess = map;
-  }
+  // planAccess is written directly by savePlanAccess(); it's just carried through in the payload.
   const showId = currentShowId;
   const payload = {
     name: currentShow.name.trim(),
