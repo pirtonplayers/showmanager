@@ -8,9 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Pirton Players</title>
-  <link rel="manifest" href="manifest.json?v=1.1.206">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1.1.206">
-  <link rel="stylesheet" href="style.css?v=1.1.206">
+  <link rel="manifest" href="manifest.json?v=1.1.207">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1.1.207">
+  <link rel="stylesheet" href="style.css?v=1.1.207">
 </head>
 <body class="theme-portal">
 
@@ -163,7 +163,10 @@
       <div class="card">
         <div class="card-header">
           <h2>All users</h2>
-          <button class="btn btn-primary btn-sm" id="openAddUserBtn">+ Add user</button>
+          <span style="display:flex;gap:8px">
+            <button class="btn btn-secondary btn-sm" id="cleanupOrphansBtn" title="Remove user records that have no login behind them (shown as duplicates)">Clean up duplicates</button>
+            <button class="btn btn-primary btn-sm" id="openAddUserBtn">+ Add user</button>
+          </span>
         </div>
         <div class="card-body">
           <!-- autocomplete="off" — otherwise the browser can silently autofill this with the
@@ -251,12 +254,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-<script src="shared/version.js?v=1.1.206"></script>
-<script src="shared/firebase-config.js?v=1.1.206"></script>
-<script src="shared/auth.js?v=1.1.206"></script>
-<script src="shared/suite-nav.js?v=1.1.206"></script>
-<script src="shared/load-script.js?v=1.1.206"></script>
-<script src="shared/a2hs.js?v=1.1.206"></script>
-<script src="portal.js?v=1.1.206"></script>
+<script src="shared/version.js?v=1.1.207"></script>
+<script src="shared/firebase-config.js?v=1.1.207"></script>
+<script src="shared/auth.js?v=1.1.207"></script>
+<script src="shared/suite-nav.js?v=1.1.207"></script>
+<script src="shared/load-script.js?v=1.1.207"></script>
+<script src="shared/a2hs.js?v=1.1.207"></script>
+<script src="portal.js?v=1.1.207"></script>
 </body>
 </html>

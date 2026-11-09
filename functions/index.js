@@ -353,6 +353,39 @@ exports.deleteUser = onCall({ region: 'europe-west1' }, async (request) => {
   return { ok: true };
 });
 
+// Finds users/{uid} docs with no matching Firebase Auth account (left behind when an account is
+// removed in the Firebase console, or by a re-run migration) — they show up as duplicate people
+// in the portal's Users list and every app's people pickers. dryRun (the default) only reports;
+// dryRun:false deletes just those docs. Never touches an Auth account, and aborts before deleting
+// anything if the Auth listing didn't complete.
+exports.cleanupOrphanUsers = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireManager(request);
+  const dryRun = request.data?.dryRun !== false;
+
+  const authUids = new Set();
+  let pageToken;
+  do {
+    const page = await getAuth().listUsers(1000, pageToken);
+    page.users.forEach(u => authUids.add(u.uid));
+    pageToken = page.pageToken;
+  } while (pageToken);
+
+  const snap = await db.collection('users').get();
+  const orphans = snap.docs.filter(d => !authUids.has(d.id));
+
+  if (!dryRun) {
+    for (let i = 0; i < orphans.length; i += 400) {
+      const batch = db.batch();
+      orphans.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+  return {
+    ok: true, dryRun,
+    orphans: orphans.map(d => ({ id: d.id, name: d.data().name || '', email: d.data().email || '' })),
+  };
+});
+
 // Emails someone a link to the portal (the one shared login every app sits behind) plus
 // whatever note the manager typed. Manager-only — unlike sendUserLink below, this isn't scoped
 // to one app's admin, since it's the portal's own Users screen sending it. Doesn't require the

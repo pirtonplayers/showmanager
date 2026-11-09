@@ -949,6 +949,25 @@ document.getElementById('importMembersConfirmBtn').addEventListener('click', asy
   }
 });
 
+document.getElementById('cleanupOrphansBtn').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const fn = functionsRegion.httpsCallable('cleanupOrphanUsers');
+    const { orphans } = (await fn({ dryRun: true })).data;
+    if (!orphans.length) { showToast('No orphaned user records found', 'success'); return; }
+    const list = orphans.map(o => `• ${o.name || '(no name)'} — ${o.email || '(no email)'}`).join('\n');
+    if (!confirm(`${orphans.length} user record(s) have no login behind them:\n\n${list}\n\nDelete these records? No real logins are affected.`)) return;
+    await fn({ dryRun: false });
+    showToast(`Removed ${orphans.length} orphaned record(s)`, 'success');
+    await loadUsers();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 document.getElementById('userList').addEventListener('click', async (e) => {
   const editBtn = e.target.closest('[data-edit-user]'); // icon-btn's <svg> is the actual click target
   if (editBtn) { openEditUserModal(editBtn.getAttribute('data-edit-user')); return; }
