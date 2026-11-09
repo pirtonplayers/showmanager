@@ -532,22 +532,40 @@ document.getElementById('pullTasksConfirmBtn').addEventListener('click', async (
 let allShowplannerUsers = []; // [{id, name, email}] — everyone with an actual ShowPlanner login
 let allMembers = [];          // [{id, name, email}] — showdrinks_tabMembers, the whole suite's shared "everyone" directory
 
+// People data is all-or-nothing: until BOTH lists have loaded successfully, names show as
+// "Loading data…" (never a made-up "(unknown)") and the people picker holds back. A failed load
+// retries on its own until it succeeds, then redraws whatever is on screen.
+let peopleReady = false;
+let peopleRetryTimer = null;
 async function loadShowplannerUsers() {
-  try {
-    const result = await functionsRegion.httpsCallable('listShowplannerUsers')();
-    allShowplannerUsers = result.data.users || [];
-  } catch (err) {
-    console.warn('listShowplannerUsers failed', err);
-    allShowplannerUsers = [];
-  }
+  const result = await functionsRegion.httpsCallable('listShowplannerUsers')();
+  allShowplannerUsers = result.data.users || [];
 }
 async function loadShowplannerMembers() {
+  const snap = await db.collection('showdrinks_tabMembers').orderBy('name').get();
+  allMembers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+async function loadPeople(attempt = 0) {
+  clearTimeout(peopleRetryTimer);
   try {
-    const snap = await db.collection('showdrinks_tabMembers').orderBy('name').get();
-    allMembers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    await Promise.all([loadShowplannerUsers(), loadShowplannerMembers()]);
+    peopleReady = true;
+    redrawPeopleViews();
   } catch (err) {
-    console.warn('loadShowplannerMembers failed', err);
-    allMembers = [];
+    console.warn('loading people failed, retrying', err);
+    peopleReady = false;
+    peopleRetryTimer = setTimeout(() => loadPeople(attempt + 1), Math.min(2000 * (attempt + 1), 15000));
+  }
+}
+function redrawPeopleViews() {
+  if (!currentShow) return;
+  renderRolesCard();
+  renderCastCard();
+  renderTasksCard();
+  renderPlanAccessCard();
+  if (document.getElementById('assignRoleModal').style.display === 'flex') {
+    const checked = Array.from(document.querySelectorAll('#assignRoleChecklist input:checked')).map(cb => cb.value);
+    renderPeopleModalList(checked, document.getElementById('assignRoleFilter').value);
   }
 }
 // Roles/tasks can be assigned to anyone in the general membership, not just accounts with their
@@ -562,6 +580,7 @@ function assignablePeople() {
 }
 function userName(idVal) {
   if (isGuestId(idVal)) return idVal.slice(6);
+  if (!peopleReady) return 'Loading data…';
   return allShowplannerUsers.find(u => u.id === idVal)?.name
     || allMembers.find(m => m.id === idVal)?.name
     || '(unknown)';
@@ -787,6 +806,11 @@ function openPeopleModal(title, selectedIds, onSave) {
   document.getElementById('assignRoleModal').style.display = 'flex';
 }
 function renderPeopleModalList(selectedIds, filterText) {
+  if (!peopleReady) {
+    document.getElementById('assignRoleChecklist').innerHTML = '<p class="muted" style="padding:6px">Loading data…</p>';
+    document.getElementById('assignRoleAddGuestRow').style.display = 'none';
+    return;
+  }
   const selectedSet = new Set(selectedIds);
   const people = assignablePeople();
   // Guests already assigned won't be in assignablePeople() (they're not real accounts/members)
@@ -843,6 +867,7 @@ function planAccessEditorIds() {
 }
 function renderPlanAccessCard() {
   const el = document.getElementById('planAccessList');
+  if (!peopleReady) { el.innerHTML = '<p class="muted" style="padding:6px">Loading data…</p>'; return; }
   const ids = planAccessEditorIds();
   const canEdit = currentUserCanEditPlan();
   document.getElementById('planAccessAddBtn').style.display = canEdit ? '' : 'none';
@@ -2749,8 +2774,7 @@ firebase.auth().onAuthStateChanged(async user => {
         // templates/people must never leave the Shows list blank.
         await loadShows();
         try { await ensureTemplateExists(); } catch (err) { console.error('ensureTemplateExists failed', err); }
-        await loadShowplannerUsers();
-        await loadShowplannerMembers();
+        loadPeople(); // not awaited: names show "Loading data…" and redraw themselves when it lands
         try { await loadTemplates(); } catch (err) { console.error('loadTemplates failed', err); }
         await loadShows();
       }
