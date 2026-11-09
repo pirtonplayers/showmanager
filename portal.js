@@ -949,6 +949,25 @@ document.getElementById('importMembersConfirmBtn').addEventListener('click', asy
   }
 });
 
+document.getElementById('mergeDuplicatesBtn').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const fn = functionsRegion.httpsCallable('mergeDuplicateUsers');
+    const { groups } = (await fn({ dryRun: true })).data;
+    if (!groups.length) { showToast('No duplicate users found', 'success'); return; }
+    const list = groups.map(g => `• ${g.email} — ${g.remove.length + 1} logins → 1 (${g.remove.length} removed)`).join('\n');
+    if (!confirm(`Merge these duplicate users?\n\n${list}\n\nShow roles, task assignments and plan access are moved to the login that's kept, and it gets the combined permissions. The extra logins are permanently deleted.`)) return;
+    await fn({ dryRun: false });
+    showToast(`Merged ${groups.length} duplicate user(s)`, 'success');
+    await loadUsers();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 document.getElementById('cleanupOrphansBtn').addEventListener('click', async (e) => {
   const btn = e.currentTarget;
   btn.disabled = true;

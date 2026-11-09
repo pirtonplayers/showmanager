@@ -363,6 +363,133 @@ exports.deleteUser = onCall({ region: 'europe-west1' }, async (request) => {
   return { ok: true };
 });
 
+async function listAllAuthUsers() {
+  const all = [];
+  let pageToken;
+  do {
+    const page = await getAuth().listUsers(1000, pageToken);
+    all.push(...page.users);
+    pageToken = page.pageToken;
+  } while (pageToken);
+  return all;
+}
+
+// Several Auth accounts can share one email (password-less accounts aren't forced unique — a
+// double-fired SSO link used to create them). This merges each such group into one "keeper":
+// every ShowPlanner reference to a duplicate's uid (planAccess, roleAssignments, castAssignments,
+// task assigneeIds) is repointed at the keeper, the keeper's users doc gets the union of the
+// group's Manager/access flags, then the duplicates' users docs and Auth accounts are deleted.
+// Keeper = the caller if they're in the group, else the most-referenced, then most recently
+// signed-in, then oldest. dryRun (default) only reports the plan.
+exports.mergeDuplicateUsers = onCall({ region: 'europe-west1' }, async (request) => {
+  await requireManager(request);
+  const dryRun = request.data?.dryRun !== false;
+
+  const groups = new Map();
+  for (const u of await listAllAuthUsers()) {
+    if (!u.email) continue;
+    const k = u.email.trim().toLowerCase();
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(u);
+  }
+  const dupGroups = [...groups.entries()].filter(([, v]) => v.length > 1);
+  if (!dupGroups.length) return { ok: true, dryRun, groups: [] };
+
+  // One pass over every ShowPlanner doc that can mention a uid.
+  const dupUids = new Set(dupGroups.flatMap(([, v]) => v.map(u => u.uid)));
+  const refDocs = [];                // [{ ref, data }]
+  const refCount = new Map();        // uid -> number of docs mentioning it
+  const mentions = (data) => {
+    const found = new Set();
+    Object.keys(data.planAccess || {}).forEach(k => dupUids.has(k) && found.add(k));
+    for (const f of ['roleAssignments', 'castAssignments']) {
+      Object.values(data[f] || {}).forEach(arr => (Array.isArray(arr) ? arr : []).forEach(x => dupUids.has(x) && found.add(x)));
+    }
+    (data.assigneeIds || []).forEach(x => dupUids.has(x) && found.add(x));
+    return found;
+  };
+  const scan = (docs) => docs.forEach(d => {
+    const found = mentions(d.data());
+    if (!found.size) return;
+    refDocs.push({ ref: d.ref, data: d.data() });
+    found.forEach(uid => refCount.set(uid, (refCount.get(uid) || 0) + 1));
+  });
+  scan((await db.collection('showplanner_shows').get()).docs);
+  scan((await db.collection('showplanner_templates').get()).docs);
+  scan((await db.collectionGroup('tasks').get()).docs.filter(d => /^showplanner_(shows|templates)\//.test(d.ref.path)));
+
+  const plan = dupGroups.map(([email, accts]) => {
+    const rank = (u) => [
+      u.uid === request.auth.uid ? 1 : 0,
+      refCount.get(u.uid) || 0,
+      Date.parse(u.metadata.lastSignInTime || 0) || 0,
+      -(Date.parse(u.metadata.creationTime || 0) || 0),
+    ];
+    const sorted = [...accts].sort((a, b) => {
+      const ra = rank(a), rb = rank(b);
+      for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return rb[i] - ra[i];
+      return 0;
+    });
+    return { email, keep: sorted[0], remove: sorted.slice(1) };
+  });
+  const remap = new Map(); // duplicate uid -> keeper uid
+  plan.forEach(p => p.remove.forEach(u => remap.set(u.uid, p.keep.uid)));
+
+  if (!dryRun) {
+    const mapIds = (arr) => [...new Set((arr || []).map(x => remap.get(x) || x))];
+    for (const { ref, data } of refDocs) {
+      const update = {};
+      if (data.planAccess && Object.keys(data.planAccess).some(k => remap.has(k))) {
+        const pa = {};
+        for (const [k, v] of Object.entries(data.planAccess)) {
+          const nk = remap.get(k) || k;
+          pa[nk] = (pa[nk] === 'edit' || v === 'edit') ? 'edit' : v;
+        }
+        update.planAccess = pa;
+      }
+      for (const f of ['roleAssignments', 'castAssignments']) {
+        if (!data[f]) continue;
+        const touched = Object.values(data[f]).some(arr => Array.isArray(arr) && arr.some(x => remap.has(x)));
+        if (touched) update[f] = Object.fromEntries(Object.entries(data[f]).map(([k, arr]) => [k, Array.isArray(arr) ? mapIds(arr) : arr]));
+      }
+      if ((data.assigneeIds || []).some(x => remap.has(x))) update.assigneeIds = mapIds(data.assigneeIds);
+      if (Object.keys(update).length) await ref.update(update);
+    }
+
+    for (const p of plan) {
+      const docs = await Promise.all([p.keep, ...p.remove].map(u => db.collection('users').doc(u.uid).get()));
+      const datas = docs.map(d => d.exists ? d.data() : null).filter(Boolean);
+      const accessKeys = ['expenses', 'expensesAdmin', 'showdrinksAdmin', 'showdrinksTabsPos', 'budget', 'showplanner'];
+      const merged = {
+        isManager: datas.some(d => d.isManager === true),
+        access: Object.fromEntries(accessKeys.map(k => [k, datas.some(d => d.access?.[k] === true)])),
+      };
+      const keeperDoc = docs[0];
+      if (keeperDoc.exists) {
+        await keeperDoc.ref.update(merged);
+      } else {
+        await keeperDoc.ref.set({
+          name: datas[0]?.name || p.keep.displayName || p.email, email: p.email, ...merged,
+          mustChangePassword: false, createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+      for (const u of p.remove) {
+        await db.collection('users').doc(u.uid).delete();
+        await getAuth().deleteUser(u.uid).catch((err) => { if (err.code !== 'auth/user-not-found') throw err; });
+      }
+    }
+  }
+
+  return {
+    ok: true, dryRun,
+    groups: plan.map(p => ({
+      email: p.email,
+      keep: { id: p.keep.uid, refs: refCount.get(p.keep.uid) || 0 },
+      remove: p.remove.map(u => ({ id: u.uid, refs: refCount.get(u.uid) || 0 })),
+    })),
+  };
+});
+
 // Finds users/{uid} docs with no matching Firebase Auth account (left behind when an account is
 // removed in the Firebase console, or by a re-run migration) — they show up as duplicate people
 // in the portal's Users list and every app's people pickers. dryRun (the default) only reports;
@@ -372,13 +499,7 @@ exports.cleanupOrphanUsers = onCall({ region: 'europe-west1' }, async (request) 
   await requireManager(request);
   const dryRun = request.data?.dryRun !== false;
 
-  const authUids = new Set();
-  let pageToken;
-  do {
-    const page = await getAuth().listUsers(1000, pageToken);
-    page.users.forEach(u => authUids.add(u.uid));
-    pageToken = page.pageToken;
-  } while (pageToken);
+  const authUids = new Set((await listAllAuthUsers()).map(u => u.uid));
 
   const snap = await db.collection('users').get();
   const orphans = snap.docs.filter(d => !authUids.has(d.id));
