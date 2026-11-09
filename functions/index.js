@@ -141,7 +141,17 @@ exports.ssoLogin = onRequest({ region: 'europe-west1', secrets: [SSO_SECRET] }, 
       user = await getAuth().getUserByEmail(email);
     } catch (err) {
       if (err.code !== 'auth/user-not-found') throw err;
-      user = await getAuth().createUser({ email, displayName: name });
+      // Deterministic uid per email: Firebase Auth allows several password-less accounts with the
+      // same email, so two concurrent requests (double-click, link previewers) that both saw
+      // "not found" used to create two accounts. A fixed uid makes the second create fail
+      // atomically with uid-already-exists, and we just fetch the account the first one made.
+      const uid = 'sso' + crypto.createHash('sha256').update(email).digest('hex').slice(0, 25);
+      try {
+        user = await getAuth().createUser({ uid, email, displayName: name });
+      } catch (e2) {
+        if (e2.code !== 'auth/uid-already-exists') throw e2;
+        user = await getAuth().getUser(uid);
+      }
     }
     if (user.disabled) return back('sso-error=disabled');
     const userRef = db.collection('users').doc(user.uid);
