@@ -643,8 +643,10 @@ function renderPosGrid() {
     if (!cell || cell.type === 'empty') return `<button class="pos-btn empty" disabled></button>`;
     const style = cell.color
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
-    const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
     const menuItem = cell.type === 'item' ? state.menuItems.find(mi => mi.id === cell.menuItemId) : null;
+    // Live menu price — the grid's own menuItemPrice is only a copy taken when the cell was saved.
+    const shownPrice = menuItem ? menuItem.price : cell.menuItemPrice;
+    const price = cell.type === 'item' && shownPrice ? fmtCurrency(shownPrice) : '';
     // In a buy-now session, anything that isn't a Buy Now item isn't just dimmed, it's not shown at
     // all. Other sessions show Buy Now items that have been placed in the grid (this cell is one).
     if (state.sessionBuyNow && cell.type === 'item' && !(menuItem && sessionOffers(menuItem))) {

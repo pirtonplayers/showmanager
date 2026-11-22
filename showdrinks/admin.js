@@ -1587,13 +1587,20 @@ function posRenderEditor() {
     </div>`;
 }
 
+// Live menu price for a grid cell — the cell's own menuItemPrice is only a copy taken when it was
+// saved, so it goes stale when the item's price is edited.
+function posLivePrice(cell) {
+  const mi = cell?.menuItemId ? _allMenuItems.find(i => i.id === cell.menuItemId) : null;
+  return mi ? mi.price : (cell?.menuItemPrice || 0);
+}
+
 function posRenderAdminCell(cell, idx) {
   const isEmpty = !cell || cell.type==='empty';
   const bg = (!isEmpty && cell.color)
     ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
   const icon = {item:'🛒',grid:'▶',back:'◀',finish:'✓',clear:'✕',plus:'＋',minus:'－',empty:''}[cell?.type||'empty'];
   const label = cell?.label || '';
-  const price = cell?.type==='item' && cell?.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
+  const price = cell?.type==='item' && posLivePrice(cell) ? fmtCurrency(posLivePrice(cell)) : '';
   return `<div class="pos-admin-cell ${isEmpty?'':'filled'}" style="${bg}"
                ${!isEmpty?`draggable="true" ondragstart="posCellDragStart(event,${idx})"`:''}
                onclick="posOpenCell(${idx})"
@@ -1841,7 +1848,7 @@ function posRenderTestGrid() {
     if (!cell || cell.type === 'empty') return `<button class="pos-btn empty" disabled></button>`;
     const style = cell.color
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
-    const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
+    const price = cell.type === 'item' && posLivePrice(cell) ? fmtCurrency(posLivePrice(cell)) : '';
     return `<button class="pos-btn" style="${style}" onclick="handlePosTestBtn(${i})">
       <span class="pb-lbl">${escHtml(cell.label || '')}</span>
       ${price ? `<span class="pb-price">${price}</span>` : ''}
@@ -1877,7 +1884,7 @@ window.handlePosTestBtn = function(idx) {
   if (!cell || cell.type === 'empty') return;
   if (cell.type === 'item') {
     const key = cell.label || cell.menuItemId;
-    if (!_testBasket[key]) _testBasket[key] = { name: cell.label, price: cell.menuItemPrice || 0, qty: 0 };
+    if (!_testBasket[key]) _testBasket[key] = { name: cell.label, price: posLivePrice(cell), qty: 0 };
     _testBasket[key].qty += 1;
     _testSelectedKey = key;
     // Test mode has no long-press to simulate, so Sticky (grid.sticky) is the only thing that
@@ -2248,7 +2255,7 @@ function renderTabGrid() {
     if (!cell || cell.type === 'empty') return `<button class="pos-btn empty" disabled></button>`;
     const style = cell.color
       ? `background:${cell.color};color:${posIsLight(cell.color)?'#1e293b':'#fff'};border-color:${cell.color};` : '';
-    const price = cell.type === 'item' && cell.menuItemPrice ? fmtCurrency(cell.menuItemPrice) : '';
+    const price = cell.type === 'item' && posLivePrice(cell) ? fmtCurrency(posLivePrice(cell)) : '';
     // Live lookup (the cell itself only stores a denormalized label/price) — off-sale (or, same
     // treatment, customer-only) items are dimmed and untappable, but the button stays put; the
     // grid's own layout is meaningful and shared with the customer ordering screen's POS grid.
@@ -2473,7 +2480,7 @@ window.handleTabPosBtn = function(idx, isLongPress) {
     const liveItem = _allMenuItems.find(mi => mi.id === cell.menuItemId);
     if (liveItem && (liveItem.onSale === false || !itemShowsOnTab(liveItem))) return; // shouldn't be reachable — button is disabled — but no error pill either way
     const key = cell.label || cell.menuItemId;
-    if (!_tabBasket[key]) _tabBasket[key] = { name: cell.label, price: cell.menuItemPrice || 0, qty: 0 };
+    if (!_tabBasket[key]) _tabBasket[key] = { name: cell.label, price: posLivePrice(cell), qty: 0 };
     _tabBasket[key].qty += 1;
     _tabSelectedKey = key;
     // Long press stays on this grid (adding several from the same category in a row) — so does a
