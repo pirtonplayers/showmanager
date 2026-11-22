@@ -379,6 +379,20 @@ async function loadMenuItems() {
 
   renderMenuCategoryBar();
   renderMenuTable();
+
+  // POS grids show each item's live price, so repaint them (and re-price any open tab basket)
+  // now that _allMenuItems has fresh prices — otherwise they stay stale until re-opened.
+  try {
+    Object.values(_tabBasket).forEach(b => {
+      const mi = _allMenuItems.find(i => i.name === b.name);
+      if (mi && typeof mi.price === 'number') b.price = mi.price;
+    });
+    if (document.getElementById('posEditor') && _posGrids[_posActiveId]) posRenderEditor();
+    posRenderTestGrid();
+    renderTabGrid();
+    renderTabListMenu();
+    renderTabBasket();
+  } catch (e) { /* POS state not initialised yet on first load — nothing to repaint */ }
 }
 
 function renderMenuCategoryBar() {
