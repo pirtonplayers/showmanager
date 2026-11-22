@@ -1436,6 +1436,27 @@ function initServiceWorker() {
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 
+// Keeps state.menuItems live after the initial load, so price / on-sale edits made in Admin show
+// up on an already-open ordering screen without a refresh. The first snapshot just repeats the
+// initial get() so it's skipped. Anything already in the basket is re-priced to the new menu price.
+function subscribeToMenuItems() {
+  let first = true;
+  db.collection('showdrinks_menuItems').orderBy('name').onSnapshot(snap => {
+    if (first) { first = false; return; }
+    state.menuItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    Object.values(state.basket).forEach(b => {
+      const mi = state.menuItems.find(i => i.name === b.name);
+      if (mi && typeof mi.price === 'number') b.price = mi.price;
+    });
+    try {
+      renderPosGrid();
+      renderOrderGrid();
+      if (!isPosMode()) renderListMenu();
+      updateBottomBar();
+    } catch (e) { console.error(e); }
+  }, e => console.error('menu items listener', e));
+}
+
 async function init() {
   initServiceWorker();
 
@@ -1528,6 +1549,8 @@ async function init() {
       return;
     }
     if (code && given === code) { try { localStorage.setItem('showdrinks_k', code); } catch {} }
+
+    subscribeToMenuItems();
 
   } catch(e) {
     console.error(e);
