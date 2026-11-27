@@ -438,5 +438,16 @@ body.menu-open::before { content:''; position:fixed; inset:0; z-index:40; }
   .expense-table th { font-size: 9px; padding: 3px 8px; }
   .expense-table td { padding: 3px 8px !important; font-size: 10px; }
 }
+/* Printing a single receipt photo (receiptViewPrintBtn): the photo alone, fitted to one page. */
+@media print {
+  body.printing-receipt { background: #fff; }
+  body.printing-receipt > *:not(#receiptViewModal) { display: none !important; }
+  body.printing-receipt #receiptViewModal { position: static !important; display: block !important; background: none !important; padding: 0 !important; }
+  body.printing-receipt #receiptViewModal .modal-card { max-width: none !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; background: none !important; }
+  body.printing-receipt #receiptViewModal .modal-header,
+  body.printing-receipt #receiptViewModal .modal-body > *:not(img) { display: none !important; }
+  body.printing-receipt #receiptViewModal .modal-body { padding: 0 !important; }
+  body.printing-receipt #receiptViewImg { display: block; max-width: 100% !important; max-height: 265mm; margin: 0 auto !important; border-radius: 0 !important; }
+}
 .receipt-pdf-tile { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:6px; border:1px solid var(--border); background:var(--bg); font-size:12px; font-weight:700; cursor:pointer; color:var(--text); text-decoration:none; }
 .receipt-pdf-tile-lg { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:14px; margin-top:10px; border-radius:var(--radius); border:1px solid var(--border); background:var(--surface); font-weight:600; color:var(--text); text-decoration:none; }

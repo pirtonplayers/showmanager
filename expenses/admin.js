@@ -52,6 +52,7 @@ async function viewReceipt(path) {
   img.src = '';
   img.style.display = pdf ? 'none' : '';
   link.style.display = pdf ? '' : 'none';
+  document.getElementById('receiptViewPrintBtn').style.display = pdf ? 'none' : '';
   document.getElementById('receiptViewModal').style.display = 'flex';
   try {
     const url = await storage.ref(path).getDownloadURL();
@@ -64,7 +65,17 @@ async function viewReceipt(path) {
 function closeReceiptViewModal() {
   document.getElementById('receiptViewModal').style.display = 'none';
   document.getElementById('receiptViewImg').src = '';
+  document.body.classList.remove('printing-receipt');
 }
+// Photos only — a PDF receipt opens in the browser's own viewer, which has its own print button.
+// The class (see @media print in style.css) stays on until the modal closes rather than being
+// removed straight after print(), which doesn't block on every mobile browser.
+document.getElementById('receiptViewPrintBtn').addEventListener('click', () => {
+  const img = document.getElementById('receiptViewImg');
+  if (!img.complete || !img.naturalWidth) return showToast('Receipt photo is still loading', 'info');
+  document.body.classList.add('printing-receipt');
+  window.print();
+});
 document.getElementById('receiptViewCloseBtn').addEventListener('click', closeReceiptViewModal);
 document.getElementById('receiptViewModal').addEventListener('click', (e) => {
   if (e.target.id === 'receiptViewModal') closeReceiptViewModal();

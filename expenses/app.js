@@ -488,6 +488,7 @@ function openReceiptModal(src, onDelete, isPdf) {
   const link = document.getElementById('receiptViewPdfLink');
   img.style.display = isPdf ? 'none' : '';
   link.style.display = isPdf ? '' : 'none';
+  document.getElementById('receiptViewPrintBtn').style.display = isPdf ? 'none' : '';
   if (isPdf) link.href = src; else img.src = src;
   document.getElementById('receiptViewModal').style.display = 'flex';
   document.getElementById('receiptViewDeleteBtn').onclick = () => {
@@ -499,7 +500,17 @@ function openReceiptModal(src, onDelete, isPdf) {
 function closeReceiptModal() {
   document.getElementById('receiptViewModal').style.display = 'none';
   document.getElementById('receiptViewImg').src = '';
+  document.body.classList.remove('printing-receipt');
 }
+// Photos only — a PDF receipt opens in the browser's own viewer, which has its own print button.
+// The class (see @media print in style.css) stays on until the modal closes rather than being
+// removed straight after print(), which doesn't block on every mobile browser.
+document.getElementById('receiptViewPrintBtn').addEventListener('click', () => {
+  const img = document.getElementById('receiptViewImg');
+  if (!img.complete || !img.naturalWidth) return showToast('Receipt photo is still loading', 'info');
+  document.body.classList.add('printing-receipt');
+  window.print();
+});
 document.getElementById('receiptViewCloseBtn').addEventListener('click', closeReceiptModal);
 document.getElementById('receiptViewModal').addEventListener('click', (e) => {
   if (e.target.id === 'receiptViewModal') closeReceiptModal();
